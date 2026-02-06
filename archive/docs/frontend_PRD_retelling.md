@@ -1,3 +1,6 @@
+> Archived at: 2026-02-06
+> Superseded by: PRD_MVP.md, frontend/PRD_MVP_FRONTEND.md, backend/PRD_MVP_BACKEND.md
+
 # PRD 文档（复述训练 Web 版）
 
 1. 需求背景
