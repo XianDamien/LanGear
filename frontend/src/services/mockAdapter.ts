@@ -1,7 +1,6 @@
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 import { mockDashboardData } from './mock/dashboard'
 import { mockDeckTree, mockLessonCards } from './mock/decks'
-import { mockSubmitReview } from './mock/study'
 import { mockLessonSummary } from './mock/summary'
 import { mockSettings } from './mock/settings'
 import type { SettingsData } from '@/types/api'
@@ -50,10 +49,96 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
     return data ? mockResolve(data) : mockError('NOT_FOUND', '课程不存在')
   }
 
+  // v2.0: GET /oss/sts-token
+  if (method === 'get' && url === '/oss/sts-token') {
+    await delay()
+    return mockResolve({
+      access_key_id: 'STS.mock123',
+      access_key_secret: 'mock-secret',
+      security_token: 'mock-token',
+      expiration: new Date(Date.now() + 3600000).toISOString(),
+      bucket: 'langear',
+      region: 'oss-cn-shanghai'
+    })
+  }
+
+  // v2.0: POST /study/submissions（异步版本）
   if (method === 'post' && url === '/study/submissions') {
-    await delay(800)
-    const body = parseBody(config) as { cardId?: unknown }
-    return mockResolve(mockSubmitReview(String(body?.cardId ?? ''), ''))
+    await delay(200)
+    const submissionId = Math.floor(Math.random() * 10000)
+    sessionStorage.setItem(
+      `submission_${submissionId}`,
+      JSON.stringify({
+        status: 'processing',
+        timestamp: Date.now()
+      })
+    )
+    return mockResolve({
+      submission_id: submissionId,
+      status: 'processing'
+    })
+  }
+
+  // v2.0: GET /study/submissions/{id}
+  const pollMatch = url.match(/^\/study\/submissions\/(\d+)$/)
+  if (method === 'get' && pollMatch) {
+    await delay(500)
+    const submissionId = pollMatch[1]
+    const stored = sessionStorage.getItem(`submission_${submissionId}`)
+
+    if (!stored) {
+      return mockError('NOT_FOUND', 'Submission not found', 404)
+    }
+
+    const data = JSON.parse(stored)
+    const elapsed = Date.now() - data.timestamp
+
+    // 模拟3秒处理时间
+    if (elapsed < 3000) {
+      return mockResolve({
+        submission_id: Number(submissionId),
+        status: 'processing',
+        progress: elapsed < 1500 ? 'asr_completed' : 'ai_processing'
+      })
+    } else {
+      sessionStorage.removeItem(`submission_${submissionId}`)
+      return mockResolve({
+        submission_id: Number(submissionId),
+        status: 'completed',
+        result_type: 'single',
+        transcription: {
+          text: 'This is a mock transcription',
+          timestamps: [
+            { word: 'This', start: 0.0, end: 0.3 },
+            { word: 'is', start: 0.4, end: 0.5 },
+            { word: 'a', start: 0.6, end: 0.7 },
+            { word: 'mock', start: 0.8, end: 1.1 },
+            { word: 'transcription', start: 1.2, end: 1.8 }
+          ]
+        },
+        feedback: {
+          pronunciation: '发音整体清晰，注意连读部分。',
+          completeness: '内容完整，未遗漏关键信息。',
+          fluency: '语速适中，部分句末有停顿。',
+          suggestions: [
+            {
+              text: '注意 "the" 在元音前的发音变化',
+              target_word: 'the',
+              timestamp: 0.4
+            },
+            {
+              text: '尝试更自然的语调起伏'
+            }
+          ]
+        },
+        srs: {
+          state: 'review',
+          difficulty: 0.3,
+          stability: 5.0,
+          due: new Date(Date.now() + 86400000 * 3).toISOString()
+        }
+      })
+    }
   }
 
   const summaryMatch = url.match(/^\/decks\/([^/]+)\/summary$/)

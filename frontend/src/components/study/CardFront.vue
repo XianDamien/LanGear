@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { Mic, Play, Volume2, Square } from 'lucide-vue-next'
+import { Mic, Play, Volume2, Square, Upload } from 'lucide-vue-next'
 import RetroButton from '@/components/ui/RetroButton.vue'
+import type { UploadState } from '@/stores/study'
 
 defineProps<{
   audioPlaying: boolean
   isRecording: boolean
   liveTranscript: string
   userTranscript: string
+  uploadState?: UploadState
+  uploadProgress?: number
 }>()
 
 const emit = defineEmits<{
@@ -58,11 +61,25 @@ const emit = defineEmits<{
       </RetroButton>
     </div>
 
+    <!-- v2.0: 上传进度指示器 -->
+    <div v-if="uploadState === 'uploading'" class="bg-blue-50 border border-blue-200 rounded p-3">
+      <div class="flex items-center gap-2 mb-2">
+        <Upload class="animate-pulse text-blue-600" :size="16" />
+        <span class="text-sm text-blue-900">上传中...</span>
+      </div>
+      <div class="w-full bg-blue-200 rounded-full h-2">
+        <div
+          class="bg-blue-600 h-2 rounded-full transition-all"
+          :style="{ width: `${uploadProgress || 0}%` }"
+        />
+      </div>
+    </div>
+
     <!-- Flip button -->
     <RetroButton
       variant="primary"
       class="w-full mt-4"
-      :disabled="isRecording"
+      :disabled="isRecording || uploadState === 'uploading'"
       @click="emit('flip')"
     >
       翻面复盘

@@ -34,6 +34,10 @@ const {
   loading,
   lessonName,
   audioPlaying,
+  uploadState,
+  asyncSubmitState,
+  transcriptionTimestamps,
+  lastFeedbackV2
 } = storeToRefs(studyStore)
 
 const recorder = useRecorder()
@@ -77,6 +81,8 @@ onMounted(async () => {
 onUnmounted(() => {
   stopAsrStream()
   recorder.reset()
+  studyStore.stopPolling()
+  audioPlayer.stop()
 })
 
 function playCurrentAudio() {
@@ -107,12 +113,22 @@ async function toggleRecording() {
   if (recorder.isRecording.value) {
     recorder.stopRecording()
     stopAsrStream()
-    // Wait a tick for blob to be ready
-    setTimeout(() => {
+
+    setTimeout(async () => {
+      if (!currentCard.value) return
+
       studyStore.userTranscript = studyStore.liveTranscript || '（未识别到内容）'
       studyStore.userAudioUrl = recorder.audioUrl.value
-      studyStore.userAudioBase64 = recorder.audioBase64.value
       studyStore.recordingState = 'stopped'
+
+      studyStore.uploadState = 'uploading'
+      const ossPath = await recorder.uploadToOSS(currentCard.value.id)
+      if (ossPath) {
+        studyStore.uploadState = 'uploaded'
+        ElMessage.success('录音上传成功')
+      } else {
+        studyStore.uploadState = 'failed'
+      }
     }, 300)
   } else {
     await recorder.startRecording()
@@ -123,17 +139,26 @@ async function toggleRecording() {
 }
 
 async function handleGrade(rating: Rating) {
+  if (!recorder.ossAudioPath.value) {
+    ElMessage.error('请先完成录音并上传')
+    return
+  }
+
   try {
-    const result = await studyStore.submitCardReview(rating)
-    if (result === 'summary') {
-      isSummaryOpen.value = true
-    } else {
-      studyStore.goNextCard()
-    }
+    await studyStore.submitCardReviewAsync(rating, recorder.ossAudioPath.value)
+    ElMessage.info('AI 评测中，请稍候...')
   } catch {
     ElMessage.error('提交失败，请重试')
   }
 }
+
+watch(asyncSubmitState, (newState) => {
+  if (newState === 'completed' && studyStore.isLastCard) {
+    setTimeout(() => {
+      isSummaryOpen.value = true
+    }, 1000)
+  }
+})
 
 function handleWordClick(word: string) {
   studyStore.selectedWord = word
@@ -206,6 +231,8 @@ function exitStudy() {
           :is-recording="recorder.isRecording.value"
           :live-transcript="liveTranscript"
           :user-transcript="userTranscript"
+          :upload-state="uploadState"
+          :upload-progress="recorder.uploadProgress.value"
           @play-audio="playCurrentAudio"
           @toggle-recording="toggleRecording"
           @flip="studyStore.flip()"
@@ -223,10 +250,14 @@ function exitStudy() {
           :translation-loading="isTranslationLoading"
           :notes="notes"
           :submit-state="submitState"
+          :async-submit-state="asyncSubmitState"
+          :feedback-v2="lastFeedbackV2"
+          :transcription-timestamps="transcriptionTimestamps"
           @play-original="playCurrentAudio"
           @show-translation="handleShowTranslation"
           @word-click="handleWordClick"
           @grade="handleGrade"
+          @timestamp-jump="studyStore.jumpToTimestamp($event)"
           @update:notes="studyStore.notes = $event"
         />
       </RetroCard>

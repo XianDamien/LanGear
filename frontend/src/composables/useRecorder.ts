@@ -1,11 +1,17 @@
 import { ref, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import OSS from 'ali-oss'
+import { getSTSToken } from '@/services/api/study'
 
 export function useRecorder() {
   const isRecording = ref(false)
   const recordingBlob = ref<Blob | null>(null)
   const audioUrl = ref<string | null>(null)
   const audioBase64 = ref<string | null>(null)
+
+  const uploadState = ref<'idle' | 'uploading' | 'uploaded' | 'failed'>('idle')
+  const ossAudioPath = ref<string | null>(null)
+  const uploadProgress = ref(0)
 
   let mediaRecorder: MediaRecorder | null = null
   let mediaStream: MediaStream | null = null
@@ -30,9 +36,6 @@ export function useRecorder() {
         if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
         audioUrl.value = URL.createObjectURL(blob)
 
-        // Convert to base64 for submission
-        await convertToBase64(blob)
-
         mediaStream?.getTracks().forEach((track) => track.stop())
       }
 
@@ -50,24 +53,60 @@ export function useRecorder() {
     }
   }
 
-  async function convertToBase64(blob: Blob) {
+  /**
+   * 上传音频到 OSS
+   */
+  async function uploadToOSS(cardId: string): Promise<string | null> {
+    if (!recordingBlob.value) {
+      ElMessage.error('没有录音数据')
+      return null
+    }
+
+    uploadState.value = 'uploading'
+    uploadProgress.value = 0
+
     try {
-      // For MVP, we submit the webm directly as base64
-      // Full implementation would use @ffmpeg/ffmpeg for wav conversion
-      const reader = new FileReader()
-      const result = await new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => {
-          const base64 = (reader.result as string).split(',')[1]
-          if (base64) resolve(base64)
-          else reject(new Error('base64 conversion failed'))
+      const { data: stsToken } = await getSTSToken()
+
+      const client = new OSS({
+        region: stsToken.region,
+        accessKeyId: stsToken.access_key_id,
+        accessKeySecret: stsToken.access_key_secret,
+        stsToken: stsToken.security_token,
+        bucket: stsToken.bucket,
+        refreshSTSToken: async () => {
+          const { data: newToken } = await getSTSToken()
+          return {
+            accessKeyId: newToken.access_key_id,
+            accessKeySecret: newToken.access_key_secret,
+            stsToken: newToken.security_token
+          }
         }
-        reader.onerror = reject
-        reader.readAsDataURL(blob)
       })
-      audioBase64.value = result
-    } catch {
-      ElMessage.error('音频处理失败，请重试')
-      audioBase64.value = null
+
+      const timestamp = Date.now()
+      const dateStr = new Date().toISOString().split('T')[0]?.replace(/-/g, '') ?? ''
+      const filename = `${cardId}_${timestamp}.webm`
+      const path = `recordings/${dateStr}/${filename}`
+
+      const result = await client.put(path, recordingBlob.value, {
+        progress: (p: number) => {
+          uploadProgress.value = Math.round(p * 100)
+        }
+      } as any) // ali-oss types 可能不完整，使用 any
+
+      if (result?.res?.status === 200) {
+        ossAudioPath.value = path
+        uploadState.value = 'uploaded'
+        return path
+      } else {
+        throw new Error(`Upload failed with status ${result?.res?.status ?? 'unknown'}`)
+      }
+    } catch (error) {
+      console.error('OSS upload failed:', error)
+      uploadState.value = 'failed'
+      ElMessage.error('音频上传失败，请重试')
+      return null
     }
   }
 
@@ -79,6 +118,10 @@ export function useRecorder() {
     recordingBlob.value = null
     audioBase64.value = null
     isRecording.value = false
+
+    uploadState.value = 'idle'
+    ossAudioPath.value = null
+    uploadProgress.value = 0
   }
 
   onUnmounted(() => {
@@ -94,5 +137,9 @@ export function useRecorder() {
     startRecording,
     stopRecording,
     reset,
+    uploadState,
+    ossAudioPath,
+    uploadProgress,
+    uploadToOSS
   }
 }
