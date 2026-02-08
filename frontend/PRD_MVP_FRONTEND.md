@@ -3,8 +3,9 @@
 ## 0. 文档定位
 - 本文档定义 Langear MVP 前端实现规格，可直接用于 AI 生成代码。
 - 本文档是 `PRD_MVP.md` 的前端落地子文档。
-- 版本：v1.0（2026-02-06）。
-- 适用范围：`frontend/` 目录重构迁移（从历史 React 实现迁移到 Vue 3）。
+- 版本：v1.1（2026-02-08）。
+- 适用范围：`frontend/` 目录全新 Vue 3 实现。历史 React 代码已归档到 `archive/frontend-react/`。
+- 设计原则：保留历史 React 版本的 UI 风格与交互流程，仅切换技术栈。
 
 ## 1. 目标与约束
 
@@ -30,10 +31,14 @@
 - Pinia `3.0.4`
 - Vue Router `4.6.3`
 - `lucide-vue-next`
-- `@ffmpeg/ffmpeg` + `@ffmpeg/core`
+- `@ffmpeg/ffmpeg` + `@ffmpeg/core`（MVP：将 MediaRecorder 输出的 webm/ogg 转为 wav 后上传；后续：支持视频上传后在浏览器端按字幕时间戳切片生成自定义牌组，详见后续迭代规划）
 - `@vueuse/core`
 - `axios`
-- `crypto-js`
+
+注意事项：
+- 前端**不直接调用** Gemini 或阿里云 ASR API。所有 AI 评测与语音转写均通过后端 `/api/v1/study/submissions` 接口完成。
+- 前端职责：录音 -> 音频格式转换 -> 将音频 base64 + 评分提交到后端 -> 接收并展示 AI 反馈结果。
+- 原音频播放直接使用 `cards` 返回的 OSS URL（阿里云 OSS 公读地址）。
 
 ## 3. 项目结构规范
 建议目录结构如下：
@@ -239,15 +244,20 @@ frontend/
 ## 7. 音频处理规范
 
 ### 7.1 录音
-- 使用浏览器 `MediaRecorder` 采集音频。
-- 推荐上传前统一编码为 `wav` 或 `webm`（由后端统一解析）。
+- 使用浏览器 `MediaRecorder` 采集音频（默认输出 webm 或 ogg 格式）。
+- 录音结束后，使用 `@ffmpeg/ffmpeg` 将音频转换为 wav 格式（16kHz、单声道），以确保阿里云 ASR 兼容性。
+- 转换后的 wav 文件编码为 base64 字符串，通过 `POST /study/submissions` 的 `audio_base64` 字段提交。
 
-### 7.2 音频预处理
-- 使用 `@ffmpeg/ffmpeg` 与 `@ffmpeg/core` 执行前端必要预处理（可选）。
-- 处理失败时禁止提交评分并提示“音频处理失败”。
+### 7.2 音频预处理流程
+1. `MediaRecorder.stop()` -> 获取 webm/ogg Blob。
+2. 加载 `@ffmpeg/ffmpeg` WASM 实例（首次加载后缓存）。
+3. 执行转码：`ffmpeg -i input.webm -ar 16000 -ac 1 output.wav`。
+4. 将 wav Blob 转为 base64 字符串。
+5. 转码失败时禁止提交评分并提示"音频处理失败，请重试"。
 
 ### 7.3 播放
-- 原音频、用户录音均支持播放与暂停。
+- 原音频：直接使用 `<audio>` 标签播放卡片的 OSS URL（`audio_path` 字段）。
+- 用户录音：播放本地 Blob URL（录音后暂存在内存中）。
 - 播放失败时展示错误提示，不影响已完成记录读取。
 
 ## 8. 错误处理与无降级规则
@@ -277,11 +287,19 @@ interface SubmitReviewRequest {
 interface SubmitReviewResponse {
   reviewLogId: number
   resultType: 'single'
+  transcription: string
   feedback: {
     pronunciation: string
     completeness: string
     fluency: string
     suggestions: string[]
+    overallScore: number
+  }
+  srs: {
+    state: string
+    difficulty: number
+    stability: number
+    due: string
   }
 }
 ```
