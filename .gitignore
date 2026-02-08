@@ -13,3 +13,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Old output directories
+2_processed_output.old/
