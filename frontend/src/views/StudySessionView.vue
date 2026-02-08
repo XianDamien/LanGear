@@ -5,7 +5,7 @@ import { storeToRefs } from 'pinia'
 import { useStudyStore } from '@/stores/study'
 import { useRecorder } from '@/composables/useRecorder'
 import { useAudioPlayer } from '@/composables/useAudioPlayer'
-import { useErrorToast } from '@/composables/useErrorToast'
+import { ElMessage } from 'element-plus'
 import RetroButton from '@/components/ui/RetroButton.vue'
 import RetroCard from '@/components/ui/RetroCard.vue'
 import CardFront from '@/components/study/CardFront.vue'
@@ -17,8 +17,6 @@ import type { Rating } from '@/types/domain'
 const route = useRoute()
 const router = useRouter()
 const studyStore = useStudyStore()
-const { showError } = useErrorToast()
-
 const {
   cards,
   currentIndex,
@@ -124,10 +122,6 @@ async function toggleRecording() {
   }
 }
 
-function handleFlip() {
-  studyStore.flip()
-}
-
 async function handleGrade(rating: Rating) {
   try {
     const result = await studyStore.submitCardReview(rating)
@@ -137,7 +131,7 @@ async function handleGrade(rating: Rating) {
       studyStore.goNextCard()
     }
   } catch {
-    showError('提交失败，请重试')
+    ElMessage.error('提交失败，请重试')
   }
 }
 
@@ -214,7 +208,7 @@ function exitStudy() {
           :user-transcript="userTranscript"
           @play-audio="playCurrentAudio"
           @toggle-recording="toggleRecording"
-          @flip="handleFlip"
+          @flip="studyStore.flip()"
         />
 
         <!-- Back -->

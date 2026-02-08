@@ -17,7 +17,7 @@ onMounted(() => {
 
 async function handleSave() {
   await settingsStore.save()
-  await dashboardStore.refreshAfterSettingChange()
+  await dashboardStore.load()
 }
 </script>
 

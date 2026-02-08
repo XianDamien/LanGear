@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import RetroCard from '@/components/ui/RetroCard.vue'
 import RetroButton from '@/components/ui/RetroButton.vue'
 
-const route = useRoute()
 const router = useRouter()
 
-// Mock data for card detail
-const cardId = ref(route.params.cardId as string)
 const detail = ref({
   pronunciation: '发音整体清晰，注意连读部分的自然衔接。',
   completeness: '内容完整，未遗漏关键信息。',
@@ -19,10 +16,6 @@ const detail = ref({
     '连读处可以更流畅',
   ],
   overallScore: 82,
-})
-
-onMounted(() => {
-  cardId.value = route.params.cardId as string
 })
 </script>
 

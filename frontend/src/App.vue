@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
@@ -8,14 +8,12 @@ const route = useRoute()
 const mobileMenuOpen = ref(false)
 const langPair = ref('en-zh')
 
-function isFullscreen() {
-  return route.meta.fullscreen === true
-}
+const isFullscreen = computed(() => route.meta.fullscreen === true)
 </script>
 
 <template>
   <!-- Fullscreen layout for study session -->
-  <div v-if="isFullscreen()" class="min-h-screen bg-brand-dark text-slate-900">
+  <div v-if="isFullscreen" class="min-h-screen bg-brand-dark text-slate-900">
     <router-view />
   </div>
 

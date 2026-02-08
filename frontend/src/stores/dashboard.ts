@@ -22,9 +22,5 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
-  async function refreshAfterSettingChange() {
-    await load()
-  }
-
-  return { stats, weeklyTrend, heatmap, loading, load, refreshAfterSettingChange }
+  return { stats, weeklyTrend, heatmap, loading, load }
 })

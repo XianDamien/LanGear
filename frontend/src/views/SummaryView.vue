@@ -6,19 +6,21 @@ import { useSummaryStore } from '@/stores/summary'
 import RetroCard from '@/components/ui/RetroCard.vue'
 import RetroButton from '@/components/ui/RetroButton.vue'
 
+import { computed } from 'vue'
+
 const route = useRoute()
 const router = useRouter()
 const summaryStore = useSummaryStore()
 const { summaryData, loading, error } = storeToRefs(summaryStore)
 
+const lessonId = computed(() => route.params.lessonId as string)
+
 onMounted(() => {
-  const lessonId = route.params.lessonId as string
-  summaryStore.load(lessonId)
+  summaryStore.load(lessonId.value)
 })
 
 function retry() {
-  const lessonId = route.params.lessonId as string
-  summaryStore.load(lessonId)
+  summaryStore.load(lessonId.value)
 }
 </script>
 
