@@ -1,25 +1,34 @@
 {
-  "name": "langear",
+  "name": "langear-frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview --port 3002"
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.33.0",
-    "lucide-react": "^0.561.0",
-    "recharts": "^3.6.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "react-router-dom": "^7.10.1"
+    "vue": "^3.5.25",
+    "vue-router": "^4.6.3",
+    "pinia": "^3.0.4",
+    "element-plus": "^2.12.0",
+    "axios": "^1.7.0",
+    "lucide-vue-next": "^0.475.0",
+    "@vueuse/core": "^13.0.0",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/core": "^0.12.10",
+    "echarts": "^5.6.0",
+    "vue-echarts": "^7.0.3"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "@vitejs/plugin-vue": "^5.2.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.6",
+    "vue-tsc": "^2.2.0",
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.5.0",
+    "autoprefixer": "^10.4.0",
+    "@types/node": "^22.0.0"
   }
 }
