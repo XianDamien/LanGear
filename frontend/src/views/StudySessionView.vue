@@ -75,7 +75,6 @@ function startAsrStream() {
 onMounted(async () => {
   const lessonId = route.params.lessonId as string
   await studyStore.loadLessonCards(lessonId)
-  playCurrentAudio()
 })
 
 onUnmounted(() => {
@@ -102,11 +101,9 @@ function playCurrentAudio() {
   }, 200)
 }
 
-// Reset state when card index changes
 watch(currentIndex, () => {
   stopAsrStream()
   recorder.reset()
-  playCurrentAudio()
 })
 
 async function toggleRecording() {

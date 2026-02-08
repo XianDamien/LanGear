@@ -31,7 +31,7 @@ const buttons: { rating: Rating; label: string; interval: string; variant: 'dang
     >
       <div class="flex flex-col">
         <span>{{ btn.label }}</span>
-        <span class="text-xs opacity-70 font-pixel text-brand-accent">{{ btn.interval }}</span>
+        <span class="text-xs font-pixel text-slate-600">{{ btn.interval }}</span>
       </div>
     </RetroButton>
   </div>

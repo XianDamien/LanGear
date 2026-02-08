@@ -23,7 +23,7 @@ const variants: Record<string, string> = {
   danger:
     'bg-brand-alert border-red-600 text-white shadow-mech hover:bg-red-500',
   ghost:
-    'bg-transparent border-transparent text-slate-500 hover:text-slate-900 shadow-none border-0',
+    'bg-transparent border-transparent text-slate-700 hover:text-slate-900 shadow-none border-0',
 }
 
 const sizes: Record<string, string> = {
