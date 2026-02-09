@@ -35,7 +35,7 @@ backend/app/
 
 ## 关键文档
 
-- `PRD_MVP.md` — 产品总纲
+- `PRD.md` — 产品总纲
 - `frontend/PRD_MVP_FRONTEND.md` — 前端实施规格
 - `backend/PRD_MVP_BACKEND.md` — 后端实施规格
 - `backend/IMPLEMENTATION_STATUS.md` — 后端实施状态

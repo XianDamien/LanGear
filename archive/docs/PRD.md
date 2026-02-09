@@ -1,5 +1,5 @@
 > Archived at: 2026-02-06
-> Superseded by: PRD_MVP.md, frontend/PRD_MVP_FRONTEND.md, backend/PRD_MVP_BACKEND.md
+> Superseded by: PRD.md, frontend/PRD_MVP_FRONTEND.md, backend/PRD_MVP_BACKEND.md
 
 # 产品需求文档 (PRD): AI口语复盘功能
 
