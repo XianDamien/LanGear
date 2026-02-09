@@ -152,7 +152,22 @@ export interface SettingsData {
 }
 
 export interface DeckTreeResponse {
-  tree: Deck[]
+  tree?: Deck[]
+  sources?: Array<{
+    id: number
+    title: string
+    units: Array<{
+      id: number
+      title: string
+      lessons: Array<{
+        id: number
+        title: string
+        total_cards: number
+        completed_cards: number
+        due_cards: number
+      }>
+    }>
+  }>
 }
 
 export interface LessonCardsResponse {

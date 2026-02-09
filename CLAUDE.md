@@ -47,5 +47,5 @@ backend/app/
 - ASR 必须使用 **qwen3-asr-flash**，不要换模型
 - AI 评测必须使用 **gemini-3.0-pro-preview**，不要用 flash 或旧版本
 - 前端开发模式默认走 mock 适配器，联调时切换到真实 API
-- backend 是独立 git 仓库（submodule）
+- backend 已整合进 monorepo，不再是独立 submodule
 - 异步训练流程：前端 OSS 直传 → POST submission → 后台 ASR+Gemini+FSRS → 前端轮询结果

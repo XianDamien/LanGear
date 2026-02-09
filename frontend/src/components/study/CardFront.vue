@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Mic, Play, Volume2, Square, Upload } from 'lucide-vue-next'
+import { ElMessage } from 'element-plus'
 import RetroButton from '@/components/ui/RetroButton.vue'
 import type { UploadState } from '@/stores/study'
 
-defineProps<{
+const props = defineProps<{
   audioPlaying: boolean
   isRecording: boolean
   liveTranscript: string
@@ -17,6 +18,20 @@ const emit = defineEmits<{
   toggleRecording: []
   flip: []
 }>()
+
+function handleFlipClick() {
+  if (props.isRecording) {
+    ElMessage.warning('请先停止录音')
+    return
+  }
+
+  if (props.uploadState === 'uploading') {
+    ElMessage.info('录音上传中，请稍候...')
+    return
+  }
+
+  emit('flip')
+}
 </script>
 
 <template>
@@ -79,8 +94,7 @@ const emit = defineEmits<{
     <RetroButton
       variant="primary"
       class="w-full mt-4"
-      :disabled="isRecording || uploadState === 'uploading'"
-      @click="emit('flip')"
+      @click="handleFlipClick"
     >
       翻面复盘
     </RetroButton>

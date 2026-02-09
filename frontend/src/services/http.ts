@@ -13,11 +13,17 @@ const http = axios.create({
 if (import.meta.env.VITE_USE_MOCK === 'true') {
   installMockAdapter(http)
 } else {
-  // Only add error toast for real API calls (mock adapter handles its own flow)
+  // Unwrap backend { request_id, data } envelope → return inner data
   http.interceptors.response.use(
-    (response) => response,
+    (response) => {
+      if (response.data && 'request_id' in response.data && 'data' in response.data) {
+        response.data = response.data.data
+      }
+      return response
+    },
     (error) => {
       const msg =
+        error.response?.data?.detail?.error?.message ||
         error.response?.data?.error?.message ||
         error.message ||
         '网络请求失败'

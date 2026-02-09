@@ -54,8 +54,17 @@ export const useStudyStore = defineStore('study', () => {
     lessonId.value = id
     try {
       const { data } = await fetchLessonCards(id)
-      cards.value = data.cards
-      lessonName.value = data.lessonName
+      // Transform backend snake_case to frontend camelCase
+      cards.value = (data.cards ?? []).map((raw: any) => ({
+        id: String(raw.id),
+        frontText: raw.front_text ?? raw.frontText ?? '',
+        backText: raw.front_text ?? raw.frontText ?? '',
+        backTranslation: raw.back_text ?? raw.backTranslation ?? '',
+        frontAudio: raw.audio_path ?? raw.frontAudio ?? '',
+        difficulty: raw.difficulty ?? 0,
+        grammarInfo: raw.grammarInfo ?? undefined,
+      }))
+      lessonName.value = data.lessonName ?? data.lesson_name ?? ''
       currentIndex.value = 0
       resetCardState()
     } finally {
