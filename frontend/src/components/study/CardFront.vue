@@ -20,15 +20,26 @@ const emit = defineEmits<{
 }>()
 
 function handleFlipClick() {
-  if (props.isRecording) {
-    ElMessage.warning('请先停止录音')
-    return
-  }
+  // TODO: 测试完恢复以下守卫
+  // if (props.isRecording) {
+  //   ElMessage.warning('请先停止录音')
+  //   return
+  // }
 
-  if (props.uploadState === 'uploading') {
-    ElMessage.info('录音上传中，请稍候...')
-    return
-  }
+  // if (!props.userTranscript) {
+  //   ElMessage.warning('请先完成录音后再翻面')
+  //   return
+  // }
+
+  // if (props.uploadState === 'uploading') {
+  //   ElMessage.info('录音上传中，请稍候...')
+  //   return
+  // }
+
+  // if (props.uploadState !== 'uploaded') {
+  //   ElMessage.warning('请等待录音上传完成')
+  //   return
+  // }
 
   emit('flip')
 }
