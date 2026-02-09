@@ -1,0 +1,32 @@
+"""Deck model for source/unit/lesson hierarchy."""
+
+from datetime import datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
+
+from app.database import Base
+
+
+class Deck(Base):
+    """Deck model representing source/unit/lesson hierarchy.
+
+    Types:
+    - source: Top level (e.g., "New Concept English Book 2")
+    - unit: Middle level (e.g., "Unit 1")
+    - lesson: Bottom level (e.g., "Lesson 1")
+    """
+
+    __tablename__ = "decks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    type = Column(String(20), nullable=False, index=True)  # source/unit/lesson
+    parent_id = Column(Integer, ForeignKey("decks.id"), nullable=True, index=True)
+    level_index = Column(Integer, nullable=False, default=0)  # Sort order within parent
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    parent = relationship("Deck", remote_side=[id], backref="children")
+    cards = relationship("Card", back_populates="deck")

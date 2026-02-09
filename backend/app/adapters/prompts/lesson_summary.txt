@@ -1,0 +1,18 @@
+# Lesson Summary Prompt Template
+#
+# This template is used to generate a summary for a completed lesson.
+# You can customize this prompt to match your summary criteria.
+#
+# Available placeholders:
+# - {feedbacks_json}: JSON array of all single-sentence feedback from the lesson
+#
+# Required output format (JSON):
+# {
+#   "overall": "Overall performance assessment for this lesson",
+#   "patterns": ["Pattern 1", "Pattern 2", "Pattern 3"],
+#   "prioritized_actions": ["Action 1", "Action 2", "Action 3"]
+# }
+#
+# Leave this file empty to use the default prompt, or customize below:
+# ============================================================================
+

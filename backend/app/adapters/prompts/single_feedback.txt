@@ -1,0 +1,21 @@
+# Single Sentence Feedback Prompt Template
+#
+# This template is used to generate feedback for a single sentence repetition.
+# You can customize this prompt to match your evaluation criteria.
+#
+# Available placeholders:
+# - {original_text}: The original English sentence
+# - {user_transcription}: The user's transcribed text from ASR
+#
+# Required output format (JSON):
+# {
+#   "pronunciation": "Assessment of pronunciation quality",
+#   "completeness": "Assessment of content completeness",
+#   "fluency": "Assessment of speaking fluency",
+#   "suggestions": ["Suggestion 1", "Suggestion 2", "Suggestion 3"],
+#   "overall_score": 85
+# }
+#
+# Leave this file empty to use the default prompt, or customize below:
+# ============================================================================
+
