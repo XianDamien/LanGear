@@ -107,7 +107,15 @@ export function useRecorder() {
     } catch (error) {
       console.error('OSS upload failed:', error)
       uploadState.value = 'failed'
-      ElMessage.error('音频上传失败，请重试')
+
+      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+      const rawMessage = error instanceof Error ? error.message : String(error)
+      const isLikelyCors = /CORS|Access-Control-Allow-Origin|preflight|ERR_FAILED/i.test(rawMessage)
+      if (isLikelyCors && origin) {
+        ElMessage.error(`音频上传失败：OSS CORS 未放行（请在 OSS 控制台允许 ${origin}）`)
+      } else {
+        ElMessage.error('音频上传失败，请重试')
+      }
       return null
     }
   }
