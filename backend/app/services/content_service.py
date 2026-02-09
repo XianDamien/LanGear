@@ -4,8 +4,10 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.adapters.oss_adapter import OSSAdapter
 from app.repositories.card_repo import CardRepository
 from app.repositories.deck_repo import DeckRepository
+from app.repositories.review_log_repo import ReviewLogRepository
 from app.repositories.srs_repo import SRSRepository
 
 
@@ -18,6 +20,8 @@ class ContentService:
         self.deck_repo = DeckRepository(db)
         self.card_repo = CardRepository(db)
         self.srs_repo = SRSRepository(db)
+        self.review_log_repo = ReviewLogRepository(db)
+        self.oss_adapter = OSSAdapter()
 
     def get_deck_tree(self) -> dict[str, Any]:
         """Get the complete deck tree: sources -> units -> lessons.
@@ -122,16 +126,30 @@ class ContentService:
         # Get all cards ordered by card_index
         cards = self.card_repo.get_by_lesson(lesson_id)
 
-        result_cards = [
-            {
-                "id": card.id,
-                "card_index": card.card_index,
-                "front_text": card.front_text,
-                "back_text": card.back_text,
-                "audio_path": card.audio_path,
-            }
-            for card in cards
-        ]
+        # Get latest user recording OSS paths per card
+        oss_paths = self.review_log_repo.get_latest_oss_paths_by_lesson(lesson_id)
+
+        result_cards = []
+        for card in cards:
+            audio_url = None
+            if card.audio_path:
+                try:
+                    audio_url = self.oss_adapter.generate_signed_url(
+                        card.audio_path, expires=7200
+                    )
+                except Exception:
+                    pass
+
+            result_cards.append(
+                {
+                    "id": card.id,
+                    "card_index": card.card_index,
+                    "front_text": card.front_text,
+                    "back_text": card.back_text,
+                    "audio_path": audio_url,
+                    "oss_audio_path": oss_paths.get(card.id),
+                }
+            )
 
         return {
             "lesson_id": lesson_id,

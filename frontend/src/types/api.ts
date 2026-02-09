@@ -70,6 +70,7 @@ export interface PollingResponseCompleted {
     stability: number
     due: string
   }
+  oss_audio_path?: string | null
 }
 
 export interface PollingResponseFailed {

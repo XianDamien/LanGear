@@ -13,7 +13,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const baseStyle =
-  'font-sans uppercase tracking-wide border-2 transition-all active:translate-y-1 active:shadow-none flex items-center justify-center gap-2'
+  'font-sans uppercase tracking-wide border-2 transition-all active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer'
 
 const variants: Record<string, string> = {
   primary:

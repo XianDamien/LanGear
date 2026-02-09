@@ -2,7 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { fetchLessonCards } from '@/services/api/decks'
-import { submitReview, submitReviewAsync, pollSubmissionResult } from '@/services/api/study'
+import { submitReview, submitReviewAsync, pollSubmissionResult, getOSSSignedUrl } from '@/services/api/study'
 import type { Card, Rating } from '@/types/domain'
 import type {
   SubmitReviewResponse,
@@ -62,6 +62,7 @@ export const useStudyStore = defineStore('study', () => {
         backTranslation: raw.back_text ?? raw.backTranslation ?? '',
         frontAudio: raw.audio_path ?? raw.frontAudio ?? '',
         difficulty: raw.difficulty ?? 0,
+        ossAudioPath: raw.oss_audio_path ?? null,
         grammarInfo: raw.grammarInfo ?? undefined,
       }))
       lessonName.value = data.lessonName ?? data.lesson_name ?? ''
@@ -84,7 +85,9 @@ export const useStudyStore = defineStore('study', () => {
     selectedWord.value = null
     wordExplanation.value = ''
     if (userAudioUrl.value) {
-      URL.revokeObjectURL(userAudioUrl.value)
+      if (userAudioUrl.value.startsWith('blob:')) {
+        URL.revokeObjectURL(userAudioUrl.value)
+      }
       userAudioUrl.value = null
     }
     userAudioBase64.value = null
@@ -178,6 +181,13 @@ export const useStudyStore = defineStore('study', () => {
           lastFeedbackV2.value = data
           transcriptionTimestamps.value = data.transcription.timestamps
           userTranscript.value = data.transcription.text
+          if (!userAudioUrl.value && data.oss_audio_path) {
+            try {
+              userAudioUrl.value = await getOSSSignedUrl(data.oss_audio_path)
+            } catch (e) {
+              console.warn('Failed to get signed URL:', e)
+            }
+          }
           ElMessage.success('AI 评测完成')
         } else if (data.status === 'failed') {
           stopPolling()
@@ -216,8 +226,17 @@ export const useStudyStore = defineStore('study', () => {
     }
   }
 
-  function flip() {
+  async function flip() {
     isFlipped.value = true
+
+    // Load signed URL for user recording if no local blob URL available
+    if (!userAudioUrl.value && currentCard.value?.ossAudioPath) {
+      try {
+        userAudioUrl.value = await getOSSSignedUrl(currentCard.value.ossAudioPath)
+      } catch (e) {
+        console.warn('Failed to get signed URL for recording:', e)
+      }
+    }
   }
 
   return {

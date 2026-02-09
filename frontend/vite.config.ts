@@ -11,10 +11,6 @@ export default defineConfig({
   },
   server: {
     port: 3002,
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    },
     proxy: {
       '/api': {
         target: 'http://localhost:8000',

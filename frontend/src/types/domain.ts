@@ -19,6 +19,7 @@ export interface Card {
   backTranslation: string
   notes?: string
   difficulty: number
+  ossAudioPath?: string | null
   grammarInfo?: {
     nouns: string[]
     verbs: string[]

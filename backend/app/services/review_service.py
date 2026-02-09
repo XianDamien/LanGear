@@ -152,6 +152,7 @@ class ReviewService:
             if review_log.ai_feedback_json:
                 result["transcription"] = review_log.ai_feedback_json.get("transcription", {})
                 result["feedback"] = review_log.ai_feedback_json.get("feedback", {})
+                result["oss_audio_path"] = review_log.ai_feedback_json.get("oss_path")
 
             # Add SRS data if exists
             if srs:

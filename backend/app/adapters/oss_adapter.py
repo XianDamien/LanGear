@@ -129,7 +129,7 @@ class OSSAdapter:
                 "Statement": [
                     {
                         "Effect": "Allow",
-                        "Action": ["oss:PutObject"],
+                        "Action": ["oss:PutObject", "oss:GetObject"],
                         "Resource": [
                             f"acs:oss:*:*:{settings.oss_bucket_name}/recordings/*"
                         ],

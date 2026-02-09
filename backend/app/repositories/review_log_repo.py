@@ -105,6 +105,45 @@ class ReviewLogRepository:
             .count()
         )
 
+    def get_latest_oss_paths_by_lesson(self, lesson_id: int) -> dict[int, str]:
+        """Get the latest oss_audio_path for each card in a lesson.
+
+        Args:
+            lesson_id: Lesson deck ID
+
+        Returns:
+            Dictionary mapping card_id to oss_path string
+        """
+        from sqlalchemy import func
+
+        # Subquery: latest completed review_log id per card
+        subq = (
+            self.db.query(
+                ReviewLog.card_id,
+                func.max(ReviewLog.id).label("max_id"),
+            )
+            .filter(
+                ReviewLog.deck_id == lesson_id,
+                ReviewLog.result_type == "single",
+                ReviewLog.status == "completed",
+                ReviewLog.card_id.isnot(None),
+            )
+            .group_by(ReviewLog.card_id)
+            .subquery()
+        )
+
+        logs = (
+            self.db.query(ReviewLog)
+            .join(subq, ReviewLog.id == subq.c.max_id)
+            .all()
+        )
+
+        result: dict[int, str] = {}
+        for log in logs:
+            if log.ai_feedback_json and log.ai_feedback_json.get("oss_path"):
+                result[log.card_id] = log.ai_feedback_json["oss_path"]
+        return result
+
     def get_by_id(self, log_id: int) -> ReviewLog | None:
         """Get review log by ID.
 
