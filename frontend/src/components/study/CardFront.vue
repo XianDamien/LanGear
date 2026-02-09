@@ -30,16 +30,6 @@ function handleFlipClick() {
     return
   }
 
-  if (props.uploadState === 'uploading') {
-    ElMessage.info('录音上传中，请稍候...')
-    return
-  }
-
-  if (props.uploadState === 'failed') {
-    ElMessage.warning('录音上传失败，请重试翻面')
-    return
-  }
-
   emit('flip')
 }
 </script>

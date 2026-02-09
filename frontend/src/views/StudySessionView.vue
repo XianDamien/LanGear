@@ -188,28 +188,31 @@ async function handleFlip() {
     return
   }
 
-  if (studyStore.uploadState === 'uploading') {
-    ElMessage.info('录音上传中，请稍候...')
-    return
-  }
+  // 不阻断用户流程：先翻面，上传与提交全异步进行
+  await studyStore.flip()
 
-  // 翻面瞬间：上传“最后一次缓存录音”到 OSS
-  if (!recorder.ossAudioPath.value || studyStore.uploadState !== 'uploaded') {
-    await uploadRecordingForCurrentCard()
-  }
+  void (async () => {
+    if (!currentCard.value) return
 
-  if (!recorder.ossAudioPath.value || studyStore.uploadState !== 'uploaded') {
-    // uploadRecordingForCurrentCard 已经写入 failed 状态与 toast
-    return
-  }
+    if (studyStore.uploadState === 'uploading') return
 
-  try {
-    await studyStore.createFeedbackSubmission(recorder.ossAudioPath.value)
-    ElMessage.info('AI 评测中，请稍候...')
-    await studyStore.flip()
-  } catch {
-    ElMessage.error('提交失败，请重试')
-  }
+    try {
+      await uploadRecordingForCurrentCard()
+
+      if (!recorder.ossAudioPath.value || studyStore.uploadState !== 'uploaded') {
+        studyStore.asyncSubmitState = 'failed'
+        return
+      }
+
+      studyStore.asyncSubmitState = 'submitting'
+      await studyStore.createFeedbackSubmission(recorder.ossAudioPath.value)
+      ElMessage.info('AI 评测中，请稍候...')
+    } catch {
+      studyStore.uploadState = 'failed'
+      studyStore.asyncSubmitState = 'failed'
+      ElMessage.error('提交失败，请重试')
+    }
+  })()
 }
 
 watch(asyncSubmitState, (newState) => {
