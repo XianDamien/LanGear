@@ -136,8 +136,19 @@ async function toggleRecording() {
 }
 
 async function handleGrade(rating: Rating) {
+  // TODO: 测试完恢复上传守卫
+  // if (!recorder.ossAudioPath.value) {
+  //   ElMessage.error('请先完成录音并上传')
+  //   return
+  // }
+
+  // 没有录音时跳过后端提交，直接进入下一张卡
   if (!recorder.ossAudioPath.value) {
-    ElMessage.error('请先完成录音并上传')
+    if (studyStore.isLastCard) {
+      isSummaryOpen.value = true
+    } else {
+      studyStore.goNextCard()
+    }
     return
   }
 
