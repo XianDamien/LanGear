@@ -109,6 +109,7 @@ watch(currentIndex, () => {
 function beginRecording() {
   studyStore.recordingState = 'recording'
   studyStore.userTranscript = ''
+  studyStore.uploadState = 'idle'
   startAsrStream()
 }
 
@@ -134,10 +135,9 @@ async function uploadRecordingForCurrentCard() {
 }
 
 async function handleStopRecordingFlow() {
-  if (!currentCard.value) return
-
+  // PRD: 停止录音只缓存到浏览器，不上传；翻面时才上传最新一次录音。
   syncStoppedRecordingState()
-  await uploadRecordingForCurrentCard()
+  studyStore.uploadState = 'idle'
 }
 
 async function toggleRecording() {
@@ -183,21 +183,30 @@ async function handleFlip() {
     return
   }
 
+  if (!recorder.recordingBlob.value) {
+    ElMessage.warning('请先完成录音后再翻面')
+    return
+  }
+
   if (studyStore.uploadState === 'uploading') {
     ElMessage.info('录音上传中，请稍候...')
     return
   }
 
-  if (studyStore.uploadState !== 'uploaded' || !recorder.ossAudioPath.value) {
-    ElMessage.warning('请先完成录音并上传')
-    return
+  // 翻面瞬间：上传“最后一次缓存录音”到 OSS
+  if (!recorder.ossAudioPath.value || studyStore.uploadState !== 'uploaded') {
+    await uploadRecordingForCurrentCard()
   }
 
-  await studyStore.flip()
+  if (!recorder.ossAudioPath.value || studyStore.uploadState !== 'uploaded') {
+    // uploadRecordingForCurrentCard 已经写入 failed 状态与 toast
+    return
+  }
 
   try {
     await studyStore.createFeedbackSubmission(recorder.ossAudioPath.value)
     ElMessage.info('AI 评测中，请稍候...')
+    await studyStore.flip()
   } catch {
     ElMessage.error('提交失败，请重试')
   }
