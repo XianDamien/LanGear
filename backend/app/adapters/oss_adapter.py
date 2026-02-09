@@ -19,13 +19,30 @@ class OSSAdapter:
 
     def __init__(self):
         """Initialize OSS client with credentials from settings."""
+        endpoint = settings.oss_endpoint
+        if endpoint.startswith("http://") or endpoint.startswith("https://"):
+            endpoint = endpoint.split("//", 1)[1]
+
+        # Normalize region strings.
+        # - STS client expects e.g. "cn-shanghai"
+        # - OSS endpoint/bucket uses e.g. "oss-cn-shanghai"
+        sts_region = settings.oss_region or "cn-shanghai"
+        if sts_region.startswith("oss-"):
+            sts_region = sts_region[len("oss-") :]
+
+        oss_region = settings.oss_region or "cn-shanghai"
+        if not oss_region.startswith("oss-"):
+            oss_region = f"oss-{oss_region}"
+
+        self._oss_region = oss_region
+
         self.auth = oss2.Auth(
             settings.oss_access_key_id,
             settings.oss_access_key_secret,
         )
         self.bucket = oss2.Bucket(
             self.auth,
-            settings.oss_endpoint,
+            endpoint,
             settings.oss_bucket_name,
         )
 
@@ -33,7 +50,7 @@ class OSSAdapter:
         self.sts_client = AcsClient(
             settings.oss_access_key_id,
             settings.oss_access_key_secret,
-            settings.oss_region or "cn-shanghai",
+            sts_region,
         )
 
     def upload_audio(
@@ -154,7 +171,7 @@ class OSSAdapter:
                 "security_token": credentials["SecurityToken"],
                 "expiration": expiration_time.isoformat(),
                 "bucket": settings.oss_bucket_name,
-                "region": settings.oss_region or "oss-cn-shanghai",
+                "region": self._oss_region,
             }
 
         except Exception as e:

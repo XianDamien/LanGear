@@ -27,7 +27,11 @@ class Settings(BaseSettings):
     oss_endpoint: str
     oss_bucket_name: str
     oss_public_base_url: str
-    oss_region: str | None = "cn-shanghai"  # OSS region for STS client
+    # NOTE:
+    # - STS client region id usually looks like: "cn-shanghai"
+    # - OSS bucket region usually looks like: "oss-cn-shanghai"
+    # We keep a single env var for simplicity and normalize where needed.
+    oss_region: str | None = "cn-shanghai"
 
     # Alibaba Cloud STS (for temporary credentials)
     aliyun_role_arn: str  # RAM role ARN for AssumeRole
