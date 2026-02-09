@@ -2,6 +2,7 @@ import { ref, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import OSS from 'ali-oss'
 import { getSTSToken } from '@/services/api/study'
+import { normalizeOssRegion } from '@/services/ossRegion'
 
 export function useRecorder() {
   const isRecording = ref(false)
@@ -69,11 +70,12 @@ export function useRecorder() {
       const { data: stsToken } = await getSTSToken()
 
       const client = new OSS({
-        region: stsToken.region,
+        region: normalizeOssRegion(stsToken.region),
         accessKeyId: stsToken.access_key_id,
         accessKeySecret: stsToken.access_key_secret,
         stsToken: stsToken.security_token,
         bucket: stsToken.bucket,
+        secure: true,
         refreshSTSToken: async () => {
           const { data: newToken } = await getSTSToken()
           return {

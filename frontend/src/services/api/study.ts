@@ -1,5 +1,6 @@
 import OSS from 'ali-oss'
 import http from '../http'
+import { normalizeOssRegion } from '@/services/ossRegion'
 import type {
   SubmitReviewRequest,
   SubmitReviewResponseAsync,
@@ -22,11 +23,12 @@ export function getSTSToken() {
 export async function getOSSSignedUrl(ossPath: string): Promise<string> {
   const { data: sts } = await getSTSToken()
   const client = new OSS({
-    region: sts.region,
+    region: normalizeOssRegion(sts.region),
     accessKeyId: sts.access_key_id,
     accessKeySecret: sts.access_key_secret,
     stsToken: sts.security_token,
     bucket: sts.bucket,
+    secure: true,
   })
   return client.signatureUrl(ossPath, { expires: 3600 })
 }
