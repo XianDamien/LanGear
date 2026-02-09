@@ -1,8 +1,8 @@
-# Langear MVP 后端实施文档（FastAPI 版本）
+# LanGear 后端实施文档（FastAPI 版本）
 
 ## 0. 文档定位
-- 本文档定义 Langear MVP 后端实现规格，可直接用于 AI 生成 FastAPI 代码。
-- 本文档是 `PRD_MVP.md` 的后端落地子文档。
+- 本文档定义 LanGear 后端实现规格，可直接用于 AI 生成 FastAPI 代码。
+- 本文档是 `PRD.md` 的后端落地子文档。
 - 版本：v2.0（2026-02-08）- 异步架构版本。
 - 范围：Python + FastAPI + SQLAlchemy + SQLite（单库）+ uv + 异步任务处理。
 
@@ -190,24 +190,28 @@ CORS_ORIGINS=http://localhost:5173
 }
 ```
 
-## 4.4 训练提交接口（异步架构）
+## 4.4 训练提交接口（异步架构：AI 反馈与评分解耦）
 
 ### `POST /api/v1/study/submissions`
-用途：提交单卡训练请求（异步），立即返回 submission_id。
+用途：提交单卡训练请求（异步），立即返回 submission_id，并尽快产出 ASR+AI 反馈。
+
+**当前口径（重要）**：
+- 本接口用于触发 **ASR + Gemini 反馈生成**，与用户评分（again/hard/good/easy）解耦。
+- 用户评分不会影响 AI 反馈生成结果；评分仅用于 FSRS 调度与学习统计（另见 `/rating` 接口）。
 
 **流程变更**：
 1. 前端先通过 STS 凭证上传音频到 OSS
-2. 前端提交训练请求（传 OSS 路径 + rating）
+2. 前端提交训练请求（传 OSS 路径）
 3. 后端立即返回 submission_id（不等待 AI 评测）
-4. 后端异步处理：下载音频 → ASR 转写 → Gemini 评测 → FSRS 更新
+4. 后端异步处理：下载音频 → ASR 转写 → Gemini 评测（尽快产出反馈）
 5. 前端轮询获取结果
+6. 前端在用户评分时提交 rating（用于 FSRS 更新）
 
 请求体：
 ```json
 {
   "lesson_id": 111,
   "card_id": 1001,
-  "rating": "good",
   "oss_audio_path": "recordings/20260208/1001_1707382800.wav"
 }
 ```
@@ -221,7 +225,6 @@ CORS_ORIGINS=http://localhost:5173
 ```
 
 错误码：
-- `INVALID_RATING`
 - `INVALID_OSS_PATH`
 - `CARD_NOT_FOUND`
 
@@ -271,6 +274,28 @@ CORS_ORIGINS=http://localhost:5173
       }
     ]
   },
+  "oss_audio_path": "recordings/20260208/1001_1707382800.wav"
+}
+```
+
+说明：
+- `srs` 字段在评分解耦后将不再由该接口返回；SRS 更新由评分提交接口返回。
+
+### `POST /api/v1/study/submissions/{submission_id}/rating`
+用途：为已创建的 submission 提交用户评分（again/hard/good/easy），用于 FSRS 调度更新。
+
+请求体：
+```json
+{
+  "rating": "good"
+}
+```
+
+响应 `data`：
+```json
+{
+  "submission_id": 9001,
+  "rating": "good",
   "srs": {
     "state": "review",
     "difficulty": 5.8,

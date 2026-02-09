@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.adapters.fsrs_adapter import FSRSAdapter
 from app.repositories.card_repo import CardRepository
 from app.repositories.review_log_repo import ReviewLogRepository
 from app.repositories.srs_repo import SRSRepository
@@ -29,15 +30,15 @@ class ReviewService:
         self.card_repo = CardRepository(db)
         self.review_log_repo = ReviewLogRepository(db)
         self.srs_repo = SRSRepository(db)
+        self.fsrs_adapter = FSRSAdapter()
 
     def submit_card_review(
         self,
         lesson_id: int,
         card_id: int,
-        rating: str,
         oss_audio_path: str,
     ) -> dict[str, Any]:
-        """Submit a card review request (synchronous part).
+        """Submit a card feedback request (synchronous part).
 
         Creates a review_log record with status='processing' and
         launches a background task for asynchronous processing.
@@ -45,7 +46,6 @@ class ReviewService:
         Args:
             lesson_id: Lesson deck ID
             card_id: Card ID being reviewed
-            rating: User rating (again/hard/good/easy)
             oss_audio_path: OSS path to user's audio recording
 
         Returns:
@@ -54,13 +54,8 @@ class ReviewService:
             - status: "processing"
 
         Raises:
-            ValueError: If card not found, invalid lesson, or invalid rating
+            ValueError: If card not found, invalid lesson, or invalid OSS path
         """
-        # Validate rating
-        valid_ratings = ["again", "hard", "good", "easy"]
-        if rating not in valid_ratings:
-            raise ValueError(f"Invalid rating. Must be one of: {valid_ratings}")
-
         # Validate card and lesson
         card = self.card_repo.get_by_id(card_id)
         if not card:
@@ -77,7 +72,7 @@ class ReviewService:
         review_log = self.review_log_repo.create(
             card_id=card_id,
             deck_id=lesson_id,
-            rating=rating,
+            rating=None,
             result_type="single",
             ai_feedback_json={},  # Empty initially, will be filled by background task
         )
@@ -91,7 +86,7 @@ class ReviewService:
         # Launch background task
         task_thread = threading.Thread(
             target=process_review_task,
-            args=(submission_id, card_id, lesson_id, rating, oss_audio_path),
+            args=(submission_id, card_id, lesson_id, oss_audio_path),
             daemon=True,
         )
         task_thread.start()
@@ -100,6 +95,65 @@ class ReviewService:
         return {
             "submission_id": submission_id,
             "status": "processing",
+        }
+
+    def submit_submission_rating(
+        self,
+        submission_id: int,
+        rating: str,
+    ) -> dict[str, Any]:
+        """Submit rating for a previously created submission.
+
+        Rating is decoupled from AI feedback generation. It only drives
+        FSRS scheduling updates and learning statistics.
+
+        Args:
+            submission_id: Review log ID returned from submit_card_review
+            rating: User rating (again/hard/good/easy)
+
+        Returns:
+            Dictionary with updated rating and SRS state.
+
+        Raises:
+            ValueError: If submission not found, invalid rating, or submission failed.
+        """
+        valid_ratings = ["again", "hard", "good", "easy"]
+        if rating not in valid_ratings:
+            raise ValueError(f"Invalid rating. Must be one of: {valid_ratings}")
+
+        review_log = self.review_log_repo.get_by_id(submission_id)
+        if not review_log:
+            raise ValueError(f"Submission {submission_id} not found")
+
+        if review_log.status == "failed":
+            raise ValueError(f"Submission {submission_id} failed")
+
+        if review_log.card_id is None:
+            raise ValueError("Cannot submit rating for summary submission")
+
+        current_srs = self.srs_repo.get_by_card_id(review_log.card_id)
+        new_srs_data = self.fsrs_adapter.schedule_card(current_srs, rating)
+
+        srs = self.srs_repo.upsert(
+            card_id=review_log.card_id,
+            state=new_srs_data["state"],
+            stability=new_srs_data["stability"],
+            difficulty=new_srs_data["difficulty"],
+            due=new_srs_data["due"],
+        )
+
+        review_log.rating = rating
+        self.db.commit()
+
+        return {
+            "submission_id": submission_id,
+            "rating": rating,
+            "srs": {
+                "state": srs.state,
+                "difficulty": srs.difficulty,
+                "stability": srs.stability,
+                "due": srs.due.isoformat(),
+            },
         }
 
     def get_submission_result(self, submission_id: int) -> dict[str, Any]:
@@ -139,9 +193,6 @@ class ReviewService:
 
         # Completed status
         if review_log.status == "completed":
-            # Get SRS data
-            srs = self.srs_repo.get_by_card_id(review_log.card_id)
-
             result = {
                 "submission_id": submission_id,
                 "status": "completed",
@@ -154,14 +205,16 @@ class ReviewService:
                 result["feedback"] = review_log.ai_feedback_json.get("feedback", {})
                 result["oss_audio_path"] = review_log.ai_feedback_json.get("oss_path")
 
-            # Add SRS data if exists
-            if srs:
-                result["srs"] = {
-                    "state": srs.state,
-                    "difficulty": srs.difficulty,
-                    "stability": srs.stability,
-                    "due": srs.due.isoformat(),
-                }
+            # SRS is only returned after rating is submitted (decoupled flow)
+            if review_log.rating and review_log.card_id is not None:
+                srs = self.srs_repo.get_by_card_id(review_log.card_id)
+                if srs:
+                    result["srs"] = {
+                        "state": srs.state,
+                        "difficulty": srs.difficulty,
+                        "stability": srs.stability,
+                        "due": srs.due.isoformat(),
+                    }
 
             return result
 

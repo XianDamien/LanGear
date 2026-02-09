@@ -5,6 +5,8 @@ import type {
   SubmitReviewResponseAsync,
   PollingResponse,
   STSToken,
+  SubmitRatingRequest,
+  SubmitRatingResponse,
   SubmitReviewRequestV1,
   SubmitReviewResponse
 } from '@/types/api'
@@ -31,6 +33,10 @@ export async function getOSSSignedUrl(ossPath: string): Promise<string> {
 
 export function submitReviewAsync(payload: SubmitReviewRequest) {
   return http.post<SubmitReviewResponseAsync>('/study/submissions', payload)
+}
+
+export function submitRating(submissionId: number, payload: SubmitRatingRequest) {
+  return http.post<SubmitRatingResponse>(`/study/submissions/${submissionId}/rating`, payload)
 }
 
 export function pollSubmissionResult(submissionId: number) {

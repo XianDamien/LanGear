@@ -155,24 +155,48 @@ async function toggleRecording() {
 }
 
 async function handleGrade(rating: Rating) {
-  // TODO: 测试完恢复上传守卫
-  // if (!recorder.ossAudioPath.value) {
-  //   ElMessage.error('请先完成录音并上传')
-  //   return
-  // }
+  if (!studyStore.submissionId) {
+    ElMessage.warning('请先翻面等待 AI 反馈任务创建')
+    return
+  }
 
-  // 没有录音时跳过后端提交，直接进入下一张卡
-  if (!recorder.ossAudioPath.value) {
-    if (studyStore.isLastCard) {
-      isSummaryOpen.value = true
-    } else {
-      studyStore.goNextCard()
-    }
+  if (asyncSubmitState.value !== 'completed') {
+    ElMessage.info('AI 评测中，请稍候完成后再评分')
     return
   }
 
   try {
-    await studyStore.submitCardReviewAsync(rating, recorder.ossAudioPath.value)
+    const result = await studyStore.submitCardRating(rating)
+    if (result === 'summary') {
+      isSummaryOpen.value = true
+    } else {
+      studyStore.goNextCard()
+    }
+  } catch {
+    ElMessage.error('评分提交失败，请重试')
+  }
+}
+
+async function handleFlip() {
+  if (recorder.isRecording.value) {
+    ElMessage.warning('请先停止录音')
+    return
+  }
+
+  if (studyStore.uploadState === 'uploading') {
+    ElMessage.info('录音上传中，请稍候...')
+    return
+  }
+
+  if (studyStore.uploadState !== 'uploaded' || !recorder.ossAudioPath.value) {
+    ElMessage.warning('请先完成录音并上传')
+    return
+  }
+
+  await studyStore.flip()
+
+  try {
+    await studyStore.createFeedbackSubmission(recorder.ossAudioPath.value)
     ElMessage.info('AI 评测中，请稍候...')
   } catch {
     ElMessage.error('提交失败，请重试')
@@ -262,7 +286,7 @@ function exitStudy() {
           :upload-progress="recorder.uploadProgress.value"
           @play-audio="playCurrentAudio"
           @toggle-recording="toggleRecording"
-          @flip="studyStore.flip()"
+          @flip="handleFlip"
         />
 
         <!-- Back -->

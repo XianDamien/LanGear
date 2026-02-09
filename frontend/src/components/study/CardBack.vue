@@ -214,7 +214,13 @@ function handleSuggestionClick(suggestion: FeedbackSuggestion) {
 
     <!-- ROW 5: Grade Buttons -->
     <GradeButtons
-      :disabled="submitState === 'submitting' || asyncSubmitState === 'processing'"
+      :disabled="
+        submitState === 'submitting' ||
+        asyncSubmitState === 'processing' ||
+        asyncSubmitState === 'submitting' ||
+        asyncSubmitState === 'failed' ||
+        asyncSubmitState === 'idle'
+      "
       @grade="emit('grade', $event)"
     />
   </div>

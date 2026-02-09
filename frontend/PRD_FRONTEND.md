@@ -1,8 +1,8 @@
-# Langear MVP 前端实施文档（Vue 版本）
+# LanGear 前端实施文档（Vue 版本）
 
 ## 0. 文档定位
-- 本文档定义 Langear MVP 前端实现规格，可直接用于 AI 生成代码。
-- 本文档是 `PRD_MVP.md` 的前端落地子文档。
+- 本文档定义 LanGear 前端实现规格，可直接用于 AI 生成代码。
+- 本文档是 `PRD.md` 的前端落地子文档。
 - 版本：v2.0（异步架构版本，2026-02-08）。
 - 适用范围：`frontend/` 目录全新 Vue 3 实现。历史 React 代码已归档到 `archive/frontend-react/`。
 - 设计原则：保留历史 React 版本的 UI 风格与交互流程，仅切换技术栈。
@@ -41,7 +41,7 @@
 
 注意事项：
 - 前端**不直接调用** Gemini 或阿里云 ASR API。所有 AI 评测与语音转写均通过后端异步处理完成。
-- **前端职责**：录音 -> 获取 STS 凭证 -> 直接上传音频到 OSS -> 提交训练请求（oss_audio_path + rating）-> 轮询获取 AI 评测结果 -> 展示反馈与时间戳。
+- **前端职责**：录音 -> 获取 STS 凭证 -> 直接上传音频到 OSS -> 翻面后提交训练请求（oss_audio_path，不带 rating）-> 轮询获取 AI 评测结果 -> 展示反馈与时间戳 -> 用户评分时单独提交 rating（仅用于 FSRS）。
 - 原音频播放直接使用 `cards` 返回的 OSS URL（阿里云 OSS 公读地址）。
 
 ## 3. 项目结构规范
@@ -150,11 +150,12 @@ frontend/
 1. 加载当前卡片。
 2. 用户录音结束。
 3. **前端获取 STS 凭证并直接上传到 OSS**（显示"上传中"状态）。
-4. **提交训练请求（oss_audio_path + rating），立即返回 submission_id**。
+4. **用户点击翻面后提交训练请求（oss_audio_path），立即返回 submission_id**（不带 rating，尽快产出 AI 反馈）。
 5. **前端轮询获取结果（每 1-2 秒）**，显示处理状态（processing/asr_completed/ai_processing）。
 6. **收到 completed 状态后展示转写文本、时间戳、AI 反馈**。
-7. 允许进入下一张卡片。
-8. 课文最后一张卡提交成功后跳转 Summary。
+7. 用户选择 again/hard/good/easy：**单独提交评分**（评分不影响 AI 反馈，仅用于 FSRS 调度与统计）。
+8. 提交评分成功后进入下一张卡片。
+9. 课文最后一张卡评分提交成功后跳转 Summary。
 
 #### CardDetailView
 展示单句 AI 反馈详情：

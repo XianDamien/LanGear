@@ -6,14 +6,12 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.adapters.asr_adapter import ASRAdapter
-from app.adapters.fsrs_adapter import FSRSAdapter
 from app.adapters.gemini_adapter import GeminiAdapter
 from app.adapters.oss_adapter import OSSAdapter
 from app.database import SessionLocal
 from app.exceptions import AIFeedbackError, ASRTranscriptionError
 from app.repositories.card_repo import CardRepository
 from app.repositories.review_log_repo import ReviewLogRepository
-from app.repositories.srs_repo import SRSRepository
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +20,6 @@ def process_review_task(
     submission_id: int,
     card_id: int,
     lesson_id: int,
-    rating: str,
     oss_audio_path: str,
 ) -> None:
     """Process a single review submission asynchronously.
@@ -31,14 +28,15 @@ def process_review_task(
     1. Generating OSS signed URL for audio
     2. ASR transcription with timestamps
     3. Gemini AI feedback generation
-    4. FSRS scheduling update
-    5. Database updates (review_log + user_card_srs)
+    4. Database updates (review_log)
+
+    Note:
+        FSRS scheduling is triggered by a separate rating submission step.
 
     Args:
         submission_id: Review log ID (submission ID)
         card_id: Card ID being reviewed
         lesson_id: Lesson deck ID
-        rating: User rating (again/hard/good/easy)
         oss_audio_path: OSS path to user's audio recording
 
     Returns:
@@ -53,12 +51,9 @@ def process_review_task(
         oss_adapter = OSSAdapter()
         asr_adapter = ASRAdapter()
         gemini_adapter = GeminiAdapter()
-        fsrs_adapter = FSRSAdapter()
-
         # Initialize repositories
         card_repo = CardRepository(db)
         review_log_repo = ReviewLogRepository(db)
-        srs_repo = SRSRepository(db)
 
         # Step 1: Generate OSS signed URL (1 hour expiration)
         logger.info(f"Generating signed URL for {oss_audio_path}")
@@ -113,26 +108,7 @@ def process_review_task(
             db.commit()
             return
 
-        # Step 5: FSRS scheduling
-        logger.info(f"Updating FSRS for card {card_id}")
-        try:
-            current_srs = srs_repo.get_by_card_id(card_id)
-            new_srs_data = fsrs_adapter.schedule_card(current_srs, rating)
-
-            # Update SRS state
-            srs_repo.upsert(
-                card_id=card_id,
-                state=new_srs_data["state"],
-                stability=new_srs_data["stability"],
-                difficulty=new_srs_data["difficulty"],
-                due=new_srs_data["due"],
-            )
-        except Exception as e:
-            logger.error(f"FSRS update failed for submission {submission_id}: {str(e)}")
-            # FSRS failure doesn't block completion - we still save the feedback
-            # But log the error for monitoring
-
-        # Step 6: Update review_log with completed status
+        # Step 5: Update review_log with completed status
         logger.info(f"Finalizing submission {submission_id}")
         ai_feedback_json: dict[str, Any] = {
             "transcription": {

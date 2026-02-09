@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Mic, Play, Volume2, Square, Upload } from 'lucide-vue-next'
+import { ElMessage } from 'element-plus'
 import RetroButton from '@/components/ui/RetroButton.vue'
 import type { UploadState } from '@/stores/study'
 
-defineProps<{
+const props = defineProps<{
   audioPlaying: boolean
   isRecording: boolean
   liveTranscript: string
@@ -19,26 +20,25 @@ const emit = defineEmits<{
 }>()
 
 function handleFlipClick() {
-  // TODO: 联调完成后统一恢复翻面前守卫（录音状态、转写结果、上传状态）
-  // if (props.isRecording) {
-  //   ElMessage.warning('请先停止录音')
-  //   return
-  // }
+  if (props.isRecording) {
+    ElMessage.warning('请先停止录音')
+    return
+  }
 
-  // if (!props.userTranscript) {
-  //   ElMessage.warning('请先完成录音后再翻面')
-  //   return
-  // }
+  if (!props.userTranscript) {
+    ElMessage.warning('请先完成录音后再翻面')
+    return
+  }
 
-  // if (props.uploadState === 'uploading') {
-  //   ElMessage.info('录音上传中，请稍候...')
-  //   return
-  // }
+  if (props.uploadState === 'uploading') {
+    ElMessage.info('录音上传中，请稍候...')
+    return
+  }
 
-  // if (props.uploadState !== 'uploaded') {
-  //   ElMessage.warning('请等待录音上传完成')
-  //   return
-  // }
+  if (props.uploadState !== 'uploaded') {
+    ElMessage.warning('请先完成录音并上传')
+    return
+  }
 
   emit('flip')
 }
@@ -104,6 +104,7 @@ function handleFlipClick() {
     <RetroButton
       variant="primary"
       class="w-full mt-4"
+      :disabled="uploadState === 'uploading'"
       @click="handleFlipClick"
     >
       翻面复盘

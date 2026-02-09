@@ -38,7 +38,6 @@ export interface FeedbackSuggestion {
 export interface SubmitReviewRequest {
   lesson_id: number
   card_id: number
-  rating: Rating
   oss_audio_path: string
 }
 
@@ -64,13 +63,28 @@ export interface PollingResponseCompleted {
     fluency: string
     suggestions: FeedbackSuggestion[]
   }
-  srs: {
+  srs?: {
     state: string
     difficulty: number
     stability: number
     due: string
   }
   oss_audio_path?: string | null
+}
+
+export interface SubmitRatingRequest {
+  rating: Rating
+}
+
+export interface SubmitRatingResponse {
+  submission_id: number
+  rating: Rating
+  srs: {
+    state: string
+    difficulty: number
+    stability: number
+    due: string
+  }
 }
 
 export interface PollingResponseFailed {

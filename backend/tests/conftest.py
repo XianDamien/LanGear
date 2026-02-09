@@ -84,20 +84,22 @@ def mock_oss_adapter(monkeypatch):
     def mock_generate_signed_url(self, object_name: str, expires: int = 3600) -> str:
         return f"https://mocked-oss-url.com/{object_name}?expires={expires}&signed=true"
 
-    def mock_upload_file(self, local_path: str, object_name: str) -> str:
-        return object_name
+    def mock_upload_file_from_path(self, local_path: str, object_path: str) -> bool:
+        return True
 
-    def mock_get_sts_token(self) -> dict:
+    def mock_generate_sts_token(self, duration: int = 3600) -> dict:
         return {
-            "AccessKeyId": "STS.MockAccessKeyId",
-            "AccessKeySecret": "MockAccessKeySecret",
-            "SecurityToken": "MockSecurityToken",
-            "Expiration": "2026-12-31T23:59:59Z"
+            "access_key_id": "STS.MockAccessKeyId",
+            "access_key_secret": "MockAccessKeySecret",
+            "security_token": "MockSecurityToken",
+            "expiration": "2026-12-31T23:59:59Z",
+            "bucket": "mock-bucket",
+            "region": "oss-cn-shanghai",
         }
 
     monkeypatch.setattr("app.adapters.oss_adapter.OSSAdapter.generate_signed_url", mock_generate_signed_url)
-    monkeypatch.setattr("app.adapters.oss_adapter.OSSAdapter.upload_file", mock_upload_file)
-    monkeypatch.setattr("app.adapters.oss_adapter.OSSAdapter.get_sts_token", mock_get_sts_token)
+    monkeypatch.setattr("app.adapters.oss_adapter.OSSAdapter.upload_file_from_path", mock_upload_file_from_path)
+    monkeypatch.setattr("app.adapters.oss_adapter.OSSAdapter.generate_sts_token", mock_generate_sts_token)
 
 
 @pytest.fixture
@@ -157,22 +159,18 @@ def mock_fsrs_adapter(monkeypatch):
         "easy":  (7, 2.5),
     }
 
-    def mock_calculate_next_review(self, state: str, rating: str, last_review: datetime = None) -> dict:
-        interval_days, ease_factor = RATING_PARAMS.get(rating, (1, 1.5))
+    def mock_schedule_card(self, current_srs, rating_str: str) -> dict:
+        interval_days, ease_factor = RATING_PARAMS.get(rating_str, (1, 1.5))
         return {
             "state": "review",
-            "due": datetime.now() + timedelta(days=interval_days),
+            "due": datetime.utcnow() + timedelta(days=interval_days),
             "stability": interval_days * 1.5,
             "difficulty": max(1, min(10, 5 - (ease_factor - 1.5) * 2)),
-            "elapsed_days": 0,
-            "scheduled_days": interval_days,
-            "reps": 1,
-            "lapses": 1 if rating == "again" else 0
         }
 
     monkeypatch.setattr(
-        "app.adapters.fsrs_adapter.FSRSAdapter.calculate_next_review",
-        mock_calculate_next_review
+        "app.adapters.fsrs_adapter.FSRSAdapter.schedule_card",
+        mock_schedule_card
     )
 
 

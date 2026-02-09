@@ -2,7 +2,13 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { fetchLessonCards } from '@/services/api/decks'
-import { submitReview, submitReviewAsync, pollSubmissionResult, getOSSSignedUrl } from '@/services/api/study'
+import {
+  submitReview,
+  submitReviewAsync,
+  submitRating,
+  pollSubmissionResult,
+  getOSSSignedUrl,
+} from '@/services/api/study'
 import type { Card, Rating } from '@/types/domain'
 import type {
   SubmitReviewResponse,
@@ -127,7 +133,7 @@ export const useStudyStore = defineStore('study', () => {
     stopPolling()
   }
 
-  /** @deprecated Use submitCardReviewAsync instead */
+  /** @deprecated Use createFeedbackSubmission + submitCardRating instead */
   async function submitCardReview(rating: Rating): Promise<'next' | 'summary'> {
     if (!lessonId.value || !currentCard.value) throw new Error('No active lesson')
     const parsedLessonId = parseNumericId(lessonId.value)
@@ -155,10 +161,7 @@ export const useStudyStore = defineStore('study', () => {
     }
   }
 
-  async function submitCardReviewAsync(
-    rating: Rating,
-    ossAudioPath: string
-  ): Promise<'next' | 'summary' | 'poll'> {
+  async function createFeedbackSubmission(ossAudioPath: string): Promise<'poll'> {
     if (!lessonId.value || !currentCard.value) {
       throw new Error('No active lesson')
     }
@@ -172,7 +175,6 @@ export const useStudyStore = defineStore('study', () => {
       const { data } = await submitReviewAsync({
         lesson_id: parsedLessonId,
         card_id: parsedCardId,
-        rating,
         oss_audio_path: ossAudioPath
       })
 
@@ -186,6 +188,25 @@ export const useStudyStore = defineStore('study', () => {
     } catch {
       asyncSubmitState.value = 'failed'
       throw new Error('提交失败，请重试')
+    }
+  }
+
+  async function submitCardRating(rating: Rating): Promise<'next' | 'summary'> {
+    if (!submissionId.value) {
+      throw new Error('No active submission')
+    }
+
+    submitState.value = 'submitting'
+    try {
+      await submitRating(submissionId.value, { rating })
+      submitState.value = 'success'
+      if (isLastCard.value) {
+        return 'summary'
+      }
+      return 'next'
+    } catch {
+      submitState.value = 'failed'
+      throw new Error('评分提交失败，请重试')
     }
   }
 
@@ -318,7 +339,8 @@ export const useStudyStore = defineStore('study', () => {
     submissionId,
     transcriptionTimestamps,
     lastFeedbackV2,
-    submitCardReviewAsync,
+    createFeedbackSubmission,
+    submitCardRating,
     startPolling,
     stopPolling,
     jumpToTimestamp
