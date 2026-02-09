@@ -23,6 +23,41 @@ class ContentService:
         self.review_log_repo = ReviewLogRepository(db)
         self.oss_adapter = OSSAdapter()
 
+    def _build_lesson_node(self, lesson_id: int, lesson_title: str) -> dict[str, Any]:
+        total_cards = self.card_repo.count_by_lesson(lesson_id)
+        completed_cards = self.srs_repo.count_completed_by_lesson(lesson_id)
+        due_cards = self.srs_repo.count_due_by_lesson(lesson_id)
+
+        return {
+            "id": lesson_id,
+            "title": lesson_title,
+            "total_cards": total_cards,
+            "completed_cards": completed_cards,
+            "due_cards": due_cards,
+        }
+
+    def _build_unit_node(self, unit_id: int, unit_title: str) -> dict[str, Any]:
+        lessons = self.deck_repo.get_children(unit_id)
+        lesson_nodes = [
+            self._build_lesson_node(lesson.id, lesson.title)
+            for lesson in lessons
+        ]
+
+        return {
+            "id": unit_id,
+            "title": unit_title,
+            "lessons": lesson_nodes,
+        }
+
+    def _safe_signed_audio_url(self, audio_path: str | None) -> str | None:
+        if not audio_path:
+            return None
+
+        try:
+            return self.oss_adapter.generate_signed_url(audio_path, expires=7200)
+        except Exception:
+            return None
+
     def get_deck_tree(self) -> dict[str, Any]:
         """Get the complete deck tree: sources -> units -> lessons.
 
@@ -56,49 +91,21 @@ class ContentService:
                 ]
             }
         """
-        # Get all source decks (type='source')
         sources = self.deck_repo.get_all_sources()
 
         result_sources = []
         for source in sources:
-            # Get units for this source
             units = self.deck_repo.get_children(source.id)
-
-            result_units = []
-            for unit in units:
-                # Get lessons for this unit
-                lessons = self.deck_repo.get_children(unit.id)
-
-                result_lessons = []
-                for lesson in lessons:
-                    # Get statistics for this lesson
-                    total_cards = self.card_repo.count_by_lesson(lesson.id)
-                    completed_cards = self.srs_repo.count_completed_by_lesson(lesson.id)
-                    due_cards = self.srs_repo.count_due_by_lesson(lesson.id)
-
-                    result_lessons.append(
-                        {
-                            "id": lesson.id,
-                            "title": lesson.title,
-                            "total_cards": total_cards,
-                            "completed_cards": completed_cards,
-                            "due_cards": due_cards,
-                        }
-                    )
-
-                result_units.append(
-                    {
-                        "id": unit.id,
-                        "title": unit.title,
-                        "lessons": result_lessons,
-                    }
-                )
+            unit_nodes = [
+                self._build_unit_node(unit.id, unit.title)
+                for unit in units
+            ]
 
             result_sources.append(
                 {
                     "id": source.id,
                     "title": source.title,
-                    "units": result_units,
+                    "units": unit_nodes,
                 }
             )
 
@@ -131,22 +138,13 @@ class ContentService:
 
         result_cards = []
         for card in cards:
-            audio_url = None
-            if card.audio_path:
-                try:
-                    audio_url = self.oss_adapter.generate_signed_url(
-                        card.audio_path, expires=7200
-                    )
-                except Exception:
-                    pass
-
             result_cards.append(
                 {
                     "id": card.id,
                     "card_index": card.card_index,
                     "front_text": card.front_text,
                     "back_text": card.back_text,
-                    "audio_path": audio_url,
+                    "audio_path": self._safe_signed_audio_url(card.audio_path),
                     "oss_audio_path": oss_paths.get(card.id),
                 }
             )

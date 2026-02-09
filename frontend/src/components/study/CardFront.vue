@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { Mic, Play, Volume2, Square, Upload } from 'lucide-vue-next'
-import { ElMessage } from 'element-plus'
 import RetroButton from '@/components/ui/RetroButton.vue'
 import type { UploadState } from '@/stores/study'
 
-const props = defineProps<{
+defineProps<{
   audioPlaying: boolean
   isRecording: boolean
   liveTranscript: string
@@ -20,7 +19,7 @@ const emit = defineEmits<{
 }>()
 
 function handleFlipClick() {
-  // TODO: 测试完恢复以下守卫
+  // TODO: 联调完成后统一恢复翻面前守卫（录音状态、转写结果、上传状态）
   // if (props.isRecording) {
   //   ElMessage.warning('请先停止录音')
   //   return

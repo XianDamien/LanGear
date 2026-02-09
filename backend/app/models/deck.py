@@ -1,11 +1,14 @@
 """Deck model for source/unit/lesson hierarchy."""
 
 from datetime import datetime
+from typing import Literal
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+
+DeckType = Literal["source", "unit", "lesson"]
 
 
 class Deck(Base):
@@ -30,3 +33,15 @@ class Deck(Base):
     # Relationships
     parent = relationship("Deck", remote_side=[id], backref="children")
     cards = relationship("Card", back_populates="deck")
+
+    @property
+    def is_source(self) -> bool:
+        return self.type == "source"
+
+    @property
+    def is_unit(self) -> bool:
+        return self.type == "unit"
+
+    @property
+    def is_lesson(self) -> bool:
+        return self.type == "lesson"

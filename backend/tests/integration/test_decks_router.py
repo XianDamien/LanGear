@@ -216,7 +216,12 @@ class TestDecksRouter:
 
         assert card["front_text"] == "Last week I went to the theatre."
         assert card["back_text"] == "上周我去了剧院。"
-        assert card["audio_path"] == "audio/nce2/unit1/lesson1/0.wav"
+        audio_path = card["audio_path"]
+        assert isinstance(audio_path, str)
+        assert (
+            "audio/nce2/unit1/lesson1/0.wav" in audio_path
+            or "audio%2Fnce2%2Funit1%2Flesson1%2F0.wav" in audio_path
+        )
         assert card["card_index"] == 0
 
     def test_get_lesson_cards_ordered_by_index(self, client: TestClient, test_db: Session, sample_deck_tree):

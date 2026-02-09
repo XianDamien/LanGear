@@ -106,32 +106,51 @@ watch(currentIndex, () => {
   recorder.reset()
 })
 
+function beginRecording() {
+  studyStore.recordingState = 'recording'
+  studyStore.userTranscript = ''
+  startAsrStream()
+}
+
+function syncStoppedRecordingState() {
+  studyStore.userTranscript = studyStore.liveTranscript || '（未识别到内容）'
+  studyStore.userAudioUrl = recorder.audioUrl.value
+  studyStore.recordingState = 'stopped'
+}
+
+async function uploadRecordingForCurrentCard() {
+  if (!currentCard.value) return
+
+  studyStore.uploadState = 'uploading'
+  const ossPath = await recorder.uploadToOSS(currentCard.value.id)
+
+  if (ossPath) {
+    studyStore.uploadState = 'uploaded'
+    ElMessage.success('录音上传成功')
+    return
+  }
+
+  studyStore.uploadState = 'failed'
+}
+
+async function handleStopRecordingFlow() {
+  if (!currentCard.value) return
+
+  syncStoppedRecordingState()
+  await uploadRecordingForCurrentCard()
+}
+
 async function toggleRecording() {
   if (recorder.isRecording.value) {
     recorder.stopRecording()
     stopAsrStream()
 
     setTimeout(async () => {
-      if (!currentCard.value) return
-
-      studyStore.userTranscript = studyStore.liveTranscript || '（未识别到内容）'
-      studyStore.userAudioUrl = recorder.audioUrl.value
-      studyStore.recordingState = 'stopped'
-
-      studyStore.uploadState = 'uploading'
-      const ossPath = await recorder.uploadToOSS(currentCard.value.id)
-      if (ossPath) {
-        studyStore.uploadState = 'uploaded'
-        ElMessage.success('录音上传成功')
-      } else {
-        studyStore.uploadState = 'failed'
-      }
+      await handleStopRecordingFlow()
     }, 300)
   } else {
     await recorder.startRecording()
-    studyStore.recordingState = 'recording'
-    studyStore.userTranscript = ''
-    startAsrStream()
+    beginRecording()
   }
 }
 

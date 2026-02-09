@@ -15,6 +15,42 @@ export type SubmitState = 'idle' | 'submitting' | 'success' | 'failed'
 export type AsyncSubmitState = 'idle' | 'submitting' | 'processing' | 'completed' | 'failed'
 export type UploadState = 'idle' | 'uploading' | 'uploaded' | 'failed'
 
+interface BackendLessonCard {
+  id: string | number
+  front_text?: string
+  frontText?: string
+  back_text?: string
+  backTranslation?: string
+  audio_path?: string
+  frontAudio?: string
+  difficulty?: number
+  oss_audio_path?: string | null
+  grammarInfo?: Card['grammarInfo']
+}
+
+interface BackendLessonCardsData {
+  cards?: BackendLessonCard[]
+  lessonName?: string
+  lesson_name?: string
+}
+
+function parseNumericId(rawValue: string | null | undefined): number {
+  return Number(String(rawValue ?? '').replace(/\D/g, '')) || 1
+}
+
+function mapBackendCardToDomain(raw: BackendLessonCard): Card {
+  return {
+    id: String(raw.id),
+    frontText: raw.front_text ?? raw.frontText ?? '',
+    backText: raw.front_text ?? raw.frontText ?? '',
+    backTranslation: raw.back_text ?? raw.backTranslation ?? '',
+    frontAudio: raw.audio_path ?? raw.frontAudio ?? '',
+    difficulty: raw.difficulty ?? 0,
+    ossAudioPath: raw.oss_audio_path ?? null,
+    grammarInfo: raw.grammarInfo ?? undefined,
+  }
+}
+
 export const useStudyStore = defineStore('study', () => {
   const lessonId = ref<string | null>(null)
   const lessonName = ref('')
@@ -54,18 +90,9 @@ export const useStudyStore = defineStore('study', () => {
     lessonId.value = id
     try {
       const { data } = await fetchLessonCards(id)
-      // Transform backend snake_case to frontend camelCase
-      cards.value = (data.cards ?? []).map((raw: any) => ({
-        id: String(raw.id),
-        frontText: raw.front_text ?? raw.frontText ?? '',
-        backText: raw.front_text ?? raw.frontText ?? '',
-        backTranslation: raw.back_text ?? raw.backTranslation ?? '',
-        frontAudio: raw.audio_path ?? raw.frontAudio ?? '',
-        difficulty: raw.difficulty ?? 0,
-        ossAudioPath: raw.oss_audio_path ?? null,
-        grammarInfo: raw.grammarInfo ?? undefined,
-      }))
-      lessonName.value = data.lessonName ?? data.lesson_name ?? ''
+      const payload = data as BackendLessonCardsData
+      cards.value = (payload.cards ?? []).map(mapBackendCardToDomain)
+      lessonName.value = payload.lessonName ?? payload.lesson_name ?? ''
       currentIndex.value = 0
       resetCardState()
     } finally {
@@ -103,11 +130,14 @@ export const useStudyStore = defineStore('study', () => {
   /** @deprecated Use submitCardReviewAsync instead */
   async function submitCardReview(rating: Rating): Promise<'next' | 'summary'> {
     if (!lessonId.value || !currentCard.value) throw new Error('No active lesson')
+    const parsedLessonId = parseNumericId(lessonId.value)
+    const parsedCardId = parseNumericId(currentCard.value.id)
+
     submitState.value = 'submitting'
     try {
       const { data } = await submitReview({
-        lessonId: Number(lessonId.value.replace(/\D/g, '')) || 1,
-        cardId: Number(currentCard.value.id.replace(/\D/g, '')) || 1,
+        lessonId: parsedLessonId,
+        cardId: parsedCardId,
         rating,
         userAudio: userAudioBase64.value || '',
         audioFormat: 'wav'
@@ -133,12 +163,15 @@ export const useStudyStore = defineStore('study', () => {
       throw new Error('No active lesson')
     }
 
+    const parsedLessonId = parseNumericId(lessonId.value)
+    const parsedCardId = parseNumericId(currentCard.value.id)
+
     asyncSubmitState.value = 'submitting'
 
     try {
       const { data } = await submitReviewAsync({
-        lesson_id: Number(lessonId.value.replace(/\D/g, '')) || 1,
-        card_id: Number(currentCard.value.id.replace(/\D/g, '')) || 1,
+        lesson_id: parsedLessonId,
+        card_id: parsedCardId,
         rating,
         oss_audio_path: ossAudioPath
       })
@@ -166,9 +199,7 @@ export const useStudyStore = defineStore('study', () => {
     pollingInterval.value = window.setInterval(async () => {
       // 超时检查
       if (Date.now() - startTime > timeout) {
-        stopPolling()
-        asyncSubmitState.value = 'failed'
-        ElMessage.error('处理超时，请稍后查看')
+        handlePollingTimeout()
         return
       }
 
@@ -176,23 +207,9 @@ export const useStudyStore = defineStore('study', () => {
         const { data } = await pollSubmissionResult(id)
 
         if (data.status === 'completed') {
-          stopPolling()
-          asyncSubmitState.value = 'completed'
-          lastFeedbackV2.value = data
-          transcriptionTimestamps.value = data.transcription.timestamps
-          userTranscript.value = data.transcription.text
-          if (!userAudioUrl.value && data.oss_audio_path) {
-            try {
-              userAudioUrl.value = await getOSSSignedUrl(data.oss_audio_path)
-            } catch (e) {
-              console.warn('Failed to get signed URL:', e)
-            }
-          }
-          ElMessage.success('AI 评测完成')
+          await handlePollingCompleted(data)
         } else if (data.status === 'failed') {
-          stopPolling()
-          asyncSubmitState.value = 'failed'
-          ElMessage.error(`处理失败：${data.error_message}`)
+          handlePollingFailed(data.error_message)
         }
         // status === 'processing' 时继续轮询
       } catch (error) {
@@ -200,6 +217,36 @@ export const useStudyStore = defineStore('study', () => {
         // 网络错误不停止轮询，自动重试
       }
     }, pollInterval)
+  }
+
+  function handlePollingTimeout() {
+    stopPolling()
+    asyncSubmitState.value = 'failed'
+    ElMessage.error('处理超时，请稍后查看')
+  }
+
+  async function handlePollingCompleted(data: PollingResponseCompleted) {
+    stopPolling()
+    asyncSubmitState.value = 'completed'
+    lastFeedbackV2.value = data
+    transcriptionTimestamps.value = data.transcription.timestamps
+    userTranscript.value = data.transcription.text
+
+    if (!userAudioUrl.value && data.oss_audio_path) {
+      try {
+        userAudioUrl.value = await getOSSSignedUrl(data.oss_audio_path)
+      } catch (error) {
+        console.warn('Failed to get signed URL:', error)
+      }
+    }
+
+    ElMessage.success('AI 评测完成')
+  }
+
+  function handlePollingFailed(errorMessage: string) {
+    stopPolling()
+    asyncSubmitState.value = 'failed'
+    ElMessage.error(`处理失败：${errorMessage}`)
   }
 
   function stopPolling() {
