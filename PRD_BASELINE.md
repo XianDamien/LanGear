@@ -31,19 +31,23 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 - `deck`：课程/课包单位（本期统一使用 `deck_id`）。
 - `card`：卡片单位（本期统一使用 `card_id`）。
 - `card_state`：卡片学习状态（用于选卡、展示与调度）：
-  - `new`：未学习（无成功评测/反馈记录）
-  - `learning`：学习中（已产生成功评测/反馈记录，但仍处于初学阶段）
-  - `reviewing`：复习中（进入复习队列/存在复习调度，具体间隔由学习调度策略决定）
+  - `new`：FSRS 原生状态，未进入学习步骤
+  - `learning`：FSRS 原生状态，处于学习步骤
+  - `review`：FSRS 原生状态，进入间隔复习阶段
+  - `relearning`：FSRS 原生状态，遗忘后进入再学习阶段
 - `submission`：一次“翻面触发上传”所产生的提交记录（本期统一使用 `submission_id`）。
   - 一张卡片可以有多次 `submission`（历史保留），但学习流程只消费“最后一次有效录音”。
 - `Queue/Tasks`：学习模式下的跨卡片任务列表视图；展示任务状态并提供跳转，不承载业务逻辑。
 
 状态字段建议在接口/模型中以如下枚举表示（字段名可实现调整，但语义与枚举值需保持一致）：
 
+- 卡片状态 `card_state`：`new` / `learning` / `review` / `relearning`（与 FSRS `state` 一致）
 - 上传状态 `upload_status`：`uploading` / `succeeded` / `failed`
 - AI 处理状态 `review_status`：`processing` / `completed` / `failed`
 
 约束：
+- `card_state` 以 FSRS 原生 `state` 为准，不引入 `reviewing` 这种映射态作为接口契约。
+- UI 文案层可将 `review`/`relearning` 统一展示为“复习中”，但接口与存储保持 FSRS 原始枚举。
 - `upload_status != succeeded` 时，该卡片不得进入评测/反馈结果阶段；但不应阻塞用户继续切卡练习。
 - `upload_status == succeeded` 后才允许进入 `review_status` 状态流转。
 
@@ -138,7 +142,7 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 6. 反馈结果必须包含可读文本与时间戳，支持按时间点回听。
 7. 系统应支持生成课级总结（P1），包含错误模式、改进建议与下一步训练方向。
 8. OSS 上的音频资源访问需使用 STS（或等价的临时授权/签名方案），避免前端长期暴露静态凭证。
-9. 每张卡片必须具备 `card_state`（`new`/`learning`/`reviewing`），用于选卡、展示与学习调度；其状态需在前后端口径一致并可被稳定查询。
+9. 每张卡片必须具备 `card_state`（`new`/`learning`/`review`/`relearning`），用于选卡、展示与学习调度；其状态需与 FSRS 原生 `state` 保持一致并可被稳定查询。
 
 ### 4.2 页面级需求
 
@@ -161,7 +165,7 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 4. 失败结果必须返回可消费的 `error_code` 与 `error_message`。
 5. `Queue/Tasks` 需要支持批量查询任务状态（按 `deck_id` 获取 submissions 列表及其 `upload_status`/`review_status`），用于跨卡片状态列表展示。
 6. 音频访问需要 STS（或等价的临时授权/签名方案）发放能力（接口形式不限）。
-7. Deck/卡片读取接口需要返回 `card_state`（`new`/`learning`/`reviewing`），并可选返回 `due_at`（如存在复习调度）。
+7. Deck/卡片读取接口需要返回 `card_state`（`new`/`learning`/`review`/`relearning`），并可选返回 `due_at`（如存在复习调度）。
 
 ### 4.4 AI 模块划分（独立、可替换）
 
@@ -206,12 +210,12 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 
 - [ ] 全链路核心标识统一：`deck_id`、`card_id`、`submission_id`（接口与埋点口径一致）。
 - [ ] 状态字段与枚举统一：`upload_status`（`uploading/succeeded/failed`）、`review_status`（`processing/completed/failed`）。
-- [ ] 卡片学习状态字段统一：`card_state`（`new/learning/reviewing`），并可选 `due_at`。
+- [ ] 卡片学习状态字段统一：`card_state`（`new/learning/review/relearning`），并可选 `due_at`。
 - [ ] 失败结果返回可消费的 `error_code` 与 `error_message`。
 
 ### 5.2 `wt-fsrs-scheduler`（学习调度 + `card_state`）
 
-- [ ] Deck/卡片读取接口返回 `card_state`（`new/learning/reviewing`），并在前后端口径一致。
+- [ ] Deck/卡片读取接口返回 `card_state`（`new/learning/review/relearning`），并在前后端口径一致。
 - [ ] 若存在复习调度，接口可返回 `due_at`，用于看板/筛选/复习入口展示。
 
 ### 5.3 `wt-submission-pipeline`（提交与状态机：upload + review）
