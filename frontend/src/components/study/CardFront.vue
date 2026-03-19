@@ -25,11 +25,6 @@ function handleFlipClick() {
     return
   }
 
-  if (!props.userTranscript) {
-    ElMessage.warning('请先完成录音后再翻面')
-    return
-  }
-
   emit('flip')
 }
 </script>
