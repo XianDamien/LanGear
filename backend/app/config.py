@@ -1,5 +1,6 @@
 """Application configuration using Pydantic Settings."""
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +21,11 @@ class Settings(BaseSettings):
     gemini_api_key: str
     gemini_relay_base_url: str | None = None
     gemini_relay_api_key: str | None = None
+    gemini_model_id: str | None = None
+    gemini_prompt_version: str = "v1"
+
+    # AI feedback provider
+    ai_feedback_provider: str = "gemini"
 
     # Alibaba Cloud OSS
     oss_access_key_id: str
@@ -46,6 +52,16 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         """Parse CORS origins from comma-separated string."""
         return [origin.strip() for origin in self.cors_origins.split(",")]
+
+    @model_validator(mode="after")
+    def validate_ai_feedback_settings(self) -> "Settings":
+        """Validate provider-specific AI feedback settings."""
+        provider = self.ai_feedback_provider.strip().lower()
+        if provider == "gemini" and not (self.gemini_model_id or "").strip():
+            raise ValueError(
+                "GEMINI_MODEL_ID is required when AI_FEEDBACK_PROVIDER is 'gemini'"
+            )
+        return self
 
 
 # Global settings instance

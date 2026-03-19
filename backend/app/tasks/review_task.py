@@ -2,18 +2,41 @@
 
 import logging
 from typing import Any
+from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
-from app.adapters.asr_adapter import ASRAdapter
-from app.adapters.gemini_adapter import GeminiAdapter
+from app.adapters.ai_feedback_adapter import create_ai_feedback_provider
 from app.adapters.oss_adapter import OSSAdapter
 from app.database import SessionLocal
-from app.exceptions import AIFeedbackError, ASRTranscriptionError
+from app.exceptions import AIFeedbackError
 from app.repositories.card_repo import CardRepository
 from app.repositories.review_log_repo import ReviewLogRepository
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_audio_url(
+    oss_adapter: OSSAdapter,
+    audio_path: str,
+    expires: int = 3600,
+) -> str:
+    """Resolve an audio path to a usable URL."""
+    if not audio_path or not isinstance(audio_path, str):
+        raise ValueError("Audio path is empty")
+
+    normalized = audio_path.strip()
+    if normalized.startswith(("http://", "https://")):
+        return normalized
+
+    if normalized.startswith("oss://"):
+        parsed = urlparse(normalized)
+        object_name = parsed.path.lstrip("/")
+        if not object_name:
+            raise ValueError(f"Invalid OSS URL: {audio_path}")
+        return oss_adapter.generate_signed_url(object_name, expires=expires)
+
+    return oss_adapter.generate_signed_url(normalized, expires=expires)
 
 
 def process_review_task(
@@ -25,13 +48,9 @@ def process_review_task(
     """Process a single review submission asynchronously.
 
     This function runs in a background thread and handles:
-    1. Generating OSS signed URL for audio
-    2. ASR transcription with timestamps
-    3. Gemini AI feedback generation
-    4. Database updates (review_log)
-
-    Note:
-        FSRS scheduling is triggered by a separate rating submission step.
+    1. Resolving user/reference audio URLs
+    2. Gemini AI feedback generation
+    3. Database updates (review_log)
 
     Args:
         submission_id: Review log ID (submission ID)
@@ -42,41 +61,37 @@ def process_review_task(
     Returns:
         None (updates database directly)
     """
+    _ = lesson_id  # Reserved for compatibility with existing task signature.
     db: Session = SessionLocal()
 
     try:
         logger.info(f"Processing review submission {submission_id}")
 
-        # Initialize adapters
+        # Initialize adapters and repositories
         oss_adapter = OSSAdapter()
-        asr_adapter = ASRAdapter()
-        gemini_adapter = GeminiAdapter()
-        # Initialize repositories
         card_repo = CardRepository(db)
         review_log_repo = ReviewLogRepository(db)
 
-        # Step 1: Generate OSS signed URL (1 hour expiration)
-        logger.info(f"Generating signed URL for {oss_audio_path}")
-        signed_url = oss_adapter.generate_signed_url(oss_audio_path, expires=3600)
-
-        # Step 2: ASR transcription
-        logger.info(f"Starting ASR transcription for submission {submission_id}")
+        # Step 1: Resolve user audio URL
+        logger.info(f"Resolving user audio URL for submission {submission_id}")
         try:
-            transcription_result = asr_adapter.transcribe(signed_url)
-            transcription_text = transcription_result["text"]
-            timestamps = transcription_result["timestamps"]
-        except ASRTranscriptionError as e:
-            logger.error(f"ASR failed for submission {submission_id}: {str(e)}")
+            user_audio_url = _resolve_audio_url(
+                oss_adapter=oss_adapter,
+                audio_path=oss_audio_path,
+                expires=3600,
+            )
+        except Exception as e:
+            logger.error(f"Failed to resolve user audio for submission {submission_id}: {e}")
             review_log_repo.update_status(
                 log_id=submission_id,
                 status="failed",
-                error_code="ASR_TRANSCRIPTION_FAILED",
+                error_code="USER_AUDIO_ACCESS_FAILED",
                 error_message=str(e),
             )
             db.commit()
             return
 
-        # Step 3: Get card original text
+        # Step 2: Get card and resolve reference audio URL
         card = card_repo.get_by_id(card_id)
         if not card:
             logger.error(f"Card {card_id} not found for submission {submission_id}")
@@ -89,13 +104,43 @@ def process_review_task(
             db.commit()
             return
 
-        # Step 4: Gemini AI feedback
+        reference_audio_path = card.audio_path
+        if not reference_audio_path:
+            logger.error(f"Reference audio missing for card {card_id}")
+            review_log_repo.update_status(
+                log_id=submission_id,
+                status="failed",
+                error_code="REFERENCE_AUDIO_NOT_FOUND",
+                error_message=f"Card {card_id} has no reference audio path",
+            )
+            db.commit()
+            return
+
+        try:
+            reference_audio_url = _resolve_audio_url(
+                oss_adapter=oss_adapter,
+                audio_path=reference_audio_path,
+                expires=3600,
+            )
+        except Exception as e:
+            logger.error(f"Failed to resolve reference audio for card {card_id}: {e}")
+            review_log_repo.update_status(
+                log_id=submission_id,
+                status="failed",
+                error_code="REFERENCE_AUDIO_NOT_FOUND",
+                error_message=str(e),
+            )
+            db.commit()
+            return
+
+        # Step 3: AI feedback with dual-audio input
         logger.info(f"Generating AI feedback for submission {submission_id}")
         try:
-            feedback = gemini_adapter.generate_single_feedback(
+            ai_provider = create_ai_feedback_provider()
+            feedback = ai_provider.generate_single_feedback(
                 front_text=card.front_text,
-                transcription=transcription_text,
-                timestamps=timestamps,
+                user_audio_url=user_audio_url,
+                reference_audio_url=reference_audio_url,
             )
         except AIFeedbackError as e:
             logger.error(f"AI feedback failed for submission {submission_id}: {str(e)}")
@@ -108,12 +153,14 @@ def process_review_task(
             db.commit()
             return
 
-        # Step 5: Update review_log with completed status
+        transcription_text = feedback.pop("transcription_text", "")
+
+        # Step 4: Update review_log with completed status
         logger.info(f"Finalizing submission {submission_id}")
         ai_feedback_json: dict[str, Any] = {
             "transcription": {
                 "text": transcription_text,
-                "timestamps": timestamps,
+                "timestamps": [],
             },
             "feedback": feedback,
             "oss_path": oss_audio_path,
