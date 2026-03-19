@@ -14,6 +14,11 @@ Thumbs.db
 # Logs
 *.log
 
+# Playwright local artifacts
+.playwright/
+.playwright-cli/
+playwright-cli.json
+
 # Local docs drafts
 docs/
 

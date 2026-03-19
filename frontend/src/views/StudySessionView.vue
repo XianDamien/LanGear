@@ -5,6 +5,7 @@ import { storeToRefs } from 'pinia'
 import { useStudyStore } from '@/stores/study'
 import { useRecorder } from '@/composables/useRecorder'
 import { useAudioPlayer } from '@/composables/useAudioPlayer'
+import { useRealtimeAsr } from '@/composables/useRealtimeAsr'
 import { ElMessage } from 'element-plus'
 import RetroButton from '@/components/ui/RetroButton.vue'
 import RetroCard from '@/components/ui/RetroCard.vue'
@@ -42,6 +43,7 @@ const {
 
 const recorder = useRecorder()
 const audioPlayer = useAudioPlayer()
+const realtimeAsr = useRealtimeAsr()
 
 const isSummaryOpen = ref(false)
 const summaryText = ref<string | null>(null)
@@ -49,27 +51,26 @@ const isSummaryLoading = ref(false)
 const isFeedbackLoading = ref(false)
 const isTranslationLoading = ref(false)
 
-// ASR simulation
-let asrInterval: number | null = null
-
-function stopAsrStream() {
-  if (asrInterval) {
-    window.clearInterval(asrInterval)
-    asrInterval = null
-  }
+function parseNumericId(rawValue: string | null | undefined): number {
+  return Number(String(rawValue ?? '').replace(/\D/g, '')) || 1
 }
 
-function startAsrStream() {
-  stopAsrStream()
-  studyStore.liveTranscript = ''
-  if (!currentCard.value) return
-  const words = currentCard.value.backText.split(' ')
-  let idx = 0
-  asrInterval = window.setInterval(() => {
-    idx = Math.min(words.length, idx + 1)
-    studyStore.liveTranscript = words.slice(0, idx).join(' ')
-    if (idx >= words.length) stopAsrStream()
-  }, 400)
+async function waitForRecordingBlob(timeoutMs = 2500): Promise<boolean> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (recorder.recordingBlob.value && recorder.audioUrl.value) return true
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  return false
+}
+
+async function waitForRealtimeSessionId(timeoutMs = 1200): Promise<boolean> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (realtimeAsr.realtimeSessionId.value) return true
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  }
+  return Boolean(realtimeAsr.realtimeSessionId.value)
 }
 
 onMounted(async () => {
@@ -78,7 +79,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  stopAsrStream()
+  realtimeAsr.endSession()
+  realtimeAsr.reset()
   recorder.reset()
   studyStore.stopPolling()
   audioPlayer.stop()
@@ -102,19 +104,21 @@ function playCurrentAudio() {
 }
 
 watch(currentIndex, () => {
-  stopAsrStream()
+  realtimeAsr.endSession()
+  realtimeAsr.reset()
   recorder.reset()
 })
 
 function beginRecording() {
+  realtimeAsr.finalTranscript.value = ''
   studyStore.recordingState = 'recording'
   studyStore.userTranscript = ''
+  studyStore.liveTranscript = ''
   studyStore.uploadState = 'idle'
-  startAsrStream()
+  studyStore.asyncSubmitState = 'idle'
 }
 
 function syncStoppedRecordingState() {
-  studyStore.userTranscript = studyStore.liveTranscript || '（未识别到内容）'
   studyStore.userAudioUrl = recorder.audioUrl.value
   studyStore.recordingState = 'stopped'
 }
@@ -135,21 +139,53 @@ async function uploadRecordingForCurrentCard() {
 }
 
 async function handleStopRecordingFlow() {
-  // PRD: 停止录音只缓存到浏览器，不上传；翻面时才上传最新一次录音。
   syncStoppedRecordingState()
+  const committed = await realtimeAsr.commit()
+  if (!committed || !realtimeAsr.finalTranscript.value.trim()) {
+    ElMessage.warning('未获得实时转写结果，暂无法翻面')
+    return
+  }
+
+  studyStore.liveTranscript = realtimeAsr.finalTranscript.value
+  studyStore.userTranscript = realtimeAsr.finalTranscript.value
   studyStore.uploadState = 'idle'
+}
+
+async function startRealtimeForCurrentCard(): Promise<boolean> {
+  if (!currentCard.value) return false
+  const lessonId = parseNumericId(route.params.lessonId as string)
+  const cardId = parseNumericId(currentCard.value.id)
+  const connected = await realtimeAsr.connect(lessonId, cardId)
+  const hasSessionId = connected ? await waitForRealtimeSessionId() : false
+  if (!connected || !hasSessionId) {
+    ElMessage.error('实时识别连接失败，请重试录音')
+    return false
+  }
+  return true
+}
+
+function handleRealtimePcmChunk(chunkBase64: string) {
+  if (!chunkBase64) return
+  if (realtimeAsr.status.value === 'failed') return
+  realtimeAsr.appendAudioChunk(chunkBase64)
 }
 
 async function toggleRecording() {
   if (recorder.isRecording.value) {
     recorder.stopRecording()
-    stopAsrStream()
-
-    setTimeout(async () => {
-      await handleStopRecordingFlow()
-    }, 300)
+    const hasBlob = await waitForRecordingBlob()
+    if (!hasBlob) {
+      ElMessage.error('录音处理失败，请重试')
+      return
+    }
+    await handleStopRecordingFlow()
   } else {
-    await recorder.startRecording()
+    realtimeAsr.endSession()
+    realtimeAsr.reset()
+    const connected = await startRealtimeForCurrentCard()
+    if (!connected) return
+
+    await recorder.startRecording(handleRealtimePcmChunk)
     beginRecording()
   }
 }
@@ -188,8 +224,22 @@ async function handleFlip() {
     return
   }
 
-  // 不阻断用户流程：先翻面，上传与提交全异步进行
+  if (!realtimeAsr.realtimeSessionId.value || !realtimeAsr.finalTranscript.value.trim()) {
+    ElMessage.warning('未获得实时转写结果，暂无法翻面')
+    return
+  }
+
+  if (realtimeAsr.status.value === 'failed') {
+    ElMessage.error('实时识别连接失败，请重试录音')
+    return
+  }
+
+  const realtimeSessionId = realtimeAsr.realtimeSessionId.value
+  studyStore.userTranscript = realtimeAsr.finalTranscript.value
+  studyStore.liveTranscript = realtimeAsr.finalTranscript.value
+
   await studyStore.flip()
+  realtimeAsr.endSession()
 
   void (async () => {
     if (!currentCard.value) return
@@ -205,7 +255,10 @@ async function handleFlip() {
       }
 
       studyStore.asyncSubmitState = 'submitting'
-      await studyStore.createFeedbackSubmission(recorder.ossAudioPath.value)
+      await studyStore.createFeedbackSubmission(
+        recorder.ossAudioPath.value,
+        realtimeSessionId,
+      )
       ElMessage.info('AI 评测中，请稍候...')
     } catch {
       studyStore.uploadState = 'failed'
@@ -222,6 +275,23 @@ watch(asyncSubmitState, (newState) => {
     }, 1000)
   }
 })
+
+watch(
+  () => realtimeAsr.partialTranscript.value,
+  (text) => {
+    if (!text) return
+    studyStore.liveTranscript = text
+  },
+)
+
+watch(
+  () => realtimeAsr.finalTranscript.value,
+  (text) => {
+    if (!text) return
+    studyStore.liveTranscript = text
+    studyStore.userTranscript = text
+  },
+)
 
 function handleWordClick(word: string) {
   studyStore.selectedWord = word

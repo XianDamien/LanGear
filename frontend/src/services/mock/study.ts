@@ -4,7 +4,7 @@ export function mockSubmitReview(_cardId: string, userTranscript: string): Submi
   return {
     reviewLogId: Math.floor(Math.random() * 10000),
     resultType: 'single',
-    transcription: userTranscript || '（模拟转写结果）',
+    transcription: userTranscript || '',
     feedback: {
       pronunciation: '发音整体清晰，注意连读部分的自然衔接。',
       completeness: '内容完整，未遗漏关键信息。',

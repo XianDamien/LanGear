@@ -161,7 +161,10 @@ export const useStudyStore = defineStore('study', () => {
     }
   }
 
-  async function createFeedbackSubmission(ossAudioPath: string): Promise<'poll'> {
+  async function createFeedbackSubmission(
+    ossAudioPath: string,
+    realtimeSessionId: string
+  ): Promise<'poll'> {
     if (!lessonId.value || !currentCard.value) {
       throw new Error('No active lesson')
     }
@@ -172,10 +175,13 @@ export const useStudyStore = defineStore('study', () => {
     asyncSubmitState.value = 'submitting'
 
     try {
+      const transcriptionText = userTranscript.value.trim() || liveTranscript.value.trim()
       const { data } = await submitReviewAsync({
         lesson_id: parsedLessonId,
         card_id: parsedCardId,
-        oss_audio_path: ossAudioPath
+        oss_audio_path: ossAudioPath,
+        realtime_session_id: realtimeSessionId,
+        ...(transcriptionText ? { transcription_text: transcriptionText } : {}),
       })
 
       submissionId.value = data.submission_id

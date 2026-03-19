@@ -39,6 +39,9 @@ export interface SubmitReviewRequest {
   lesson_id: number
   card_id: number
   oss_audio_path: string
+  realtime_session_id: string
+  // Optional client-side realtime transcript fallback (used by mock adapter).
+  transcription_text?: string
 }
 
 export interface SubmitReviewResponseAsync {
@@ -56,6 +59,7 @@ export interface PollingResponseCompleted {
   submission_id: number
   status: 'completed'
   result_type: 'single'
+  realtime_session_id?: string
   transcription: TranscriptionResult
   feedback: {
     pronunciation: string

@@ -38,6 +38,13 @@ class Settings(BaseSettings):
 
     # Alibaba Cloud ASR (DashScope)
     dashscope_api_key: str
+    # "dashscope" uses real DashScope realtime ASR, "mock" keeps in-process fake stream.
+    realtime_asr_provider: str = "dashscope"
+    realtime_asr_model: str = "qwen3-asr-flash-realtime"
+    realtime_asr_language: str = "zh"
+    # Optional custom websocket endpoint for region-specific deployment.
+    # Example: wss://dashscope.aliyuncs.com/api-ws/v1/realtime
+    realtime_asr_ws_base_url: str | None = None
 
     # CORS
     cors_origins: str = "http://localhost:5173"

@@ -5,11 +5,10 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.adapters.asr_adapter import ASRAdapter
 from app.adapters.gemini_adapter import GeminiAdapter
 from app.adapters.oss_adapter import OSSAdapter
 from app.database import SessionLocal
-from app.exceptions import AIFeedbackError, ASRTranscriptionError
+from app.exceptions import AIFeedbackError
 from app.repositories.card_repo import CardRepository
 from app.repositories.review_log_repo import ReviewLogRepository
 
@@ -21,13 +20,14 @@ def process_review_task(
     card_id: int,
     lesson_id: int,
     oss_audio_path: str,
+    realtime_session_id: str,
+    realtime_final_text: str,
 ) -> None:
     """Process a single review submission asynchronously.
 
     This function runs in a background thread and handles:
     1. Generating OSS signed URL for audio
-    2. ASR transcription with timestamps
-    3. Gemini AI feedback generation
+    2. Gemini AI feedback generation (using realtime final transcript)
     4. Database updates (review_log)
 
     Note:
@@ -38,6 +38,8 @@ def process_review_task(
         card_id: Card ID being reviewed
         lesson_id: Lesson deck ID
         oss_audio_path: OSS path to user's audio recording
+        realtime_session_id: Realtime ASR session id
+        realtime_final_text: Realtime ASR final transcript text
 
     Returns:
         None (updates database directly)
@@ -49,7 +51,6 @@ def process_review_task(
 
         # Initialize adapters
         oss_adapter = OSSAdapter()
-        asr_adapter = ASRAdapter()
         gemini_adapter = GeminiAdapter()
         # Initialize repositories
         card_repo = CardRepository(db)
@@ -59,22 +60,18 @@ def process_review_task(
         logger.info(f"Generating signed URL for {oss_audio_path}")
         signed_url = oss_adapter.generate_signed_url(oss_audio_path, expires=3600)
 
-        # Step 2: ASR transcription
-        logger.info(f"Starting ASR transcription for submission {submission_id}")
-        try:
-            transcription_result = asr_adapter.transcribe(signed_url)
-            transcription_text = transcription_result["text"]
-            timestamps = transcription_result["timestamps"]
-        except ASRTranscriptionError as e:
-            logger.error(f"ASR failed for submission {submission_id}: {str(e)}")
+        # Step 2: Use realtime final transcript from WS session
+        transcription_text = realtime_final_text.strip()
+        if not transcription_text:
             review_log_repo.update_status(
                 log_id=submission_id,
                 status="failed",
-                error_code="ASR_TRANSCRIPTION_FAILED",
-                error_message=str(e),
+                error_code="REALTIME_TRANSCRIPT_NOT_READY",
+                error_message="Realtime final transcript is empty",
             )
             db.commit()
             return
+        timestamps = _build_word_timestamps(transcription_text)
 
         # Step 3: Get card original text
         card = card_repo.get_by_id(card_id)
@@ -117,6 +114,8 @@ def process_review_task(
             },
             "feedback": feedback,
             "oss_path": oss_audio_path,
+            "realtime_session_id": realtime_session_id,
+            "audio_signed_url": signed_url,
         }
 
         review_log_repo.update_status(
@@ -147,3 +146,20 @@ def process_review_task(
 
     finally:
         db.close()
+
+
+def _build_word_timestamps(text: str) -> list[dict[str, float | str]]:
+    """Build lightweight pseudo word timestamps for clickable feedback."""
+    words = text.split()
+    if not words:
+        return []
+
+    timestamps: list[dict[str, float | str]] = []
+    cursor = 0.0
+    for word in words:
+        duration = max(0.12, min(0.65, len(word) * 0.05))
+        start = round(cursor, 3)
+        end = round(cursor + duration, 3)
+        timestamps.append({"word": word, "start": start, "end": end})
+        cursor = end + 0.02
+    return timestamps
