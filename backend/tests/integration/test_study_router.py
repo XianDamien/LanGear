@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.services.realtime_session_service import get_realtime_session_store
+from app.models.review_log import ReviewLog
 
 
 def _make_ready_realtime_session(lesson_id: int, card_id: int) -> str:
@@ -247,3 +248,47 @@ class TestStudyRouter:
         assert data["rating"] == "good"
         assert "srs" in data
         assert "due" in data["srs"]
+
+    def test_get_submission_completed_includes_issues(
+        self,
+        client: TestClient,
+        test_db: Session,
+        sample_deck_tree,
+    ):
+        """GET /study/submissions/{id} should include feedback.issues field."""
+        lesson_id = sample_deck_tree["lesson"].id
+        card_id = sample_deck_tree["cards"][0].id
+
+        review_log = ReviewLog(
+            card_id=card_id,
+            deck_id=lesson_id,
+            rating=None,
+            result_type="single",
+            status="completed",
+            ai_feedback_json={
+                "transcription": {
+                    "text": "Last week I went to the theatre.",
+                    "timestamps": [],
+                },
+                "feedback": {
+                    "pronunciation": "Good",
+                    "completeness": "Complete",
+                    "fluency": "Fluent",
+                    "suggestions": [],
+                    "issues": [
+                        {"problem": "Missing ending sound", "timestamp": 0.9}
+                    ],
+                },
+                "oss_path": "recordings/20260319/test.webm",
+            },
+        )
+        test_db.add(review_log)
+        test_db.commit()
+        test_db.refresh(review_log)
+
+        resp = client.get(f"/api/v1/study/submissions/{review_log.id}")
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["status"] == "completed"
+        assert "issues" in data["feedback"]
+        assert data["feedback"]["issues"][0]["timestamp"] == 0.9

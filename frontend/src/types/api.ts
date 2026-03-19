@@ -35,6 +35,11 @@ export interface FeedbackSuggestion {
   timestamp?: number
 }
 
+export interface FeedbackIssue {
+  problem: string
+  timestamp?: number
+}
+
 export interface SubmitReviewRequest {
   lesson_id: number
   card_id: number
@@ -66,6 +71,7 @@ export interface PollingResponseCompleted {
     completeness: string
     fluency: string
     suggestions: FeedbackSuggestion[]
+    issues: FeedbackIssue[]
   }
   srs?: {
     state: string

@@ -208,7 +208,14 @@ def create_test_review_log(
                     "pronunciation": "Good pronunciation",
                     "completeness": "Complete sentence",
                     "fluency": "Natural fluency",
-                    "suggestions": ["Keep up the good work!"]
+                    "suggestions": [
+                        {
+                            "text": "Keep up the good work!",
+                            "target_word": None,
+                            "timestamp": None,
+                        }
+                    ],
+                    "issues": [],
                 },
                 "srs_update": {
                     "state": "review",

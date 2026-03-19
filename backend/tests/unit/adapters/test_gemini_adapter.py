@@ -1,18 +1,11 @@
-"""Unit tests for Gemini adapter.
-
-Tests cover:
-- Single-sentence feedback generation
-- Lesson summary generation
-- Timestamp association with suggestions
-- JSON parsing and validation
-
-All tests use mocks to avoid real Google Gemini API calls.
-"""
+"""Unit tests for Gemini adapter."""
 
 import json
-import pytest
-from unittest.mock import Mock, patch, MagicMock, mock_open
 from pathlib import Path
+from unittest.mock import Mock
+
+import pytest
+
 from app.adapters.gemini_adapter import GeminiAdapter
 from app.exceptions import AIFeedbackError
 
@@ -22,434 +15,216 @@ class TestGeminiAdapter:
     """Test suite for GeminiAdapter."""
 
     @pytest.fixture
-    def gemini_adapter(self):
-        """Create GeminiAdapter instance with mocked genai."""
-        with patch("app.adapters.gemini_adapter.genai") as mock_genai, \
-             patch("app.adapters.gemini_adapter.Path.exists", return_value=False):
+    def gemini_adapter(self, monkeypatch):
+        """Create GeminiAdapter instance with mocked genai client."""
+        import app.adapters.gemini_adapter as module
 
-            adapter = GeminiAdapter()
-            adapter.model = mock_genai.GenerativeModel.return_value
+        mock_client = Mock()
+        mock_genai_client = Mock(return_value=mock_client)
+        monkeypatch.setattr(module.genai, "Client", mock_genai_client)
 
-            yield adapter
+        object.__setattr__(module.settings, "gemini_api_key", "test-api-key")
+        object.__setattr__(module.settings, "gemini_relay_base_url", None)
+        object.__setattr__(module.settings, "gemini_relay_api_key", None)
+        object.__setattr__(module.settings, "gemini_model_id", "gemini-test-model")
+        object.__setattr__(module.settings, "gemini_prompt_version", "v1")
+
+        adapter = GeminiAdapter()
+        return adapter, mock_client
+
+    def test_load_prompt_from_versioned_directory(self, gemini_adapter):
+        adapter, _ = gemini_adapter
+
+        expected_dir = Path(adapter.prompts_dir)
+        assert expected_dir.name == "v1"
+        assert (expected_dir / "single_feedback.txt").exists()
+        assert (expected_dir / "lesson_summary.txt").exists()
+        assert adapter.single_feedback_prompt
+        assert adapter.lesson_summary_prompt
 
     def test_generate_single_feedback_success(self, gemini_adapter):
-        """Test successful single-sentence feedback generation."""
-        # Arrange
-        front_text = "Hello, how are you?"
-        transcription = "Hello how are you"
+        adapter, mock_client = gemini_adapter
 
         feedback_data = {
-            "pronunciation": "Your pronunciation is clear and accurate.",
-            "completeness": "You covered all words in the sentence.",
-            "fluency": "Your speech flows naturally.",
+            "transcription_text": "Last week I went to the theatre",
+            "pronunciation": "Good overall pronunciation.",
+            "completeness": "Most key content is present.",
+            "fluency": "Generally fluent with minor hesitation.",
             "suggestions": [
-                {"text": "Add pauses between phrases", "target_word": None, "timestamp": None},
-                {"text": "Emphasize 'are'", "target_word": "are", "timestamp": None}
-            ]
+                {
+                    "text": "Stress the word theatre more clearly.",
+                    "target_word": "theatre",
+                    "timestamp": 1.2,
+                }
+            ],
+            "issues": [
+                {
+                    "problem": "Dropped ending consonant in one word.",
+                    "timestamp": 0.9,
+                }
+            ],
         }
 
         mock_response = Mock()
         mock_response.text = json.dumps(feedback_data)
-        gemini_adapter.model.generate_content = Mock(return_value=mock_response)
+        mock_client.models.generate_content.return_value = mock_response
 
-        # Act
-        result = gemini_adapter.generate_single_feedback(front_text, transcription)
-
-        # Assert
-        assert result["pronunciation"] == "Your pronunciation is clear and accurate."
-        assert result["completeness"] == "You covered all words in the sentence."
-        assert result["fluency"] == "Your speech flows naturally."
-        assert len(result["suggestions"]) == 2
-
-    def test_generate_single_feedback_with_timestamps(self, gemini_adapter):
-        """Test feedback generation with timestamp association."""
-        # Arrange
-        front_text = "The quick brown fox"
-        transcription = "The quick brown fox"
-        timestamps = [
-            {"word": "The", "start": 0.0, "end": 0.2},
-            {"word": "quick", "start": 0.2, "end": 0.5},
-            {"word": "brown", "start": 0.5, "end": 0.8},
-            {"word": "fox", "start": 0.8, "end": 1.1}
-        ]
-
-        feedback_data = {
-            "pronunciation": "Good pronunciation overall.",
-            "completeness": "Complete sentence.",
-            "fluency": "Natural flow.",
-            "suggestions": [
-                {"text": "Improve 'quick' pronunciation", "target_word": "quick", "timestamp": None},
-                {"text": "General suggestion", "target_word": None, "timestamp": None}
-            ]
-        }
-
-        mock_response = Mock()
-        mock_response.text = json.dumps(feedback_data)
-        gemini_adapter.model.generate_content = Mock(return_value=mock_response)
-
-        # Act
-        result = gemini_adapter.generate_single_feedback(front_text, transcription, timestamps)
-
-        # Assert
-        assert len(result["suggestions"]) == 2
-        # First suggestion should have timestamp associated
-        assert result["suggestions"][0]["timestamp"] == 0.2
-        # Second suggestion has no target_word, so no timestamp
-        assert result["suggestions"][1]["timestamp"] is None
-
-    def test_generate_single_feedback_json_with_markdown(self, gemini_adapter):
-        """Test parsing JSON response wrapped in markdown code blocks."""
-        # Arrange
-        front_text = "Test sentence"
-        transcription = "Test sentence"
-
-        feedback_data = {
-            "pronunciation": "Good",
-            "completeness": "Complete",
-            "fluency": "Fluent",
-            "suggestions": []
-        }
-
-        mock_response = Mock()
-        # Wrap JSON in markdown code block
-        mock_response.text = f"```json\n{json.dumps(feedback_data)}\n```"
-        gemini_adapter.model.generate_content = Mock(return_value=mock_response)
-
-        # Act
-        result = gemini_adapter.generate_single_feedback(front_text, transcription)
-
-        # Assert
-        assert result["pronunciation"] == "Good"
-        assert result["completeness"] == "Complete"
-        assert result["fluency"] == "Fluent"
-
-    def test_generate_single_feedback_json_plain_markdown(self, gemini_adapter):
-        """Test parsing JSON response with plain markdown code blocks."""
-        # Arrange
-        front_text = "Test"
-        transcription = "Test"
-
-        feedback_data = {
-            "pronunciation": "Excellent",
-            "completeness": "Full",
-            "fluency": "Smooth",
-            "suggestions": []
-        }
-
-        mock_response = Mock()
-        # Wrap JSON in plain markdown code block (no language specifier)
-        mock_response.text = f"```\n{json.dumps(feedback_data)}\n```"
-        gemini_adapter.model.generate_content = Mock(return_value=mock_response)
-
-        # Act
-        result = gemini_adapter.generate_single_feedback(front_text, transcription)
-
-        # Assert
-        assert result["pronunciation"] == "Excellent"
-
-    def test_generate_single_feedback_missing_field(self, gemini_adapter):
-        """Test error handling when required field is missing."""
-        # Arrange
-        front_text = "Test"
-        transcription = "Test"
-
-        # Missing 'fluency' field
-        feedback_data = {
-            "pronunciation": "Good",
-            "completeness": "Complete",
-            "suggestions": []
-        }
-
-        mock_response = Mock()
-        mock_response.text = json.dumps(feedback_data)
-        gemini_adapter.model.generate_content = Mock(return_value=mock_response)
-
-        # Act & Assert
-        with pytest.raises(AIFeedbackError) as exc_info:
-            gemini_adapter.generate_single_feedback(front_text, transcription)
-
-        assert "Missing required field: fluency" in str(exc_info.value)
-
-    def test_generate_single_feedback_invalid_json(self, gemini_adapter):
-        """Test error handling for invalid JSON response."""
-        # Arrange
-        front_text = "Test"
-        transcription = "Test"
-
-        mock_response = Mock()
-        mock_response.text = "This is not valid JSON {{}}"
-        gemini_adapter.model.generate_content = Mock(return_value=mock_response)
-
-        # Act & Assert
-        with pytest.raises(AIFeedbackError) as exc_info:
-            gemini_adapter.generate_single_feedback(front_text, transcription)
-
-        assert "Failed to parse JSON response" in str(exc_info.value)
-
-    def test_generate_single_feedback_api_exception(self, gemini_adapter):
-        """Test error handling when API raises exception."""
-        # Arrange
-        front_text = "Test"
-        transcription = "Test"
-
-        gemini_adapter.model.generate_content = Mock(
-            side_effect=Exception("API rate limit exceeded")
+        result = adapter.generate_single_feedback(
+            front_text="Last week I went to the theatre.",
+            user_audio_url="https://example.com/user.webm",
+            reference_audio_url="https://example.com/ref.mp3",
         )
 
-        # Act & Assert
-        with pytest.raises(AIFeedbackError) as exc_info:
-            gemini_adapter.generate_single_feedback(front_text, transcription)
+        assert result["pronunciation"] == "Good overall pronunciation."
+        assert result["issues"][0]["timestamp"] == 0.9
+        assert result["suggestions"][0]["target_word"] == "theatre"
+        assert result["transcription_text"] == "Last week I went to the theatre"
 
-        assert "API rate limit exceeded" in str(exc_info.value)
-
-    def test_generate_single_feedback_with_custom_prompt(self, gemini_adapter):
-        """Test feedback generation with custom prompt template."""
-        # Arrange
-        custom_prompt = "Evaluate: {original_text} vs {user_transcription}"
-        gemini_adapter.single_feedback_prompt = custom_prompt
-
-        front_text = "Hello world"
-        transcription = "Hello world"
+    def test_generate_single_feedback_markdown_json(self, gemini_adapter):
+        adapter, mock_client = gemini_adapter
 
         feedback_data = {
             "pronunciation": "Good",
             "completeness": "Complete",
             "fluency": "Fluent",
-            "suggestions": []
+            "suggestions": [],
+            "issues": [],
+        }
+
+        mock_response = Mock()
+        mock_response.text = f"```json\n{json.dumps(feedback_data)}\n```"
+        mock_client.models.generate_content.return_value = mock_response
+
+        result = adapter.generate_single_feedback(
+            front_text="Test sentence",
+            user_audio_url="https://example.com/user.wav",
+            reference_audio_url="https://example.com/ref.wav",
+        )
+
+        assert result["pronunciation"] == "Good"
+        assert result["issues"] == []
+
+    def test_generate_single_feedback_missing_field(self, gemini_adapter):
+        adapter, mock_client = gemini_adapter
+
+        feedback_data = {
+            "pronunciation": "Good",
+            "completeness": "Complete",
+            "fluency": "Fluent",
+            "suggestions": [],
+            # missing issues
         }
 
         mock_response = Mock()
         mock_response.text = json.dumps(feedback_data)
-        gemini_adapter.model.generate_content = Mock(return_value=mock_response)
+        mock_client.models.generate_content.return_value = mock_response
 
-        # Act
-        result = gemini_adapter.generate_single_feedback(front_text, transcription)
+        with pytest.raises(AIFeedbackError) as exc_info:
+            adapter.generate_single_feedback(
+                front_text="Test sentence",
+                user_audio_url="https://example.com/user.wav",
+                reference_audio_url="https://example.com/ref.wav",
+            )
 
-        # Assert
-        assert result["pronunciation"] == "Good"
-        # Verify the prompt was formatted correctly
-        call_args = gemini_adapter.model.generate_content.call_args[0]
-        assert "Hello world" in call_args[0]
+        assert "Missing required field: issues" in str(exc_info.value)
+
+    def test_generate_single_feedback_invalid_issue_timestamp(self, gemini_adapter):
+        adapter, mock_client = gemini_adapter
+
+        feedback_data = {
+            "pronunciation": "Good",
+            "completeness": "Complete",
+            "fluency": "Fluent",
+            "suggestions": [],
+            "issues": [{"problem": "x", "timestamp": "bad"}],
+        }
+
+        mock_response = Mock()
+        mock_response.text = json.dumps(feedback_data)
+        mock_client.models.generate_content.return_value = mock_response
+
+        with pytest.raises(AIFeedbackError) as exc_info:
+            adapter.generate_single_feedback(
+                front_text="Test sentence",
+                user_audio_url="https://example.com/user.wav",
+                reference_audio_url="https://example.com/ref.wav",
+            )
+
+        assert "issue.timestamp must be a number or null" in str(exc_info.value)
+
+    def test_generate_single_feedback_supports_string_suggestions(self, gemini_adapter):
+        adapter, mock_client = gemini_adapter
+
+        feedback_data = {
+            "pronunciation": "Good",
+            "completeness": "Complete",
+            "fluency": "Fluent",
+            "suggestions": ["Speak slightly slower"],
+            "issues": [],
+        }
+
+        mock_response = Mock()
+        mock_response.text = json.dumps(feedback_data)
+        mock_client.models.generate_content.return_value = mock_response
+
+        result = adapter.generate_single_feedback(
+            front_text="Test sentence",
+            user_audio_url="https://example.com/user.wav",
+            reference_audio_url="https://example.com/ref.wav",
+        )
+
+        assert result["suggestions"][0]["text"] == "Speak slightly slower"
+        assert result["suggestions"][0]["target_word"] is None
 
     def test_generate_lesson_summary_success(self, gemini_adapter):
-        """Test successful lesson summary generation."""
-        # Arrange
-        feedbacks = [
-            {
-                "pronunciation": "Good pronunciation",
-                "completeness": "Complete",
-                "fluency": "Natural",
-                "suggestions": ["Work on 'th' sounds"]
-            },
-            {
-                "pronunciation": "Clear speech",
-                "completeness": "Full coverage",
-                "fluency": "Smooth",
-                "suggestions": ["Improve pacing"]
-            }
-        ]
+        adapter, mock_client = gemini_adapter
 
         summary_data = {
-            "overall": "Excellent performance on this lesson",
-            "patterns": ["Consistent pronunciation issues with 'th'", "Good fluency overall"],
-            "prioritized_actions": ["Practice 'th' sounds", "Work on pacing", "Keep up the good work"]
+            "overall": "Steady progress in this lesson.",
+            "patterns": ["Minor ending-sound omissions"],
+            "prioritized_actions": ["Practice final consonants"],
         }
 
         mock_response = Mock()
         mock_response.text = json.dumps(summary_data)
-        gemini_adapter.model.generate_content = Mock(return_value=mock_response)
+        mock_client.models.generate_content.return_value = mock_response
 
-        # Act
-        result = gemini_adapter.generate_lesson_summary(feedbacks)
+        result = adapter.generate_lesson_summary(feedbacks=[{"issues": []}])
 
-        # Assert
-        assert result["overall"] == "Excellent performance on this lesson"
-        assert len(result["patterns"]) == 2
-        assert len(result["prioritized_actions"]) == 3
-
-    def test_generate_lesson_summary_with_markdown(self, gemini_adapter):
-        """Test lesson summary parsing with markdown code blocks."""
-        # Arrange
-        feedbacks = [{"pronunciation": "Good", "completeness": "Complete", "fluency": "Smooth", "suggestions": []}]
-
-        summary_data = {
-            "overall": "Great job",
-            "patterns": ["Pattern 1"],
-            "prioritized_actions": ["Action 1"]
-        }
-
-        mock_response = Mock()
-        mock_response.text = f"```json\n{json.dumps(summary_data)}\n```"
-        gemini_adapter.model.generate_content = Mock(return_value=mock_response)
-
-        # Act
-        result = gemini_adapter.generate_lesson_summary(feedbacks)
-
-        # Assert
-        assert result["overall"] == "Great job"
+        assert result["overall"].startswith("Steady")
+        assert len(result["patterns"]) == 1
 
     def test_generate_lesson_summary_missing_field(self, gemini_adapter):
-        """Test error handling when summary is missing required field."""
-        # Arrange
-        feedbacks = [{"pronunciation": "Good", "completeness": "Complete", "fluency": "Smooth", "suggestions": []}]
+        adapter, mock_client = gemini_adapter
 
-        # Missing 'prioritized_actions' field
         summary_data = {
             "overall": "Good",
-            "patterns": ["Pattern 1"]
+            "patterns": ["Pattern"],
+            # missing prioritized_actions
         }
 
         mock_response = Mock()
         mock_response.text = json.dumps(summary_data)
-        gemini_adapter.model.generate_content = Mock(return_value=mock_response)
+        mock_client.models.generate_content.return_value = mock_response
 
-        # Act & Assert
         with pytest.raises(AIFeedbackError) as exc_info:
-            gemini_adapter.generate_lesson_summary(feedbacks)
+            adapter.generate_lesson_summary(feedbacks=[{"issues": []}])
 
         assert "Missing required field: prioritized_actions" in str(exc_info.value)
 
-    def test_generate_lesson_summary_invalid_json(self, gemini_adapter):
-        """Test error handling for invalid JSON in summary."""
-        # Arrange
-        feedbacks = [{"pronunciation": "Good", "completeness": "Complete", "fluency": "Smooth", "suggestions": []}]
+    def test_missing_prompt_file_raises(self, monkeypatch):
+        import app.adapters.gemini_adapter as module
 
-        mock_response = Mock()
-        mock_response.text = "Invalid JSON content"
-        gemini_adapter.model.generate_content = Mock(return_value=mock_response)
+        mock_client = Mock()
+        monkeypatch.setattr(module.genai, "Client", Mock(return_value=mock_client))
 
-        # Act & Assert
+        object.__setattr__(module.settings, "gemini_api_key", "test-api-key")
+        object.__setattr__(module.settings, "gemini_relay_base_url", None)
+        object.__setattr__(module.settings, "gemini_relay_api_key", None)
+        object.__setattr__(module.settings, "gemini_model_id", "gemini-test-model")
+        object.__setattr__(module.settings, "gemini_prompt_version", "v999_not_exist")
+
         with pytest.raises(AIFeedbackError) as exc_info:
-            gemini_adapter.generate_lesson_summary(feedbacks)
+            GeminiAdapter()
 
-        assert "Failed to parse JSON response" in str(exc_info.value)
-
-    def test_generate_lesson_summary_with_custom_prompt(self, gemini_adapter):
-        """Test summary generation with custom prompt template."""
-        # Arrange
-        custom_prompt = "Summarize these feedbacks: {feedbacks_json}"
-        gemini_adapter.lesson_summary_prompt = custom_prompt
-
-        feedbacks = [{"pronunciation": "Good", "completeness": "Complete", "fluency": "Smooth", "suggestions": []}]
-
-        summary_data = {
-            "overall": "Good overall",
-            "patterns": ["Pattern"],
-            "prioritized_actions": ["Action"]
-        }
-
-        mock_response = Mock()
-        mock_response.text = json.dumps(summary_data)
-        gemini_adapter.model.generate_content = Mock(return_value=mock_response)
-
-        # Act
-        result = gemini_adapter.generate_lesson_summary(feedbacks)
-
-        # Assert
-        assert result["overall"] == "Good overall"
-
-    def test_associate_timestamps_case_insensitive(self, gemini_adapter):
-        """Test that timestamp association is case-insensitive."""
-        # Arrange
-        feedback = {
-            "suggestions": [
-                {"text": "Fix this", "target_word": "HELLO", "timestamp": None},
-                {"text": "Fix that", "target_word": "World", "timestamp": None}
-            ]
-        }
-
-        timestamps = [
-            {"word": "hello", "start": 0.0, "end": 0.5},
-            {"word": "WORLD", "start": 0.5, "end": 1.0}
-        ]
-
-        # Act
-        result = gemini_adapter._associate_timestamps(feedback, timestamps)
-
-        # Assert
-        assert result["suggestions"][0]["timestamp"] == 0.0
-        assert result["suggestions"][1]["timestamp"] == 0.5
-
-    def test_associate_timestamps_no_match(self, gemini_adapter):
-        """Test timestamp association when target word not found."""
-        # Arrange
-        feedback = {
-            "suggestions": [
-                {"text": "Fix pronunciation", "target_word": "nonexistent", "timestamp": None}
-            ]
-        }
-
-        timestamps = [
-            {"word": "hello", "start": 0.0, "end": 0.5}
-        ]
-
-        # Act
-        result = gemini_adapter._associate_timestamps(feedback, timestamps)
-
-        # Assert
-        # timestamp should remain None when word not found
-        assert result["suggestions"][0]["timestamp"] is None
-
-    def test_associate_timestamps_no_target_word(self, gemini_adapter):
-        """Test timestamp association when suggestion has no target_word."""
-        # Arrange
-        feedback = {
-            "suggestions": [
-                {"text": "General suggestion", "target_word": None, "timestamp": None}
-            ]
-        }
-
-        timestamps = [
-            {"word": "hello", "start": 0.0, "end": 0.5}
-        ]
-
-        # Act
-        result = gemini_adapter._associate_timestamps(feedback, timestamps)
-
-        # Assert
-        assert result["suggestions"][0]["timestamp"] is None
-
-    def test_associate_timestamps_empty_timestamps(self, gemini_adapter):
-        """Test timestamp association with empty timestamp list."""
-        # Arrange
-        feedback = {
-            "suggestions": [
-                {"text": "Fix this", "target_word": "hello", "timestamp": None}
-            ]
-        }
-
-        timestamps = []
-
-        # Act
-        result = gemini_adapter._associate_timestamps(feedback, timestamps)
-
-        # Assert
-        assert result["suggestions"][0]["timestamp"] is None
-
-    def test_load_prompt_file_exists(self):
-        """Test loading prompt from existing file."""
-        # Arrange
-        prompt_content = "Test prompt template: {original_text}"
-
-        with patch("app.adapters.gemini_adapter.genai"), \
-             patch("app.adapters.gemini_adapter.Path.exists", return_value=True), \
-             patch("app.adapters.gemini_adapter.Path.read_text", return_value=prompt_content):
-
-            # Act
-            adapter = GeminiAdapter()
-
-        # Assert
-        assert adapter.single_feedback_prompt == prompt_content
-
-    def test_load_prompt_file_not_exists(self):
-        """Test loading prompt when file doesn't exist."""
-        # Arrange
-        with patch("app.adapters.gemini_adapter.genai"), \
-             patch("app.adapters.gemini_adapter.Path.exists", return_value=False):
-
-            # Act
-            adapter = GeminiAdapter()
-
-        # Assert
-        assert adapter.single_feedback_prompt == ""
-        assert adapter.lesson_summary_prompt == ""
+        assert "Prompt file not found" in str(exc_info.value)

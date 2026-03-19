@@ -130,15 +130,36 @@ def mock_asr_adapter(monkeypatch):
 def mock_gemini_adapter(monkeypatch):
     """Mock GeminiAdapter to avoid real Google Gemini API calls."""
 
-    def mock_generate_single_feedback(self, front_text: str, transcription: str, timestamps: list = None) -> dict:
+    def mock_generate_single_feedback(
+        self,
+        front_text: str,
+        user_audio_url: str,
+        reference_audio_url: str,
+    ) -> dict:
+        _ = user_audio_url, reference_audio_url
         return {
+            "transcription_text": "This is a mocked transcription text.",
             "pronunciation": "Your pronunciation is clear and accurate.",
             "completeness": "You covered all the key points in the sentence.",
             "fluency": "Your speech flows naturally with good pacing.",
             "suggestions": [
-                "Try to emphasize key words for better clarity",
-                "Consider adding slight pauses between phrases"
-            ]
+                {
+                    "text": "Try to emphasize key words for better clarity",
+                    "target_word": "clarity",
+                    "timestamp": 0.8,
+                },
+                {
+                    "text": "Consider adding slight pauses between phrases",
+                    "target_word": None,
+                    "timestamp": 1.4,
+                },
+            ],
+            "issues": [
+                {
+                    "problem": "Final consonant is dropped on one key word.",
+                    "timestamp": 1.1,
+                }
+            ],
         }
 
     monkeypatch.setattr(
