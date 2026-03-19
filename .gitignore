@@ -14,5 +14,8 @@ Thumbs.db
 # Logs
 *.log
 
+# Local docs drafts
+docs/
+
 # Old output directories
 2_processed_output.old/
