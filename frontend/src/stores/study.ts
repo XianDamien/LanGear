@@ -1,20 +1,19 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { ElMessage } from 'element-plus'
 import { fetchLessonCards } from '@/services/api/decks'
 import {
   submitReview,
   submitReviewAsync,
   submitRating,
-  pollSubmissionResult,
   getOSSSignedUrl,
 } from '@/services/api/study'
 import type { Card, Rating } from '@/types/domain'
 import type {
   SubmitReviewResponse,
   PollingResponseCompleted,
-  WordTimestamp
+  WordTimestamp,
 } from '@/types/api'
+import { parseNumericIdOrThrow } from '@/utils/ids'
 
 export type RecordingState = 'idle' | 'recording' | 'stopped'
 export type SubmitState = 'idle' | 'submitting' | 'success' | 'failed'
@@ -38,10 +37,6 @@ interface BackendLessonCardsData {
   cards?: BackendLessonCard[]
   lessonName?: string
   lesson_name?: string
-}
-
-function parseNumericId(rawValue: string | null | undefined): number {
-  return Number(String(rawValue ?? '').replace(/\D/g, '')) || 1
 }
 
 function mapBackendCardToDomain(raw: BackendLessonCard): Card {
@@ -80,7 +75,6 @@ export const useStudyStore = defineStore('study', () => {
   const uploadState = ref<UploadState>('idle')
   const asyncSubmitState = ref<AsyncSubmitState>('idle')
   const submissionId = ref<number | null>(null)
-  const pollingInterval = ref<number | null>(null)
   const transcriptionTimestamps = ref<WordTimestamp[]>([])
   const currentAudioElement = ref<HTMLAudioElement | null>(null)
   const lastFeedbackV2 = ref<PollingResponseCompleted | null>(null)
@@ -90,6 +84,13 @@ export const useStudyStore = defineStore('study', () => {
   const progress = computed(() =>
     cards.value.length > 0 ? ((currentIndex.value + 1) / cards.value.length) * 100 : 0,
   )
+
+  function resetTimestampAudio() {
+    if (!currentAudioElement.value) return
+    currentAudioElement.value.pause()
+    currentAudioElement.value.currentTime = 0
+    currentAudioElement.value = null
+  }
 
   async function loadLessonCards(id: string) {
     loading.value = true
@@ -117,27 +118,30 @@ export const useStudyStore = defineStore('study', () => {
     showTranslation.value = false
     selectedWord.value = null
     wordExplanation.value = ''
+    audioPlaying.value = false
+
     if (userAudioUrl.value) {
       if (userAudioUrl.value.startsWith('blob:')) {
         URL.revokeObjectURL(userAudioUrl.value)
       }
       userAudioUrl.value = null
     }
-    userAudioBase64.value = null
 
+    userAudioBase64.value = null
     uploadState.value = 'idle'
     asyncSubmitState.value = 'idle'
     submissionId.value = null
     transcriptionTimestamps.value = []
     lastFeedbackV2.value = null
-    stopPolling()
+    resetTimestampAudio()
   }
 
   /** @deprecated Use createFeedbackSubmission + submitCardRating instead */
   async function submitCardReview(rating: Rating): Promise<'next' | 'summary'> {
     if (!lessonId.value || !currentCard.value) throw new Error('No active lesson')
-    const parsedLessonId = parseNumericId(lessonId.value)
-    const parsedCardId = parseNumericId(currentCard.value.id)
+
+    const parsedLessonId = parseNumericIdOrThrow(lessonId.value, '课程 ID')
+    const parsedCardId = parseNumericIdOrThrow(currentCard.value.id, '卡片 ID')
 
     submitState.value = 'submitting'
     try {
@@ -146,7 +150,7 @@ export const useStudyStore = defineStore('study', () => {
         cardId: parsedCardId,
         rating,
         userAudio: userAudioBase64.value || '',
-        audioFormat: 'wav'
+        audioFormat: 'wav',
       })
       lastFeedback.value = data
       submitState.value = 'success'
@@ -154,6 +158,7 @@ export const useStudyStore = defineStore('study', () => {
       if (isLastCard.value) {
         return 'summary'
       }
+
       return 'next'
     } catch {
       submitState.value = 'failed'
@@ -163,14 +168,14 @@ export const useStudyStore = defineStore('study', () => {
 
   async function createFeedbackSubmission(
     ossAudioPath: string,
-    realtimeSessionId: string
-  ): Promise<'poll'> {
+    realtimeSessionId: string,
+  ): Promise<number> {
     if (!lessonId.value || !currentCard.value) {
       throw new Error('No active lesson')
     }
 
-    const parsedLessonId = parseNumericId(lessonId.value)
-    const parsedCardId = parseNumericId(currentCard.value.id)
+    const parsedLessonId = parseNumericIdOrThrow(lessonId.value, '课程 ID')
+    const parsedCardId = parseNumericIdOrThrow(currentCard.value.id, '卡片 ID')
 
     asyncSubmitState.value = 'submitting'
 
@@ -186,11 +191,7 @@ export const useStudyStore = defineStore('study', () => {
 
       submissionId.value = data.submission_id
       asyncSubmitState.value = 'processing'
-
-      // 启动轮询
-      startPolling(data.submission_id)
-
-      return 'poll'
+      return data.submission_id
     } catch {
       asyncSubmitState.value = 'failed'
       throw new Error('提交失败，请重试')
@@ -216,102 +217,49 @@ export const useStudyStore = defineStore('study', () => {
     }
   }
 
-  function startPolling(id: number) {
-    stopPolling()
-
-    const pollInterval = Number(import.meta.env.VITE_POLLING_INTERVAL) || 1500
-    const timeout = Number(import.meta.env.VITE_POLLING_TIMEOUT) || 30000
-    const startTime = Date.now()
-
-    pollingInterval.value = window.setInterval(async () => {
-      // 超时检查
-      if (Date.now() - startTime > timeout) {
-        handlePollingTimeout()
-        return
-      }
-
-      try {
-        const { data } = await pollSubmissionResult(id)
-
-        if (data.status === 'completed') {
-          await handlePollingCompleted(data)
-        } else if (data.status === 'failed') {
-          handlePollingFailed(data.error_message)
-        }
-        // status === 'processing' 时继续轮询
-      } catch (error) {
-        console.error('Polling error:', error)
-        // 网络错误不停止轮询，自动重试
-      }
-    }, pollInterval)
-  }
-
-  function handlePollingTimeout() {
-    stopPolling()
-    asyncSubmitState.value = 'failed'
-    ElMessage.error('处理超时，请稍后查看')
-  }
-
-  async function handlePollingCompleted(data: PollingResponseCompleted) {
-    stopPolling()
-    asyncSubmitState.value = 'completed'
-    lastFeedbackV2.value = data
-    transcriptionTimestamps.value = data.transcription.timestamps
-    userTranscript.value = data.transcription.text
-
-    if (!userAudioUrl.value && data.oss_audio_path) {
-      try {
-        userAudioUrl.value = await getOSSSignedUrl(data.oss_audio_path)
-      } catch (error) {
-        console.warn('Failed to get signed URL:', error)
-      }
-    }
-
-    ElMessage.success('AI 评测完成')
-  }
-
-  function handlePollingFailed(errorMessage: string) {
-    stopPolling()
-    asyncSubmitState.value = 'failed'
-    ElMessage.error(`处理失败：${errorMessage}`)
-  }
-
-  function stopPolling() {
-    if (pollingInterval.value) {
-      window.clearInterval(pollingInterval.value)
-      pollingInterval.value = null
-    }
-  }
-
   function jumpToTimestamp(timestamp: number) {
-    if (userAudioUrl.value) {
-      if (!currentAudioElement.value) {
-        currentAudioElement.value = new Audio(userAudioUrl.value)
-      }
-      currentAudioElement.value.currentTime = timestamp
-      currentAudioElement.value.play()
+    if (!userAudioUrl.value) return
+
+    if (!currentAudioElement.value || currentAudioElement.value.src !== userAudioUrl.value) {
+      resetTimestampAudio()
+      currentAudioElement.value = new Audio(userAudioUrl.value)
     }
+
+    currentAudioElement.value.currentTime = timestamp
+    void currentAudioElement.value.play().catch((error) => {
+      console.warn('Failed to play timestamp audio:', error)
+    })
+  }
+
+  function selectCard(index: number) {
+    if (index < 0 || index >= cards.value.length) return
+    currentIndex.value = index
+    resetCardState()
   }
 
   function goNextCard() {
     if (!isLastCard.value) {
-      currentIndex.value++
-      resetCardState()
+      selectCard(currentIndex.value + 1)
     }
   }
 
   async function flip() {
     isFlipped.value = true
 
-    // Load signed URL for user recording if no local blob URL available
     if (!userAudioUrl.value && currentCard.value?.ossAudioPath) {
       try {
         userAudioUrl.value = await getOSSSignedUrl(currentCard.value.ossAudioPath)
-      } catch (e) {
-        console.warn('Failed to get signed URL for recording:', e)
+      } catch (error) {
+        console.warn('Failed to get signed URL for recording:', error)
       }
     }
   }
+
+  watch(userAudioUrl, (nextUrl, previousUrl) => {
+    if (nextUrl !== previousUrl) {
+      resetTimestampAudio()
+    }
+  })
 
   return {
     lessonId,
@@ -338,6 +286,7 @@ export const useStudyStore = defineStore('study', () => {
     loadLessonCards,
     resetCardState,
     submitCardReview,
+    selectCard,
     goNextCard,
     flip,
     uploadState,
@@ -347,8 +296,7 @@ export const useStudyStore = defineStore('study', () => {
     lastFeedbackV2,
     createFeedbackSubmission,
     submitCardRating,
-    startPolling,
-    stopPolling,
-    jumpToTimestamp
+    jumpToTimestamp,
+    resetTimestampAudio,
   }
 })

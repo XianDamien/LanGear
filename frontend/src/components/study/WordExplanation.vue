@@ -12,8 +12,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="absolute bottom-4 right-4 z-50 w-64">
-    <RetroCard class="bg-white border-brand-accent" title="AI 解析">
+  <div class="z-40 mt-4 w-full md:absolute md:bottom-6 md:right-6 md:mt-0 md:w-80">
+    <RetroCard class="border-brand-accent bg-white shadow-xl" title="AI 解析">
       <div class="flex justify-between items-start mb-2">
         <span class="font-bold text-brand-accent text-xl">{{ word }}</span>
         <button

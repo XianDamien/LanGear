@@ -19,7 +19,7 @@ const buttons: { rating: Rating; label: string; interval: string; variant: 'dang
 </script>
 
 <template>
-  <div class="grid grid-cols-4 gap-2 mt-8">
+  <div class="mt-2 grid grid-cols-2 gap-2 md:grid-cols-4">
     <RetroButton
       v-for="btn in buttons"
       :key="btn.rating"
@@ -29,9 +29,9 @@ const buttons: { rating: Rating; label: string; interval: string; variant: 'dang
       :disabled="disabled"
       @click="emit('grade', btn.rating)"
     >
-      <div class="flex flex-col">
+      <div class="flex min-w-0 flex-col text-center">
         <span>{{ btn.label }}</span>
-        <span class="text-xs font-pixel text-slate-600">{{ btn.interval }}</span>
+        <span class="font-pixel text-xs text-slate-600">{{ btn.interval }}</span>
       </div>
     </RetroButton>
   </div>

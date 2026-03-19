@@ -22,7 +22,7 @@ export function useRecorder() {
   let scriptProcessorNode: ScriptProcessorNode | null = null
   let muteGainNode: GainNode | null = null
 
-  async function startRecording(onRealtimePcmChunk?: (pcmBase64: string) => void) {
+  async function startRecording(onRealtimePcmChunk?: (pcmBase64: string) => void): Promise<boolean> {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       mediaStream = stream
@@ -52,8 +52,10 @@ export function useRecorder() {
       // Emit chunk every 250ms for realtime streaming.
       mediaRecorder.start(250)
       isRecording.value = true
+      return true
     } catch {
       ElMessage.error('麦克风权限被拒绝')
+      return false
     }
   }
 
@@ -167,8 +169,9 @@ export function useRecorder() {
   /**
    * 上传音频到 OSS
    */
-  async function uploadToOSS(cardId: string): Promise<string | null> {
-    if (!recordingBlob.value) {
+  async function uploadToOSS(cardId: string, blobOverride?: Blob): Promise<string | null> {
+    const blobToUpload = blobOverride ?? recordingBlob.value
+    if (!blobToUpload) {
       ElMessage.error('没有录音数据')
       return null
     }
@@ -201,7 +204,7 @@ export function useRecorder() {
       const filename = `${cardId}_${timestamp}.webm`
       const path = `recordings/${dateStr}/${filename}`
 
-      const result = await client.put(path, recordingBlob.value, {
+      const result = await client.put(path, blobToUpload, {
         progress: (p: number) => {
           uploadProgress.value = Math.round(p * 100)
         }
