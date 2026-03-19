@@ -65,12 +65,23 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
   // v2.0: POST /study/submissions（异步版本）
   if (method === 'post' && url === '/study/submissions') {
     await delay(200)
+    const body = parseBody(config) as {
+      realtime_session_id?: string
+      transcription_text?: string
+    }
+    if (!body?.realtime_session_id) {
+      return mockError('REALTIME_SESSION_NOT_FOUND', 'Missing realtime_session_id', 400)
+    }
+
     const submissionId = Math.floor(Math.random() * 10000)
     sessionStorage.setItem(
       `submission_${submissionId}`,
       JSON.stringify({
         status: 'processing',
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        realtime_session_id: body.realtime_session_id,
+        transcription_text:
+          typeof body.transcription_text === 'string' ? body.transcription_text.trim() : '',
       })
     )
     return mockResolve({
@@ -101,20 +112,18 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
         progress: elapsed < 1500 ? 'asr_completed' : 'ai_processing'
       })
     } else {
+      const transcriptText =
+        typeof data.transcription_text === 'string' ? data.transcription_text.trim() : ''
+
       sessionStorage.removeItem(`submission_${submissionId}`)
       return mockResolve({
         submission_id: Number(submissionId),
         status: 'completed',
         result_type: 'single',
+        realtime_session_id: data.realtime_session_id,
         transcription: {
-          text: 'This is a mock transcription',
-          timestamps: [
-            { word: 'This', start: 0.0, end: 0.3 },
-            { word: 'is', start: 0.4, end: 0.5 },
-            { word: 'a', start: 0.6, end: 0.7 },
-            { word: 'mock', start: 0.8, end: 1.1 },
-            { word: 'transcription', start: 1.2, end: 1.8 }
-          ]
+          text: transcriptText,
+          timestamps: []
         },
         feedback: {
           pronunciation: '发音整体清晰，注意连读部分。',
