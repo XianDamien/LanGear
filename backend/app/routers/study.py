@@ -18,6 +18,7 @@ class SubmissionRequest(BaseModel):
     lesson_id: int
     card_id: int
     oss_audio_path: str
+    realtime_session_id: str
 
 
 class RatingRequest(BaseModel):
@@ -60,6 +61,7 @@ def submit_review(
             lesson_id=request.lesson_id,
             card_id=request.card_id,
             oss_audio_path=request.oss_audio_path,
+            realtime_session_id=request.realtime_session_id,
         )
 
         return {
@@ -73,6 +75,12 @@ def submit_review(
         # Determine error code
         if "oss" in error_message.lower():
             error_code = "INVALID_OSS_PATH"
+        elif "REALTIME_SESSION_NOT_FOUND" in error_message:
+            error_code = "REALTIME_SESSION_NOT_FOUND"
+        elif "REALTIME_TRANSCRIPT_NOT_READY" in error_message:
+            error_code = "REALTIME_TRANSCRIPT_NOT_READY"
+        elif "REALTIME_SESSION_FAILED" in error_message:
+            error_code = "REALTIME_SESSION_FAILED"
         elif "not found" in error_message.lower():
             error_code = "CARD_NOT_FOUND"
         else:

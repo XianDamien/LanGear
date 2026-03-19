@@ -10,6 +10,7 @@ from app.adapters.fsrs_adapter import FSRSAdapter
 from app.repositories.card_repo import CardRepository
 from app.repositories.review_log_repo import ReviewLogRepository
 from app.repositories.srs_repo import SRSRepository
+from app.services.realtime_session_service import get_realtime_session_store
 from app.tasks.review_task import process_review_task
 
 logger = logging.getLogger(__name__)
@@ -31,12 +32,14 @@ class ReviewService:
         self.review_log_repo = ReviewLogRepository(db)
         self.srs_repo = SRSRepository(db)
         self.fsrs_adapter = FSRSAdapter()
+        self.realtime_store = get_realtime_session_store()
 
     def submit_card_review(
         self,
         lesson_id: int,
         card_id: int,
         oss_audio_path: str,
+        realtime_session_id: str,
     ) -> dict[str, Any]:
         """Submit a card feedback request (synchronous part).
 
@@ -54,7 +57,7 @@ class ReviewService:
             - status: "processing"
 
         Raises:
-            ValueError: If card not found, invalid lesson, or invalid OSS path
+            ValueError: If request validation fails
         """
         # Validate card and lesson
         card = self.card_repo.get_by_id(card_id)
@@ -67,6 +70,25 @@ class ReviewService:
         # Validate OSS path format
         if not oss_audio_path.startswith("recordings/"):
             raise ValueError("Invalid OSS path. Must start with 'recordings/'")
+
+        # Validate realtime session
+        realtime_session = self.realtime_store.get_session(realtime_session_id)
+        if not realtime_session:
+            raise ValueError(f"REALTIME_SESSION_NOT_FOUND: {realtime_session_id}")
+
+        if realtime_session.lesson_id != lesson_id or realtime_session.card_id != card_id:
+            raise ValueError(
+                "REALTIME_SESSION_NOT_FOUND: session does not match lesson/card context"
+            )
+
+        if realtime_session.status == "failed":
+            message = realtime_session.error or "Realtime session failed"
+            raise ValueError(f"REALTIME_SESSION_FAILED: {message}")
+
+        if realtime_session.status != "ready" or not realtime_session.final_text.strip():
+            raise ValueError(
+                "REALTIME_TRANSCRIPT_NOT_READY: realtime final transcript is not ready"
+            )
 
         # Create review_log with status='processing'
         review_log = self.review_log_repo.create(
@@ -86,7 +108,14 @@ class ReviewService:
         # Launch background task
         task_thread = threading.Thread(
             target=process_review_task,
-            args=(submission_id, card_id, lesson_id, oss_audio_path),
+            args=(
+                submission_id,
+                card_id,
+                lesson_id,
+                oss_audio_path,
+                realtime_session_id,
+                realtime_session.final_text.strip(),
+            ),
             daemon=True,
         )
         task_thread.start()
