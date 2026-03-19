@@ -1,14 +1,19 @@
 """Application configuration using Pydantic Settings."""
 
+from pathlib import Path
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=BACKEND_ROOT / ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -19,9 +24,7 @@ class Settings(BaseSettings):
 
     # Google Gemini API
     gemini_api_key: str
-    gemini_relay_base_url: str | None = None
-    gemini_relay_api_key: str | None = None
-    gemini_model_id: str | None = None
+    gemini_model_id: str = "gemini-3.1-flash-lite-preview"
     gemini_prompt_version: str = "v1"
 
     # AI feedback provider
@@ -53,7 +56,7 @@ class Settings(BaseSettings):
     realtime_asr_ws_base_url: str | None = None
 
     # CORS
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:3002"
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -64,7 +67,7 @@ class Settings(BaseSettings):
     def validate_ai_feedback_settings(self) -> "Settings":
         """Validate provider-specific AI feedback settings."""
         provider = self.ai_feedback_provider.strip().lower()
-        if provider == "gemini" and not (self.gemini_model_id or "").strip():
+        if provider == "gemini" and not self.gemini_model_id.strip():
             raise ValueError(
                 "GEMINI_MODEL_ID is required when AI_FEEDBACK_PROVIDER is 'gemini'"
             )

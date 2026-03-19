@@ -18,22 +18,12 @@ class GeminiAdapter:
 
     def __init__(self):
         """Initialize Gemini client, model, and prompt templates."""
-        api_key = settings.gemini_relay_api_key or settings.gemini_api_key
+        api_key = settings.gemini_api_key.strip()
         if not api_key:
             raise AIFeedbackError("Missing Gemini API key")
 
-        http_options: types.HttpOptions | None = None
-        if settings.gemini_relay_base_url:
-            headers: dict[str, str] | None = None
-            if settings.gemini_relay_api_key:
-                headers = {"Authorization": f"Bearer {settings.gemini_relay_api_key}"}
-            http_options = types.HttpOptions(
-                base_url=settings.gemini_relay_base_url,
-                headers=headers,
-            )
-
-        self.client = genai.Client(api_key=api_key, http_options=http_options)
-        self.model_id = settings.gemini_model_id or ""
+        self.client = genai.Client(api_key=api_key)
+        self.model_id = settings.gemini_model_id.strip()
         self.prompts_dir = Path(__file__).parent / "prompts" / settings.gemini_prompt_version
 
         self.single_feedback_prompt = self._load_prompt("single_feedback.txt")
@@ -74,6 +64,20 @@ class GeminiAdapter:
         return result_text
 
     @staticmethod
+    def _download_audio_bytes(audio_url: str, timeout: int = 30) -> bytes:
+        """Download audio bytes for the single official SDK request path."""
+        try:
+            with urlopen(audio_url, timeout=timeout) as response:
+                data = response.read()
+                if not data:
+                    raise AIFeedbackError(f"Empty audio content: {audio_url}")
+                return data
+        except AIFeedbackError:
+            raise
+        except Exception as e:
+            raise AIFeedbackError(f"Failed to download audio: {audio_url}, error={e}")
+
+    @staticmethod
     def _guess_audio_mime_type(audio_url: str) -> str:
         """Best-effort MIME type inference by URL suffix."""
         path = urlparse(audio_url).path.lower()
@@ -89,20 +93,6 @@ class GeminiAdapter:
             return "audio/ogg"
         return "application/octet-stream"
 
-    @staticmethod
-    def _download_audio_bytes(audio_url: str, timeout: int = 30) -> bytes:
-        """Download audio bytes for inline fallback."""
-        try:
-            with urlopen(audio_url, timeout=timeout) as response:
-                data = response.read()
-                if not data:
-                    raise AIFeedbackError(f"Empty audio content: {audio_url}")
-                return data
-        except AIFeedbackError:
-            raise
-        except Exception as e:
-            raise AIFeedbackError(f"Failed to download audio: {audio_url}, error={e}")
-
     def _generate_with_audio(
         self,
         prompt: str,
@@ -110,7 +100,7 @@ class GeminiAdapter:
         reference_audio_url: str,
         max_output_tokens: int,
     ) -> str:
-        """Generate multimodal response with URL-first and inline-audio fallback."""
+        """Generate multimodal response with official SDK inline audio only."""
         config = types.GenerateContentConfig(
             temperature=0.3,
             max_output_tokens=max_output_tokens,
@@ -125,35 +115,20 @@ class GeminiAdapter:
                 model=self.model_id,
                 contents=[
                     prompt,
-                    types.Part.from_uri(file_uri=reference_audio_url, mime_type=reference_mime),
-                    types.Part.from_uri(file_uri=user_audio_url, mime_type=user_mime),
+                    types.Part.from_bytes(
+                        data=self._download_audio_bytes(reference_audio_url),
+                        mime_type=reference_mime,
+                    ),
+                    types.Part.from_bytes(
+                        data=self._download_audio_bytes(user_audio_url),
+                        mime_type=user_mime,
+                    ),
                 ],
                 config=config,
             )
             return response.text or ""
-        except Exception as uri_error:
-            try:
-                response = self.client.models.generate_content(
-                    model=self.model_id,
-                    contents=[
-                        prompt,
-                        types.Part.from_bytes(
-                            data=self._download_audio_bytes(reference_audio_url),
-                            mime_type=reference_mime,
-                        ),
-                        types.Part.from_bytes(
-                            data=self._download_audio_bytes(user_audio_url),
-                            mime_type=user_mime,
-                        ),
-                    ],
-                    config=config,
-                )
-                return response.text or ""
-            except Exception as inline_error:
-                raise AIFeedbackError(
-                    "Gemini audio request failed. "
-                    f"uri_mode_error={uri_error}; inline_mode_error={inline_error}"
-                )
+        except Exception as e:
+            raise AIFeedbackError(f"Gemini audio request failed: {e}")
 
     def _generate_text_only(self, prompt: str, max_output_tokens: int) -> str:
         """Generate text-only response."""

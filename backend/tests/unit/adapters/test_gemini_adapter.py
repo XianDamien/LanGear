@@ -24,13 +24,27 @@ class TestGeminiAdapter:
         monkeypatch.setattr(module.genai, "Client", mock_genai_client)
 
         object.__setattr__(module.settings, "gemini_api_key", "test-api-key")
-        object.__setattr__(module.settings, "gemini_relay_base_url", None)
-        object.__setattr__(module.settings, "gemini_relay_api_key", None)
         object.__setattr__(module.settings, "gemini_model_id", "gemini-test-model")
         object.__setattr__(module.settings, "gemini_prompt_version", "v1")
 
         adapter = GeminiAdapter()
+        monkeypatch.setattr(adapter, "_download_audio_bytes", lambda *_args, **_kwargs: b"audio-bytes")
         return adapter, mock_client
+
+    def test_uses_official_sdk_without_relay_options(self, monkeypatch):
+        import app.adapters.gemini_adapter as module
+
+        mock_client = Mock()
+        mock_genai_client = Mock(return_value=mock_client)
+        monkeypatch.setattr(module.genai, "Client", mock_genai_client)
+
+        object.__setattr__(module.settings, "gemini_api_key", "test-api-key")
+        object.__setattr__(module.settings, "gemini_model_id", "gemini-test-model")
+        object.__setattr__(module.settings, "gemini_prompt_version", "v1")
+
+        GeminiAdapter()
+
+        mock_genai_client.assert_called_once_with(api_key="test-api-key")
 
     def test_load_prompt_from_versioned_directory(self, gemini_adapter):
         adapter, _ = gemini_adapter
@@ -176,6 +190,21 @@ class TestGeminiAdapter:
         assert result["suggestions"][0]["text"] == "Speak slightly slower"
         assert result["suggestions"][0]["target_word"] is None
 
+    def test_generate_single_feedback_makes_single_audio_request_without_retry(self, gemini_adapter):
+        adapter, mock_client = gemini_adapter
+
+        mock_client.models.generate_content.side_effect = RuntimeError("bad request")
+
+        with pytest.raises(AIFeedbackError) as exc_info:
+            adapter.generate_single_feedback(
+                front_text="Test sentence",
+                user_audio_url="https://example.com/user.wav",
+                reference_audio_url="https://example.com/ref.wav",
+            )
+
+        assert "Gemini audio request failed: bad request" in str(exc_info.value)
+        assert mock_client.models.generate_content.call_count == 1
+
     def test_generate_lesson_summary_success(self, gemini_adapter):
         adapter, mock_client = gemini_adapter
 
@@ -219,8 +248,6 @@ class TestGeminiAdapter:
         monkeypatch.setattr(module.genai, "Client", Mock(return_value=mock_client))
 
         object.__setattr__(module.settings, "gemini_api_key", "test-api-key")
-        object.__setattr__(module.settings, "gemini_relay_base_url", None)
-        object.__setattr__(module.settings, "gemini_relay_api_key", None)
         object.__setattr__(module.settings, "gemini_model_id", "gemini-test-model")
         object.__setattr__(module.settings, "gemini_prompt_version", "v999_not_exist")
 
