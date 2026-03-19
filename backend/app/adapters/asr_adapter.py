@@ -2,11 +2,9 @@
 
 from typing import Any
 
-import dashscope
-from dashscope.audio.asr import Recognition
-
 from app.config import settings
 from app.exceptions import ASRTranscriptionError
+import dashscope
 
 
 class ASRAdapter:
@@ -41,57 +39,116 @@ class ASRAdapter:
         Raises:
             ASRTranscriptionError: If transcription fails
         """
+        _ = timeout  # preserved for backward-compatible signature
+
         try:
-            # Call qwen3-asr-flash API using file URL
-            recognition = Recognition(
+            # qwen3-asr-flash accepts signed OSS URL via multimodal conversation API.
+            response = dashscope.MultiModalConversation.call(
                 model=self.model,
-                format="wav",
-                sample_rate=16000,
-                callback=None,
+                messages=[{"role": "user", "content": [{"audio": audio_url}]}],
+                asr_options={"enable_itn": False},
             )
 
-            # Use synchronous recognition with URL input
-            result = recognition.call(
-                file_urls=[audio_url],
-                disfluency_removal_enabled=False,  # Keep disfluencies for accuracy
-                timestamp_alignment_enabled=True,  # Enable word-level timestamps
-                vocabulary_id=None,
-            )
-
-            # Check result status
-            if result.status_code != 200:
+            if response.status_code != 200:
                 raise ASRTranscriptionError(
-                    f"ASR API returned status {result.status_code}: {result.message}"
+                    f"ASR API returned status {response.status_code}: {response.message}"
                 )
 
-            # Extract transcription and timestamps from response
-            if not result.output or not result.output.get("results"):
+            text = self._extract_text(response.output).strip()
+            if not text:
                 raise ASRTranscriptionError("No transcription in response")
 
-            # Get the transcription result
-            transcription_result = result.output["results"][0]
-            full_text = transcription_result.get("transcription_text", "")
-
-            # Extract word-level timestamps
-            timestamps = []
-            if "sentence" in transcription_result:
-                for sentence in transcription_result["sentence"]:
-                    if "words" in sentence:
-                        for word_info in sentence["words"]:
-                            timestamps.append(
-                                {
-                                    "word": word_info.get("text", ""),
-                                    "start": word_info.get("begin_time", 0) / 1000.0,  # Convert ms to seconds
-                                    "end": word_info.get("end_time", 0) / 1000.0,
-                                }
-                            )
-
             return {
-                "text": full_text.strip(),
-                "timestamps": timestamps,
+                "text": text,
+                "timestamps": self._extract_timestamps(response.output),
             }
 
         except ASRTranscriptionError:
             raise
         except Exception as e:
             raise ASRTranscriptionError(f"ASR transcription failed: {str(e)}")
+
+    @staticmethod
+    def _extract_text(output: Any) -> str:
+        """Extract transcription text from DashScope response output.
+
+        Supports both:
+        - qwen3-asr-flash multimodal structure: output.choices[].message.content[].text
+        - legacy recognition structure: output.results[].transcription_text
+        """
+        if not isinstance(output, dict):
+            return ""
+
+        # New qwen3-asr-flash multimodal response
+        choices = output.get("choices")
+        if isinstance(choices, list):
+            parts: list[str] = []
+            for choice in choices:
+                if not isinstance(choice, dict):
+                    continue
+                message = choice.get("message")
+                if not isinstance(message, dict):
+                    continue
+                content = message.get("content")
+                if not isinstance(content, list):
+                    continue
+                for item in content:
+                    if isinstance(item, dict):
+                        text = item.get("text")
+                        if isinstance(text, str) and text:
+                            parts.append(text)
+            if parts:
+                return " ".join(parts)
+
+        # Legacy compatibility format
+        results = output.get("results")
+        if isinstance(results, list) and results:
+            first = results[0]
+            if isinstance(first, dict):
+                text = first.get("transcription_text")
+                if isinstance(text, str):
+                    return text
+
+        text = output.get("text")
+        return text if isinstance(text, str) else ""
+
+    @staticmethod
+    def _extract_timestamps(output: Any) -> list[dict[str, Any]]:
+        """Extract word-level timestamps when available.
+
+        qwen3-asr-flash multimodal responses may not include word timestamps.
+        We keep compatibility for legacy `results[].sentence[].words[]` payloads.
+        """
+        if not isinstance(output, dict):
+            return []
+
+        results = output.get("results")
+        if not isinstance(results, list) or not results:
+            return []
+
+        first = results[0]
+        if not isinstance(first, dict):
+            return []
+
+        sentences = first.get("sentence")
+        if not isinstance(sentences, list):
+            return []
+
+        timestamps: list[dict[str, Any]] = []
+        for sentence in sentences:
+            if not isinstance(sentence, dict):
+                continue
+            words = sentence.get("words")
+            if not isinstance(words, list):
+                continue
+            for word_info in words:
+                if not isinstance(word_info, dict):
+                    continue
+                timestamps.append(
+                    {
+                        "word": word_info.get("text", ""),
+                        "start": word_info.get("begin_time", 0) / 1000.0,
+                        "end": word_info.get("end_time", 0) / 1000.0,
+                    }
+                )
+        return timestamps
