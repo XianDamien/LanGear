@@ -15,7 +15,6 @@ import CardBack from '@/components/study/CardBack.vue'
 import StudyTaskNav from '@/components/study/StudyTaskNav.vue'
 import WordExplanation from '@/components/study/WordExplanation.vue'
 import SummaryModal from '@/components/summary/SummaryModal.vue'
-import type { AsyncSubmitState } from '@/stores/study'
 import type { Rating } from '@/types/domain'
 import { parseNumericIdOrThrow } from '@/utils/ids'
 
@@ -23,6 +22,7 @@ const route = useRoute()
 const router = useRouter()
 const studyStore = useStudyStore()
 const studyTasksStore = useStudyTasksStore()
+
 const {
   cards,
   currentIndex,
@@ -41,6 +41,9 @@ const {
   lessonName,
   audioPlaying,
   uploadState,
+  asyncSubmitState,
+  transcriptionTimestamps,
+  lastFeedbackV2,
 } = storeToRefs(studyStore)
 const { taskMap } = storeToRefs(studyTasksStore)
 
@@ -60,26 +63,7 @@ const studyCardClass = computed(() =>
     : 'flex h-full min-h-0 flex-col items-center justify-center p-6 text-center sm:p-8',
 )
 
-const currentTask = computed(() =>
-  currentCard.value ? studyTasksStore.getTask(currentCard.value.id) : null,
-)
-const currentSubmissionId = computed(() => currentTask.value?.submissionId ?? null)
-const currentAsyncSubmitState = computed<AsyncSubmitState>(() => currentTask.value?.reviewState ?? 'idle')
-const currentFeedbackV2 = computed(() => currentTask.value?.feedback ?? null)
-const currentTranscriptionTimestamps = computed(
-  () => currentTask.value?.feedback?.transcription.timestamps ?? [],
-)
-const displayedUserTranscript = computed(
-  () => currentTask.value?.transcript || userTranscript.value,
-)
-const displayedUserAudioUrl = computed(
-  () => userAudioUrl.value || currentTask.value?.audioUrl || null,
-)
-
-function shouldShowBackForCard(cardId: string | null | undefined): boolean {
-  const task = studyTasksStore.getTask(cardId)
-  return Boolean(task && (task.uploadState !== 'idle' || task.reviewState !== 'idle'))
-}
+const currentTask = computed(() => studyTasksStore.getTask(currentCard.value?.id))
 
 async function waitForRecordingBlob(timeoutMs = 2500): Promise<boolean> {
   const start = Date.now()
@@ -117,46 +101,26 @@ function clearCardSession() {
   recorder.reset()
 }
 
-async function loadStudySession(lessonId: string) {
-  clearCardSession()
-  studyTasksStore.resetSession()
-  await studyStore.loadLessonCards(lessonId)
-}
-
-onUnmounted(() => {
-  clearCardSession()
-  studyTasksStore.resetSession()
-  audioPlayer.stop()
-})
-
 watch(
   () => route.params.lessonId,
   async (lessonId) => {
     if (typeof lessonId !== 'string' || !lessonId) return
-    await loadStudySession(lessonId)
+    clearCardSession()
+    await studyStore.loadLessonCards(lessonId)
+    studyTasksStore.initializeLesson(lessonId, cards.value)
   },
   { immediate: true },
 )
+
+watch(cards, (nextCards) => {
+  const lessonId = route.params.lessonId
+  if (typeof lessonId !== 'string' || !lessonId) return
+  studyTasksStore.initializeLesson(lessonId, nextCards)
+})
 
 watch(currentIndex, () => {
   clearCardSession()
 })
-
-watch(
-  () => currentCard.value?.id,
-  (cardId) => {
-    const task = studyTasksStore.getTask(cardId)
-    studyStore.setFlipped(shouldShowBackForCard(cardId))
-    if (task?.audioUrl) {
-      studyStore.userAudioUrl = task.audioUrl
-    }
-    if (task?.transcript) {
-      studyStore.userTranscript = task.transcript
-      studyStore.liveTranscript = task.transcript
-    }
-  },
-  { immediate: true },
-)
 
 watch(
   () => audioPlayer.isPlaying.value,
@@ -166,12 +130,48 @@ watch(
   { immediate: true },
 )
 
+watch(
+  currentTask,
+  (task) => {
+    studyStore.submissionId = task?.submissionId ?? null
+    studyStore.uploadState = task?.uploadState ?? 'idle'
+    studyStore.asyncSubmitState =
+      task?.reviewStatus === 'submitting' ||
+      task?.reviewStatus === 'processing' ||
+      task?.reviewStatus === 'completed' ||
+      task?.reviewStatus === 'failed'
+        ? task.reviewStatus
+        : 'idle'
+    studyStore.lastFeedbackV2 = task?.result ?? null
+    studyStore.transcriptionTimestamps = task?.result?.transcription.timestamps ?? []
+    studyStore.isFlipped = Boolean(task?.submissionId)
+
+    if (task?.result?.transcription.text) {
+      studyStore.userTranscript = task.result.transcription.text
+      studyStore.liveTranscript = task.result.transcription.text
+    }
+
+    if (task?.signedAudioUrl) {
+      studyStore.userAudioUrl = task.signedAudioUrl
+    }
+  },
+  { immediate: true },
+)
+
+onUnmounted(() => {
+  clearCardSession()
+  studyStore.resetTimestampAudio()
+  audioPlayer.stop()
+  studyTasksStore.teardown()
+})
+
 function beginRecording() {
   realtimeAsr.finalTranscript.value = ''
   studyStore.recordingState = 'recording'
   studyStore.userTranscript = ''
   studyStore.liveTranscript = ''
   studyStore.uploadState = 'idle'
+  studyStore.asyncSubmitState = 'idle'
 }
 
 function syncStoppedRecordingState() {
@@ -179,18 +179,20 @@ function syncStoppedRecordingState() {
   studyStore.recordingState = 'stopped'
 }
 
-async function uploadRecordingForCard(cardId: string): Promise<string | null> {
+async function uploadRecordingForCard(cardId: string, cardIndex: number, recordingBlob: Blob) {
   studyStore.uploadState = 'uploading'
-  const ossPath = await recorder.uploadToOSS(cardId)
+  studyTasksStore.setUploadState(cardId, cardIndex, 'uploading')
+  const ossPath = await recorder.uploadToOSS(cardId, recordingBlob)
 
   if (ossPath) {
     studyStore.uploadState = 'uploaded'
+    studyTasksStore.setUploadState(cardId, cardIndex, 'uploaded')
     ElMessage.success('录音上传成功')
     return ossPath
   }
 
   studyStore.uploadState = 'failed'
-  return null
+  studyTasksStore.setUploadState(cardId, cardIndex, 'failed')
 }
 
 async function handleStopRecordingFlow() {
@@ -260,18 +262,18 @@ async function toggleRecording() {
 }
 
 async function handleGrade(rating: Rating) {
-  if (!currentSubmissionId.value) {
+  if (!studyStore.submissionId) {
     ElMessage.warning('请先翻面等待 AI 反馈任务创建')
     return
   }
 
-  if (currentAsyncSubmitState.value !== 'completed') {
+  if (asyncSubmitState.value !== 'completed') {
     ElMessage.info('AI 评测中，请稍候完成后再评分')
     return
   }
 
   try {
-    const result = await studyStore.submitCardRating(currentSubmissionId.value, rating)
+    const result = await studyStore.submitCardRating(rating)
     if (result === 'summary') {
       isSummaryOpen.value = true
     } else {
@@ -283,8 +285,6 @@ async function handleGrade(rating: Rating) {
 }
 
 async function handleFlip() {
-  if (!currentCard.value) return
-
   if (recorder.isRecording.value) {
     ElMessage.warning('请先停止录音')
     return
@@ -305,47 +305,54 @@ async function handleFlip() {
     return
   }
 
-  const cardId = currentCard.value.id
-  const cardIndex = currentIndex.value
-  const realtimeSessionId = realtimeAsr.realtimeSessionId.value
-  const transcript = realtimeAsr.finalTranscript.value
+  if (!currentCard.value) return
 
-  studyStore.userTranscript = transcript
-  studyStore.liveTranscript = transcript
+  const activeCard = currentCard.value
+  const activeCardIndex = currentIndex.value
+  const recordingBlob = recorder.recordingBlob.value
+  const realtimeSessionId = realtimeAsr.realtimeSessionId.value
+
+  studyStore.userTranscript = realtimeAsr.finalTranscript.value
+  studyStore.liveTranscript = realtimeAsr.finalTranscript.value
+
   await studyStore.flip()
-  studyTasksStore.beginUpload(cardId, cardIndex, transcript)
   realtimeAsr.endSession()
 
   void (async () => {
-    try {
-      const ossPath = await uploadRecordingForCard(cardId)
+    if (studyStore.uploadState === 'uploading') return
 
-      if (!ossPath) {
-        studyTasksStore.markTaskFailed(cardId, cardIndex, '音频上传失败')
+    try {
+      const ossPath = await uploadRecordingForCard(activeCard.id, activeCardIndex, recordingBlob)
+
+      if (!ossPath || studyStore.uploadState !== 'uploaded') {
+        studyStore.asyncSubmitState = 'failed'
+        studyTasksStore.setSubmissionFailed(activeCard.id, activeCardIndex, '上传失败')
         return
       }
 
-      studyTasksStore.markUploadUploaded(cardId, cardIndex)
+      studyStore.asyncSubmitState = 'submitting'
+      studyTasksStore.setSubmissionPending(activeCard.id, activeCardIndex)
       const submissionId = await studyStore.createFeedbackSubmission(
-        cardId,
         ossPath,
         realtimeSessionId,
       )
-      studyTasksStore.attachSubmission(cardId, cardIndex, submissionId, transcript)
+      studyTasksStore.registerSubmission(activeCard.id, activeCardIndex, submissionId)
       ElMessage.info('AI 评测中，请稍候...')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '提交失败，请重试'
-      studyTasksStore.markTaskFailed(cardId, cardIndex, message)
-      ElMessage.error(message)
+    } catch {
+      studyStore.uploadState = 'failed'
+      studyStore.asyncSubmitState = 'failed'
+      studyTasksStore.setSubmissionFailed(activeCard.id, activeCardIndex, '提交失败，请重试')
+      ElMessage.error('提交失败，请重试')
     }
   })()
 }
 
 function handleSelectCard(index: number) {
-  studyStore.setCurrentCard(index)
+  if (index === currentIndex.value) return
+  studyStore.selectCard(index)
 }
 
-watch(currentAsyncSubmitState, (newState) => {
+watch(asyncSubmitState, (newState) => {
   if (newState === 'completed' && studyStore.isLastCard) {
     setTimeout(() => {
       isSummaryOpen.value = true
@@ -425,10 +432,10 @@ function exitStudy() {
     </div>
 
     <StudyTaskNav
-      v-if="cards.length"
+      v-if="cards.length > 0"
       :cards="cards"
-      :current-card-id="currentCard?.id"
-      :tasks="taskMap"
+      :current-index="currentIndex"
+      :task-map="taskMap"
       @select="handleSelectCard"
     />
 
@@ -454,17 +461,17 @@ function exitStudy() {
         <CardBack
           v-else
           :card="currentCard"
-          :user-transcript="displayedUserTranscript"
-          :user-audio-url="displayedUserAudioUrl"
+          :user-transcript="userTranscript"
+          :user-audio-url="userAudioUrl"
           :feedback="lastFeedback"
           :feedback-loading="isFeedbackLoading"
           :show-translation="showTranslation"
           :translation-loading="isTranslationLoading"
           :notes="notes"
           :submit-state="submitState"
-          :async-submit-state="currentAsyncSubmitState"
-          :feedback-v2="currentFeedbackV2"
-          :transcription-timestamps="currentTranscriptionTimestamps"
+          :async-submit-state="asyncSubmitState"
+          :feedback-v2="lastFeedbackV2"
+          :transcription-timestamps="transcriptionTimestamps"
           @play-original="playCurrentAudio"
           @show-translation="handleShowTranslation"
           @word-click="handleWordClick"
