@@ -20,7 +20,9 @@ Thumbs.db
 playwright-cli.json
 
 # Local docs drafts
-docs/
+docs/*
+!docs/prd_versions/
+!docs/prd_versions/**
 
 # Old output directories
 2_processed_output.old/

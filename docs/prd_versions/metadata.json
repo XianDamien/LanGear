@@ -1,0 +1,36 @@
+{
+  "name": "prd",
+  "version": "v2.2",
+  "description": "LanGear PRD version tracking",
+  "owner": "pm@lan",
+  "updated_at": "2026-03-20T23:45:57+08:00",
+  "tags": [
+    "prd",
+    "version-tracking"
+  ],
+  "notes": "Authoring source remains PRD.md. current.md is the synced mirror; archived/ stores release snapshots.",
+  "files": {
+    "source": "PRD.md",
+    "current": "docs/prd_versions/current.md",
+    "archived_dir": "docs/prd_versions/archived"
+  },
+  "current_state": {
+    "source_sha256": "785dcdbc776f6c8586ff92db9061772f70983e9bd3a8a97c5104f3c2e0f0e261",
+    "current_sha256": "785dcdbc776f6c8586ff92db9061772f70983e9bd3a8a97c5104f3c2e0f0e261",
+    "in_sync": true
+  },
+  "current_snapshot": {
+    "version": "v2.2",
+    "date": "2026-03-20",
+    "file": "docs/prd_versions/archived/PRD_v2.2_2026-03-20.md",
+    "sha256": "785dcdbc776f6c8586ff92db9061772f70983e9bd3a8a97c5104f3c2e0f0e261"
+  },
+  "changelog": [
+    {
+      "version": "v2.2",
+      "date": "2026-03-20",
+      "changes": "简化为单一 PRD 版本追踪，移除 baseline/product 双轨",
+      "file": "docs/prd_versions/archived/PRD_v2.2_2026-03-20.md"
+    }
+  ]
+}
