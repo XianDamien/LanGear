@@ -51,10 +51,17 @@ class TestGeminiAdapter:
 
         expected_dir = Path(adapter.prompts_dir)
         assert expected_dir.name == "v1"
-        assert (expected_dir / "single_feedback.txt").exists()
-        assert (expected_dir / "lesson_summary.txt").exists()
-        assert adapter.single_feedback_prompt
-        assert adapter.lesson_summary_prompt
+        assert (expected_dir / "single_feedback" / "system.md").exists()
+        assert (expected_dir / "single_feedback" / "user.md").exists()
+        assert (expected_dir / "single_feedback" / "metadata.json").exists()
+        assert (expected_dir / "lesson_summary" / "system.md").exists()
+        assert (expected_dir / "lesson_summary" / "user.md").exists()
+        assert (expected_dir / "lesson_summary" / "metadata.json").exists()
+        assert adapter.single_feedback_prompt.system
+        assert adapter.single_feedback_prompt.user
+        assert adapter.single_feedback_prompt.metadata["prompt_version"] == "1.0.0"
+        assert adapter.lesson_summary_prompt.system
+        assert adapter.lesson_summary_prompt.user
 
     def test_generate_single_feedback_success(self, gemini_adapter):
         adapter, mock_client = gemini_adapter
@@ -254,4 +261,4 @@ class TestGeminiAdapter:
         with pytest.raises(AIFeedbackError) as exc_info:
             GeminiAdapter()
 
-        assert "Prompt file not found" in str(exc_info.value)
+        assert "Prompt directory not found" in str(exc_info.value)
