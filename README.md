@@ -55,6 +55,17 @@ cd backend
 uv run pytest
 ```
 
+### `uv` 使用说明
+
+- 默认在 `backend/` 目录下使用 `uv run ...` 与 `uv sync ...`
+- 如果本机 `uv` 不在 `PATH`，请先将 `uv` 安装目录加入 shell 的 `PATH`
+- 不建议混用系统 Python、系统 `pytest` 和 `uv run`，否则容易出现依赖不一致
+- 如果不希望在项目目录下生成 `.venv`，请按命令显式指定单独的环境路径，例如：
+
+```bash
+cd backend
+UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pytest
+```
 ## 环境变量
 
 - 前端环境变量：`frontend/.env`
