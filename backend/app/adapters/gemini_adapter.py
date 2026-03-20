@@ -1,6 +1,7 @@
 """Google Gemini adapter for AI evaluation."""
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -11,6 +12,15 @@ from google.genai import types
 
 from app.config import settings
 from app.exceptions import AIFeedbackError
+
+
+@dataclass(frozen=True)
+class PromptTemplate:
+    """Structured prompt template split into system and user sections."""
+
+    system: str
+    user: str
+    metadata: dict[str, Any] | None = None
 
 
 class GeminiAdapter:
@@ -26,19 +36,41 @@ class GeminiAdapter:
         self.model_id = settings.gemini_model_id.strip()
         self.prompts_dir = Path(__file__).parent / "prompts" / settings.gemini_prompt_version
 
-        self.single_feedback_prompt = self._load_prompt("single_feedback.txt")
-        self.lesson_summary_prompt = self._load_prompt("lesson_summary.txt")
+        self.single_feedback_prompt = self._load_prompt("single_feedback")
+        self.lesson_summary_prompt = self._load_prompt("lesson_summary")
 
-    def _load_prompt(self, filename: str) -> str:
-        """Load prompt template from versioned prompt directory."""
-        prompt_file = self.prompts_dir / filename
-        if not prompt_file.exists():
-            raise AIFeedbackError(f"Prompt file not found: {prompt_file}")
+    @staticmethod
+    def _read_prompt_file(path: Path) -> str:
+        """Read a required prompt file and validate it is non-empty."""
+        if not path.exists():
+            raise AIFeedbackError(f"Prompt file not found: {path}")
 
-        content = prompt_file.read_text(encoding="utf-8").strip()
+        content = path.read_text(encoding="utf-8").strip()
         if not content:
-            raise AIFeedbackError(f"Prompt file is empty: {prompt_file}")
+            raise AIFeedbackError(f"Prompt file is empty: {path}")
         return content
+
+    def _load_prompt(self, prompt_name: str) -> PromptTemplate:
+        """Load structured prompt template from versioned prompt directory."""
+        prompt_dir = self.prompts_dir / prompt_name
+        if not prompt_dir.is_dir():
+            raise AIFeedbackError(f"Prompt directory not found: {prompt_dir}")
+
+        metadata: dict[str, Any] | None = None
+        metadata_file = prompt_dir / "metadata.json"
+        if metadata_file.exists():
+            try:
+                metadata = json.loads(self._read_prompt_file(metadata_file))
+            except json.JSONDecodeError as e:
+                raise AIFeedbackError(
+                    f"Prompt metadata is invalid JSON: {metadata_file}, error={e}"
+                )
+
+        return PromptTemplate(
+            system=self._read_prompt_file(prompt_dir / "system.md"),
+            user=self._read_prompt_file(prompt_dir / "user.md"),
+            metadata=metadata,
+        )
 
     @staticmethod
     def _render_prompt(template: str, **variables: Any) -> str:
@@ -47,6 +79,16 @@ class GeminiAdapter:
         for key, value in variables.items():
             rendered = rendered.replace(f"{{{key}}}", str(value))
         return rendered
+
+    def _render_prompt_template(
+        self,
+        template: PromptTemplate,
+        **variables: Any,
+    ) -> str:
+        """Render structured prompt sections into one request string."""
+        system_prompt = self._render_prompt(template.system, **variables)
+        user_prompt = self._render_prompt(template.user, **variables)
+        return f"{system_prompt}\n\n{user_prompt}".strip()
 
     @staticmethod
     def _extract_json_text(raw_text: str) -> str:
@@ -221,7 +263,7 @@ class GeminiAdapter:
     ) -> dict[str, Any]:
         """Generate single-sentence feedback from user/reference audio."""
         try:
-            prompt = self._render_prompt(
+            prompt = self._render_prompt_template(
                 self.single_feedback_prompt,
                 original_text=front_text,
                 user_audio_url=user_audio_url,
@@ -281,7 +323,7 @@ class GeminiAdapter:
         """Generate lesson-level summary from all feedback."""
         try:
             feedbacks_json = json.dumps(feedbacks, ensure_ascii=False, indent=2)
-            prompt = self._render_prompt(
+            prompt = self._render_prompt_template(
                 self.lesson_summary_prompt,
                 feedbacks_json=feedbacks_json,
             )

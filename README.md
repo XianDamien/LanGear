@@ -54,6 +54,18 @@ cd backend
 uv run pytest
 ```
 
+### `uv` 使用说明
+
+- 默认在 `backend/` 目录下使用 `uv run ...` 与 `uv sync ...`
+- 如果本机 `uv` 不在 `PATH`，可直接使用绝对路径 `/Users/damien/.local/bin/uv`
+- 不建议混用系统 Python、系统 `pytest` 和 `uv run`，否则容易出现依赖不一致
+- 如果不希望在项目目录下生成 `.venv`，请按命令显式指定单独的环境路径，例如：
+
+```bash
+cd backend
+UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pytest
+```
+
 ## 环境变量
 
 - 前端环境变量：`frontend/.env`
@@ -68,8 +80,24 @@ uv run pytest
 - 不使用 Gemini relay
 - 不添加 Gemini runtime fallback 分支
 - 后端 Gemini 配置来源固定为 `backend/.env`
+- Gemini prompt 按版本目录管理，且每个任务使用 `system.md` + `user.md` + `metadata.json` 结构
 - 前端真实接口默认走 `/api/v1`
 - `VITE_USE_MOCK=true` 时才切换到 mock 适配器
+
+## Gemini Prompt 开发
+
+- Prompt 目录：`backend/app/adapters/prompts/<version>/`
+- 当前任务结构：
+  - `single_feedback/system.md`
+  - `single_feedback/user.md`
+  - `single_feedback/metadata.json`
+  - `lesson_summary/system.md`
+  - `lesson_summary/user.md`
+  - `lesson_summary/metadata.json`
+- `system.md` 放稳定角色、规则和判定原则
+- `user.md` 放运行时输入模板、处理指令和输出 schema
+- `metadata.json` 记录版本、说明和 changelog
+- 激活版本通过 `backend/.env` 中的 `GEMINI_PROMPT_VERSION` 控制
 
 ## 典型开发流程
 
