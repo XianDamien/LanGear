@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     oss_region: str | None = "cn-shanghai"
 
     # Alibaba Cloud STS (for temporary credentials)
-    aliyun_role_arn: str  # RAM role ARN for AssumeRole
+    aliyun_role_arn: str | None = None  # RAM role ARN for AssumeRole
 
     # Alibaba Cloud ASR (DashScope)
     dashscope_api_key: str

@@ -60,6 +60,8 @@ uv run pytest
 - 后端环境变量：`backend/.env`
 - 后端运行时不要依赖仓库根目录 `.env`
 - 可从 `backend/.env.example` 复制一份作为后端配置起点
+- `ALIYUN_ROLE_ARN` 仅用于 `/api/v1/oss/sts-token` 生成前端直传 OSS 所需的临时 STS 凭证
+- 缺失 `ALIYUN_ROLE_ARN` 时，后端仍可启动，但前端直传 OSS 的 STS 能力不可用
 
 ## 当前关键约束
 

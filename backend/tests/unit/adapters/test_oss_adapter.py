@@ -178,6 +178,16 @@ class TestOSSAdapter:
         # Verify the request was made with correct parameters
         oss_adapter.sts_client.do_action_with_exception.assert_called_once()
 
+    def test_generate_sts_token_requires_aliyun_role_arn(self, oss_adapter):
+        """Test STS token generation fails clearly when role ARN is missing."""
+        with patch("app.adapters.oss_adapter.settings") as mock_settings:
+            mock_settings.aliyun_role_arn = None
+
+            with pytest.raises(AudioUploadError) as exc_info:
+                oss_adapter.generate_sts_token()
+
+        assert "ALIYUN_ROLE_ARN is required" in str(exc_info.value)
+
     def test_generate_sts_token_custom_duration(self, oss_adapter):
         """Test STS token generation with custom duration."""
         # Arrange

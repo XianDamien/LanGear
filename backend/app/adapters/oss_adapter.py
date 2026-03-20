@@ -135,8 +135,14 @@ class OSSAdapter:
             AudioUploadError: If STS token generation fails
         """
         try:
+            role_arn = (settings.aliyun_role_arn or "").strip()
+            if not role_arn:
+                raise AudioUploadError(
+                    "ALIYUN_ROLE_ARN is required for /api/v1/oss/sts-token"
+                )
+
             request = AssumeRoleRequest.AssumeRoleRequest()
-            request.set_RoleArn(settings.aliyun_role_arn)
+            request.set_RoleArn(role_arn)
             request.set_RoleSessionName("langear-frontend-upload")
             request.set_DurationSeconds(duration)
 
@@ -174,6 +180,8 @@ class OSSAdapter:
                 "region": self._oss_region,
             }
 
+        except AudioUploadError:
+            raise
         except Exception as e:
             raise AudioUploadError(f"Failed to generate STS token: {str(e)}")
 
