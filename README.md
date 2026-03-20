@@ -57,7 +57,7 @@ uv run pytest
 ### `uv` 使用说明
 
 - 默认在 `backend/` 目录下使用 `uv run ...` 与 `uv sync ...`
-- 如果本机 `uv` 不在 `PATH`，可直接使用绝对路径 `/Users/damien/.local/bin/uv`
+- 如果本机 `uv` 不在 `PATH`，请先将 `uv` 安装目录加入 shell 的 `PATH`
 - 不建议混用系统 Python、系统 `pytest` 和 `uv run`，否则容易出现依赖不一致
 - 如果不希望在项目目录下生成 `.venv`，请按命令显式指定单独的环境路径，例如：
 
