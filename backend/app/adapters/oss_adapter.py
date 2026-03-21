@@ -103,15 +103,19 @@ class OSSAdapter:
         return self.bucket.sign_url("GET", object_name, expires)
 
     def get_public_url(self, object_name: str) -> str:
-        """Get public URL for object (for public-read objects like lesson audio).
+        """Get a public-style URL for an object.
 
         Args:
             object_name: OSS object path
 
         Returns:
-            Public URL
+            Configured public URL when available, otherwise a signed URL fallback
         """
-        return f"{settings.oss_public_base_url}/{object_name}"
+        public_base_url = (settings.oss_public_base_url or "").rstrip("/")
+        if public_base_url:
+            return f"{public_base_url}/{object_name}"
+
+        return self.generate_signed_url(object_name)
 
     def generate_sts_token(self, duration: int = 3600) -> dict[str, Any]:
         """Generate STS temporary credentials for frontend upload.
@@ -135,8 +139,14 @@ class OSSAdapter:
             AudioUploadError: If STS token generation fails
         """
         try:
+            role_arn = (settings.aliyun_role_arn or "").strip()
+            if not role_arn:
+                raise AudioUploadError(
+                    "ALIYUN_ROLE_ARN is required for /api/v1/oss/sts-token"
+                )
+
             request = AssumeRoleRequest.AssumeRoleRequest()
-            request.set_RoleArn(settings.aliyun_role_arn)
+            request.set_RoleArn(role_arn)
             request.set_RoleSessionName("langear-frontend-upload")
             request.set_DurationSeconds(duration)
 
@@ -174,6 +184,8 @@ class OSSAdapter:
                 "region": self._oss_region,
             }
 
+        except AudioUploadError:
+            raise
         except Exception as e:
             raise AudioUploadError(f"Failed to generate STS token: {str(e)}")
 

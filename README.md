@@ -72,6 +72,9 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - 后端环境变量：`backend/.env`
 - 后端运行时不要依赖仓库根目录 `.env`
 - 可从 `backend/.env.example` 复制一份作为后端配置起点
+- `OSS_PUBLIC_BASE_URL` 不是后端启动必填项；默认采用 STS 上传 + 预签名 URL 访问 OSS
+- `ALIYUN_ROLE_ARN` 仅用于 `/api/v1/oss/sts-token` 生成前端直传 OSS 所需的临时 STS 凭证
+- 缺失 `ALIYUN_ROLE_ARN` 时，后端仍可启动，但前端直传 OSS 的 STS 能力不可用
 
 ## 当前关键约束
 
@@ -83,6 +86,7 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - Gemini prompt 按版本目录管理，且每个任务使用 `system.md` + `user.md` + `metadata.json` 结构
 - 前端真实接口默认走 `/api/v1`
 - `VITE_USE_MOCK=true` 时才切换到 mock 适配器
+- 仅在 subagent 输出会实质影响当前任务时才创建；创建后必须等待并消费结果，不再需要时显式关闭
 
 ## Gemini Prompt 开发
 

@@ -3,7 +3,7 @@
 Tests cover:
 - Audio file upload
 - Signed URL generation
-- Public URL generation
+- Public URL compatibility fallback
 - STS token generation
 
 All tests use mocks to avoid real Aliyun OSS API calls.
@@ -127,7 +127,7 @@ class TestOSSAdapter:
         oss_adapter.bucket.sign_url.assert_called_once_with("GET", object_name, expires)
 
     def test_get_public_url(self, oss_adapter):
-        """Test public URL generation for lesson audio."""
+        """Test configured public base URL generation for lesson audio."""
         # Arrange
         object_name = "lessons/beginner/lesson1.mp3"
 
@@ -139,6 +139,19 @@ class TestOSSAdapter:
 
         # Assert
         assert url == f"https://cdn.langear.com/{object_name}"
+
+    def test_get_public_url_falls_back_to_signed_url(self, oss_adapter):
+        """When no public base is configured, fall back to a signed URL."""
+        object_name = "lessons/beginner/lesson1.mp3"
+        oss_adapter.bucket.sign_url = Mock(return_value="https://signed.example.com/audio")
+
+        with patch("app.adapters.oss_adapter.settings") as mock_settings:
+            mock_settings.oss_public_base_url = None
+
+            url = oss_adapter.get_public_url(object_name)
+
+        assert url == "https://signed.example.com/audio"
+        oss_adapter.bucket.sign_url.assert_called_once_with("GET", object_name, 3600)
 
     def test_generate_sts_token_success(self, oss_adapter):
         """Test successful STS token generation."""
@@ -177,6 +190,16 @@ class TestOSSAdapter:
 
         # Verify the request was made with correct parameters
         oss_adapter.sts_client.do_action_with_exception.assert_called_once()
+
+    def test_generate_sts_token_requires_aliyun_role_arn(self, oss_adapter):
+        """Test STS token generation fails clearly when role ARN is missing."""
+        with patch("app.adapters.oss_adapter.settings") as mock_settings:
+            mock_settings.aliyun_role_arn = None
+
+            with pytest.raises(AudioUploadError) as exc_info:
+                oss_adapter.generate_sts_token()
+
+        assert "ALIYUN_ROLE_ARN is required" in str(exc_info.value)
 
     def test_generate_sts_token_custom_duration(self, oss_adapter):
         """Test STS token generation with custom duration."""
