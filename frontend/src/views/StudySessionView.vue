@@ -42,7 +42,6 @@ const {
   audioPlaying,
   uploadState,
   asyncSubmitState,
-  transcriptionTimestamps,
   lastFeedbackV2,
 } = storeToRefs(studyStore)
 const { taskMap } = storeToRefs(studyTasksStore)
@@ -143,7 +142,6 @@ watch(
         ? task.reviewStatus
         : 'idle'
     studyStore.lastFeedbackV2 = task?.result ?? null
-    studyStore.transcriptionTimestamps = task?.result?.transcription.timestamps ?? []
     studyStore.isFlipped = Boolean(task?.submissionId)
 
     if (task?.result?.transcription.text) {
@@ -471,7 +469,6 @@ function exitStudy() {
           :submit-state="submitState"
           :async-submit-state="asyncSubmitState"
           :feedback-v2="lastFeedbackV2"
-          :transcription-timestamps="transcriptionTimestamps"
           @play-original="playCurrentAudio"
           @show-translation="handleShowTranslation"
           @word-click="handleWordClick"

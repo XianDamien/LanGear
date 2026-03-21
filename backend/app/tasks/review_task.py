@@ -51,7 +51,7 @@ def process_review_task(
 
     This function runs in a background thread and handles:
     1. Resolving user/reference audio URLs
-    2. Using realtime ASR final transcript as the canonical transcript
+    2. Keeping realtime ASR final transcript as a submission precondition
     3. Gemini dual-audio feedback generation
     4. Database updates (review_log)
 
@@ -61,7 +61,7 @@ def process_review_task(
         lesson_id: Lesson deck ID
         oss_audio_path: OSS path to user's audio recording
         realtime_session_id: Realtime ASR session id
-        realtime_final_text: Realtime ASR final transcript text
+        realtime_final_text: Realtime ASR final transcript text used only for readiness validation
 
     Returns:
         None (updates database directly)
@@ -137,9 +137,9 @@ def process_review_task(
             db.commit()
             return
 
-        # Step 3: Use realtime final transcript as the canonical transcript.
-        transcription_text = realtime_final_text.strip()
-        if not transcription_text:
+        # Step 3: Realtime transcript remains a submission safeguard, but the
+        # displayed transcription now comes from Gemini.
+        if not realtime_final_text.strip():
             review_log_repo.update_status(
                 log_id=submission_id,
                 status="failed",
@@ -148,7 +148,6 @@ def process_review_task(
             )
             db.commit()
             return
-        timestamps = _build_word_timestamps(transcription_text)
 
         # Step 4: AI feedback with dual-audio input
         logger.info(f"Generating AI feedback for submission {submission_id}")
@@ -170,16 +169,14 @@ def process_review_task(
             db.commit()
             return
 
-        # Gemini may optionally return its own transcription text, but realtime ASR
-        # remains the source of truth for the displayed transcript.
-        feedback.pop("transcription_text", None)
+        transcription_text = feedback.pop("transcription_text")
 
         # Step 5: Update review_log with completed status
         logger.info(f"Finalizing submission {submission_id}")
         ai_feedback_json: dict[str, Any] = {
             "transcription": {
                 "text": transcription_text,
-                "timestamps": timestamps,
+                "timestamps": [],
             },
             "feedback": feedback,
             "oss_path": oss_audio_path,
@@ -215,20 +212,3 @@ def process_review_task(
 
     finally:
         db.close()
-
-
-def _build_word_timestamps(text: str) -> list[dict[str, float | str]]:
-    """Build lightweight pseudo word timestamps for clickable feedback."""
-    words = text.split()
-    if not words:
-        return []
-
-    timestamps: list[dict[str, float | str]] = []
-    cursor = 0.0
-    for word in words:
-        duration = max(0.12, min(0.65, len(word) * 0.05))
-        start = round(cursor, 3)
-        end = round(cursor + duration, 3)
-        timestamps.append({"word": word, "start": start, "end": end})
-        cursor = end + 0.02
-    return timestamps

@@ -53,7 +53,6 @@ def test_gemini_settings_pass_with_explicit_model_id():
         database_url="sqlite:///data/langear.db",
         gemini_api_key="test-key",
         gemini_model_id="gemini-3.1-flash-lite-preview",
-        gemini_prompt_version="v1",
         ai_feedback_provider="gemini",
         oss_access_key_id="id",
         oss_access_key_secret="secret",
@@ -65,7 +64,6 @@ def test_gemini_settings_pass_with_explicit_model_id():
     )
 
     assert settings.gemini_model_id == "gemini-3.1-flash-lite-preview"
-    assert settings.gemini_prompt_version == "v1"
 
 
 @pytest.mark.unit

@@ -100,11 +100,11 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 
 #### 3) `Study`（背面：音频 / 文本 / 反馈 / 笔记）
 
-3.1 创建 `submission` 后，系统必须**即刻**触发后台 AI 反馈流程，不允许人工二次触发。当前基线口径为：使用卡片原音频 + 用户录音的双音频输入调用 `CardFeedbackAI`，并以实时转写会话的 `final_text` 作为展示给用户的转录文本真相源。
+3.1 创建 `submission` 后，系统必须**即刻**触发后台 AI 反馈流程，不允许人工二次触发。当前基线口径为：使用卡片原音频 + 用户录音的双音频输入调用 `CardFeedbackAI`；实时转写会话仍作为提交前置条件校验，但展示给用户的转录文本改由 Gemini 直接生成。
 3.2 上传状态与 AI 处理状态统一在右上角 `Queue/Tasks` 模块中查看（跨卡片列表，不与某张卡片正反面强绑定）。
 3.3 音频区（顶部）：用户可播放原音频与自己上传成功的练习录音，两者在顶部区域左右分居；练习录音仅在“上传成功”后可播放。音频资源访问需要使用 STS（或等价的临时授权方案）。
-3.4 文本区（中部）：展示原文与译文（译文默认隐藏，用户可点击展开/收起），并展示用户录音的转录文本（ASR）。
-3.5 反馈与笔记区（底部）：展示 AI 反馈内容，并提供用户自定义笔记的输入/保存区域。卡片反馈最小结构至少包含：`pronunciation`、`completeness`、`fluency`、`suggestions[]`、`issues[]`；其中 `suggestions[]`/`issues[]` 可关联用户音频时间点以支持跳转回听。
+3.4 文本区（中部）：展示原文与译文（译文默认隐藏，用户可点击展开/收起），并展示 Gemini 生成的展示转写文本。
+3.5 反馈与笔记区（底部）：展示 AI 反馈内容，并提供用户自定义笔记的输入/保存区域。卡片反馈最小结构至少包含：`pronunciation`、`completeness`、`fluency`、`suggestions[]`、`issues[]`；其中 `suggestions[]`/`issues[]` 的 `timestamp` 语义统一为“问题发生点”，作为唯一有效的跳转时间戳。
 
 #### 4) `Summary`（课级总结触发与查看）
 
@@ -144,11 +144,11 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 3. 翻面后只有在 OSS 上传成功且 `realtime_session_id` 对应会话 ready 时，才允许创建 `submission` 并立刻触发 AI 反馈流程。
 4. 状态必须分层展示且语义清晰：上传状态（`uploading`/`succeeded`/`failed`）与 AI 处理状态（`processing`/`completed`/`failed`）不可混用；上传成功前不得进入 AI 处理状态；状态入口以 `Queue/Tasks`（学习模式下拉列表）为准。
 5. 未录音、无有效录音、上传失败、`realtime_session_id` 缺失、实时转写未完成或失败等前置条件不满足时，系统必须阻断该卡片的评测/反馈关键链路并提示；但不应阻塞用户继续学习与切换卡片；mock 模式可以暂时不阻塞。
-6. 反馈结果必须包含可读文本与时间戳，支持按时间点回听；展示用转录文本以实时转写会话产出的最终文本为准。
+6. 反馈结果必须包含可读文本与时间戳，支持按时间点回听；展示用转录文本来自 Gemini，跳转时间戳仅来自 `feedback.suggestions[]` / `feedback.issues[]`。
 7. 系统应支持生成课级总结（P1），最小输出结构为 `overall`、`patterns[]`、`prioritized_actions[]`。
 8. OSS 上的音频资源访问需使用 STS（或等价的临时授权/签名方案），避免前端长期暴露静态凭证。
 9. 每张卡片必须具备 `card_state`（`new`/`learning`/`review`/`relearning`），用于选卡、展示与学习调度；其状态需与 FSRS 原生 `state` 保持一致并可被稳定查询。
-10. 卡片反馈模块需支持可替换 provider；当前基线默认 `AI_FEEDBACK_PROVIDER=gemini`，并通过 `GEMINI_MODEL_ID` 与 `GEMINI_PROMPT_VERSION` 控制模型与 prompt 版本。
+10. 卡片反馈模块需支持可替换 provider；当前基线默认 `AI_FEEDBACK_PROVIDER=gemini`，并通过 `GEMINI_MODEL_ID` 控制模型；prompt 目录保持单一功能结构，版本追踪写入各任务 `metadata.json`。
 
 ### 4.2 页面级需求
 
@@ -157,7 +157,7 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 | Dashboard | 展示学习目标、完成进度、连续学习、热力图、最近课程入口，且前后端口径一致 | P0-04 |
 | Library | 提供 source-unit-deck 树结构浏览，并可进入学习流程 | P0-02 |
 | Study-正面 | 支持播放原音、录音、本地缓存覆盖策略、实时转写会话、上一张/下一张切换、跳过/搁置、翻面触发上传与提交校验（状态入口为 `Queue/Tasks`） | P0-01 / P1-03 |
-| Study-背面 | 顶部原音/练习录音左右播放（上传成功后可播练习录音，使用 STS）、中部原文/译文（译文默认隐藏）+ 实时转写文本、底部 AI 反馈（含 `suggestions[]` / `issues[]`）+ 笔记 | P0-01 |
+| Study-背面 | 顶部原音/练习录音左右播放（上传成功后可播练习录音，使用 STS）、中部原文/译文（译文默认隐藏）+ Gemini 展示转写、底部 AI 反馈（含 `suggestions[]` / `issues[]` 问题点时间戳）+ 笔记 | P0-01 |
 | Queue/Tasks（学习模式模块） | 右上角下拉列表跨卡片查看上传/AI 处理状态与失败原因，并提供跳转（completed→背面，failed→正面重录）；可见实时转写/提交前置条件失败的阻断信息 | P0-01 / P1-03 |
 | Summary | 提供课级总结结果展示（`overall`、`patterns[]`、`prioritized_actions[]`） | P1-01 |
 | Settings | 提供学习配置读取、保存、回显一致性 | P0-03 |
@@ -172,7 +172,7 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 5. `Queue/Tasks` 需要支持批量查询任务状态（按 `deck_id` 获取 submissions 列表及其 `upload_status`/`review_status`），用于跨卡片状态列表展示。
 6. 音频访问需要 STS（或等价的临时授权/签名方案）发放能力（接口形式不限）；后台在 AI 处理阶段需能将用户录音与参考原音频解析为可访问 URL。
 7. Deck/卡片读取接口需要返回 `card_state`（`new`/`learning`/`review`/`relearning`），并可选返回 `due_at`（如存在复习调度）。
-8. 反馈结果查询接口在 `completed` 时需至少返回：`transcription.text`、`transcription.timestamps`、`feedback.pronunciation`、`feedback.completeness`、`feedback.fluency`、`feedback.suggestions[]`、`feedback.issues[]`、`oss_audio_path`。
+8. 反馈结果查询接口在 `completed` 时需至少返回：`transcription.text`、`transcription.timestamps`、`feedback.pronunciation`、`feedback.completeness`、`feedback.fluency`、`feedback.suggestions[]`、`feedback.issues[]`、`oss_audio_path`；其中 `transcription.timestamps` 仅为兼容保留空数组，前端有效跳转时间戳来自 `feedback.suggestions[]` 与 `feedback.issues[]`。
 
 ### 4.4 AI 模块划分（独立、可替换）
 
@@ -181,8 +181,8 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 #### 4.4.1 模块 A：CardFeedbackAI（卡片反馈（单句），Study 背面 & CardDetail 消费）
 
 - **触发**：`submission` 创建后自动触发（不允许人工二次触发）。
-- **输入（当前基线）**：`front_text`、用户录音可访问 URL、卡片原音频可访问 URL；展示用 transcript 由 `realtime_session_id` 对应会话的 `final_text` 提供。
-- **输出（最小集）**：卡片反馈结构（每个 card 基本对应一个单句；至少包含 `transcription.text`、`transcription.timestamps`、`pronunciation`、`completeness`、`fluency`、`suggestions[]`、`issues[]`，支持按时间点回听）。
+- **输入（当前基线）**：`front_text`、用户录音可访问 URL、卡片原音频可访问 URL；`realtime_session_id` 对应会话的 ready + `final_text` 非空仅作为提交前置条件。
+- **输出（最小集）**：卡片反馈结构（每个 card 基本对应一个单句；至少包含 Gemini 生成的 `transcription.text`、兼容字段 `transcription.timestamps`、`pronunciation`、`completeness`、`fluency`、`suggestions[]`、`issues[]`，支持按问题点时间戳回听）。
 - **状态机**：`processing` → `completed | failed`。
 
 > `CardDetail` 仅作为“历史记录查询与展示”页面，复用 `CardFeedbackAI` 的产物，不再单独拆分生成型 AI 模块。
@@ -193,7 +193,7 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 - **输出（最小集）**：`overall`（整体总结）、`patterns[]`（重复性问题）、`prioritized_actions[]`（优先改进动作）。
 - **状态机**：`processing` → `completed | failed`。
 
-> 当前默认 provider 为 `gemini`，并通过版本化 prompt 目录进行管理；prompt 激活版本由 `GEMINI_PROMPT_VERSION` 控制。
+> 当前默认 provider 为 `gemini`；prompt 目录不再按 `v1/v2` 多层切换，统一按功能目录管理，版本追踪记录在各任务 `metadata.json` 中。
 
 > 本期不包含 AI 解释（Explanation/Why）与 AI 字典能力，见第 6 章。
 
@@ -246,8 +246,8 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 ### 5.5 `wt-card-feedback`（卡片反馈（单句）+ 历史）
 
 - [ ] `Study` 背面按 PRD 的“音频/文本/反馈/笔记”布局可用。
-- [ ] 卡片反馈（单句）包含 `transcription.timestamps` 且支持按时间点回听。
-- [ ] 卡片反馈（单句）包含 `feedback.suggestions[]` 与 `feedback.issues[]`，支持关联时间点展示。
+- [ ] 卡片反馈（单句）展示转写来自 Gemini；`transcription.timestamps` 固定为空数组但字段仍保留。
+- [ ] 卡片反馈（单句）包含 `feedback.suggestions[]` 与 `feedback.issues[]`，且两者的 `timestamp` 都按“问题发生点”支持跳转回听。
 - [ ] `CardDetail` 可按 `card_id` 查询并展示历史卡片反馈记录（与卡片反馈（单句）同结构，按时间倒序）。
 
 ### 5.6 `wt-deck-summary`（课级总结 DeckSummaryAI）

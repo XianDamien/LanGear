@@ -31,13 +31,13 @@ export interface TranscriptionResult {
 
 export interface FeedbackSuggestion {
   text: string
-  target_word?: string
-  timestamp?: number
+  target_word?: string | null
+  timestamp?: number | null
 }
 
 export interface FeedbackIssue {
   problem: string
-  timestamp?: number
+  timestamp?: number | null
 }
 
 export interface SubmitReviewRequest {

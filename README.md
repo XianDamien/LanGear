@@ -80,13 +80,14 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - 不使用 Gemini relay
 - 不添加 Gemini runtime fallback 分支
 - 后端 Gemini 配置来源固定为 `backend/.env`
-- Gemini prompt 按版本目录管理，且每个任务使用 `system.md` + `user.md` + `metadata.json` 结构
+- Gemini prompt 使用单一目录结构，按功能目录组织，版本追踪写入各自 `metadata.json`
+- `single_feedback` 由 Gemini 同时产出展示转写与问题点反馈；`transcription.timestamps` 仅为兼容保留空数组，不再承载词级跳转
 - 前端真实接口默认走 `/api/v1`
 - `VITE_USE_MOCK=true` 时才切换到 mock 适配器
 
 ## Gemini Prompt 开发
 
-- Prompt 目录：`backend/app/adapters/prompts/<version>/`
+- Prompt 目录：`backend/app/adapters/prompts/`
 - 当前任务结构：
   - `single_feedback/system.md`
   - `single_feedback/user.md`
@@ -96,8 +97,8 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
   - `lesson_summary/metadata.json`
 - `system.md` 放稳定角色、规则和判定原则
 - `user.md` 放运行时输入模板、处理指令和输出 schema
-- `metadata.json` 记录版本、说明和 changelog
-- 激活版本通过 `backend/.env` 中的 `GEMINI_PROMPT_VERSION` 控制
+- `metadata.json` 记录说明、追踪 commit 与变更历史
+- `single_feedback` 当前输出包含：展示用 `transcription_text`、中文反馈文本、以及 `issues[]` / `suggestions[]` 上的问题点时间戳；不再请求字级时间戳
 
 ## 典型开发流程
 

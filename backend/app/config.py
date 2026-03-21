@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     # Google Gemini API
     gemini_api_key: str
     gemini_model_id: str = "gemini-3.1-flash-lite-preview"
-    gemini_prompt_version: str = "v1"
 
     # AI feedback provider
     ai_feedback_provider: str = "gemini"

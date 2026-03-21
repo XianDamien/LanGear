@@ -11,7 +11,6 @@ import type { Card, Rating } from '@/types/domain'
 import type {
   SubmitReviewResponse,
   PollingResponseCompleted,
-  WordTimestamp,
 } from '@/types/api'
 import { parseNumericIdOrThrow } from '@/utils/ids'
 
@@ -75,7 +74,6 @@ export const useStudyStore = defineStore('study', () => {
   const uploadState = ref<UploadState>('idle')
   const asyncSubmitState = ref<AsyncSubmitState>('idle')
   const submissionId = ref<number | null>(null)
-  const transcriptionTimestamps = ref<WordTimestamp[]>([])
   const currentAudioElement = ref<HTMLAudioElement | null>(null)
   const lastFeedbackV2 = ref<PollingResponseCompleted | null>(null)
 
@@ -131,7 +129,6 @@ export const useStudyStore = defineStore('study', () => {
     uploadState.value = 'idle'
     asyncSubmitState.value = 'idle'
     submissionId.value = null
-    transcriptionTimestamps.value = []
     lastFeedbackV2.value = null
     resetTimestampAudio()
   }
@@ -292,7 +289,6 @@ export const useStudyStore = defineStore('study', () => {
     uploadState,
     asyncSubmitState,
     submissionId,
-    transcriptionTimestamps,
     lastFeedbackV2,
     createFeedbackSubmission,
     submitCardRating,

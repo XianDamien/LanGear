@@ -45,7 +45,7 @@ class TestReviewTask:
 
         mock_provider = Mock()
         mock_provider.generate_single_feedback.return_value = {
-            "transcription_text": "Last week I went to the theatre",
+            "transcription_text": "Last week I went to the movie theater",
             "pronunciation": "Clear pronunciation.",
             "completeness": "Complete sentence.",
             "fluency": "Fluent speech.",
@@ -77,8 +77,9 @@ class TestReviewTask:
         assert updated is not None
         assert updated.status == "completed"
         assert updated.ai_feedback_json["feedback"]["issues"][0]["timestamp"] == 1.1
-        assert updated.ai_feedback_json["transcription"]["text"] == "Last week I went to the theatre"
-        assert len(updated.ai_feedback_json["transcription"]["timestamps"]) > 0
+        assert updated.ai_feedback_json["feedback"]["suggestions"][0]["timestamp"] == 1.1
+        assert updated.ai_feedback_json["transcription"]["text"] == "Last week I went to the movie theater"
+        assert updated.ai_feedback_json["transcription"]["timestamps"] == []
         assert updated.ai_feedback_json["realtime_session_id"] == "session-1"
 
     def test_process_review_task_reference_audio_missing(

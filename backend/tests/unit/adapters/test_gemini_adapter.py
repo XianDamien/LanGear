@@ -25,7 +25,6 @@ class TestGeminiAdapter:
 
         object.__setattr__(module.settings, "gemini_api_key", "test-api-key")
         object.__setattr__(module.settings, "gemini_model_id", "gemini-test-model")
-        object.__setattr__(module.settings, "gemini_prompt_version", "v1")
 
         adapter = GeminiAdapter()
         monkeypatch.setattr(adapter, "_download_audio_bytes", lambda *_args, **_kwargs: b"audio-bytes")
@@ -40,17 +39,16 @@ class TestGeminiAdapter:
 
         object.__setattr__(module.settings, "gemini_api_key", "test-api-key")
         object.__setattr__(module.settings, "gemini_model_id", "gemini-test-model")
-        object.__setattr__(module.settings, "gemini_prompt_version", "v1")
 
         GeminiAdapter()
 
         mock_genai_client.assert_called_once_with(api_key="test-api-key")
 
-    def test_load_prompt_from_versioned_directory(self, gemini_adapter):
+    def test_load_prompt_from_task_directory(self, gemini_adapter):
         adapter, _ = gemini_adapter
 
         expected_dir = Path(adapter.prompts_dir)
-        assert expected_dir.name == "v1"
+        assert expected_dir.name == "prompts"
         assert (expected_dir / "single_feedback" / "system.md").exists()
         assert (expected_dir / "single_feedback" / "user.md").exists()
         assert (expected_dir / "single_feedback" / "metadata.json").exists()
@@ -59,7 +57,7 @@ class TestGeminiAdapter:
         assert (expected_dir / "lesson_summary" / "metadata.json").exists()
         assert adapter.single_feedback_prompt.system
         assert adapter.single_feedback_prompt.user
-        assert adapter.single_feedback_prompt.metadata["prompt_version"] == "1.0.0"
+        assert adapter.single_feedback_prompt.metadata["tracking_commit"] == "f0e005f"
         assert adapter.lesson_summary_prompt.system
         assert adapter.lesson_summary_prompt.user
 
@@ -68,19 +66,19 @@ class TestGeminiAdapter:
 
         feedback_data = {
             "transcription_text": "Last week I went to the theatre",
-            "pronunciation": "Good overall pronunciation.",
-            "completeness": "Most key content is present.",
-            "fluency": "Generally fluent with minor hesitation.",
+            "pronunciation": "整体发音比较清楚。",
+            "completeness": "关键信息基本完整。",
+            "fluency": "整体较流畅，只有轻微停顿。",
             "suggestions": [
                 {
-                    "text": "Stress the word theatre more clearly.",
+                    "text": "把 theatre 的重音再拉开一点。",
                     "target_word": "theatre",
                     "timestamp": 1.2,
                 }
             ],
             "issues": [
                 {
-                    "problem": "Dropped ending consonant in one word.",
+                    "problem": "结尾辅音有一次没有收完整。",
                     "timestamp": 0.9,
                 }
             ],
@@ -96,7 +94,7 @@ class TestGeminiAdapter:
             reference_audio_url="https://example.com/ref.mp3",
         )
 
-        assert result["pronunciation"] == "Good overall pronunciation."
+        assert result["pronunciation"] == "整体发音比较清楚。"
         assert result["issues"][0]["timestamp"] == 0.9
         assert result["suggestions"][0]["target_word"] == "theatre"
         assert result["transcription_text"] == "Last week I went to the theatre"
@@ -105,6 +103,7 @@ class TestGeminiAdapter:
         adapter, mock_client = gemini_adapter
 
         feedback_data = {
+            "transcription_text": "Test sentence",
             "pronunciation": "Good",
             "completeness": "Complete",
             "fluency": "Fluent",
@@ -125,10 +124,35 @@ class TestGeminiAdapter:
         assert result["pronunciation"] == "Good"
         assert result["issues"] == []
 
+    def test_generate_single_feedback_requires_transcription_text(self, gemini_adapter):
+        adapter, mock_client = gemini_adapter
+
+        feedback_data = {
+            "pronunciation": "好",
+            "completeness": "完整",
+            "fluency": "流畅",
+            "suggestions": [],
+            "issues": [],
+        }
+
+        mock_response = Mock()
+        mock_response.text = json.dumps(feedback_data)
+        mock_client.models.generate_content.return_value = mock_response
+
+        with pytest.raises(AIFeedbackError) as exc_info:
+            adapter.generate_single_feedback(
+                front_text="Test sentence",
+                user_audio_url="https://example.com/user.wav",
+                reference_audio_url="https://example.com/ref.wav",
+            )
+
+        assert "Missing required field: transcription_text" in str(exc_info.value)
+
     def test_generate_single_feedback_missing_field(self, gemini_adapter):
         adapter, mock_client = gemini_adapter
 
         feedback_data = {
+            "transcription_text": "test sentence",
             "pronunciation": "Good",
             "completeness": "Complete",
             "fluency": "Fluent",
@@ -153,6 +177,7 @@ class TestGeminiAdapter:
         adapter, mock_client = gemini_adapter
 
         feedback_data = {
+            "transcription_text": "test sentence",
             "pronunciation": "Good",
             "completeness": "Complete",
             "fluency": "Fluent",
@@ -177,6 +202,7 @@ class TestGeminiAdapter:
         adapter, mock_client = gemini_adapter
 
         feedback_data = {
+            "transcription_text": "test sentence",
             "pronunciation": "Good",
             "completeness": "Complete",
             "fluency": "Fluent",
@@ -196,6 +222,20 @@ class TestGeminiAdapter:
 
         assert result["suggestions"][0]["text"] == "Speak slightly slower"
         assert result["suggestions"][0]["target_word"] is None
+
+    def test_single_feedback_prompt_contract(self, gemini_adapter):
+        adapter, _ = gemini_adapter
+        system_prompt = adapter.single_feedback_prompt.system
+        user_prompt = adapter.single_feedback_prompt.user
+
+        assert "中文输出" in user_prompt
+        assert "target_word" in user_prompt
+        assert "原始英文词或英文短语" in user_prompt
+        assert "问题发生的时间点" in system_prompt
+        assert "问题发生的时间点" in user_prompt
+        assert "字级时间戳" in system_prompt
+        assert "词级时间戳" in user_prompt
+        assert "transcription_timestamps" in user_prompt
 
     def test_generate_single_feedback_makes_single_audio_request_without_retry(self, gemini_adapter):
         adapter, mock_client = gemini_adapter
@@ -248,17 +288,9 @@ class TestGeminiAdapter:
 
         assert "Missing required field: prioritized_actions" in str(exc_info.value)
 
-    def test_missing_prompt_file_raises(self, monkeypatch):
-        import app.adapters.gemini_adapter as module
-
-        mock_client = Mock()
-        monkeypatch.setattr(module.genai, "Client", Mock(return_value=mock_client))
-
-        object.__setattr__(module.settings, "gemini_api_key", "test-api-key")
-        object.__setattr__(module.settings, "gemini_model_id", "gemini-test-model")
-        object.__setattr__(module.settings, "gemini_prompt_version", "v999_not_exist")
-
+    def test_missing_prompt_directory_raises(self, gemini_adapter):
+        adapter, _ = gemini_adapter
         with pytest.raises(AIFeedbackError) as exc_info:
-            GeminiAdapter()
+            adapter._load_prompt("v999_not_exist")
 
         assert "Prompt directory not found" in str(exc_info.value)

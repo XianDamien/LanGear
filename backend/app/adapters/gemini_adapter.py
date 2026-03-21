@@ -34,7 +34,7 @@ class GeminiAdapter:
 
         self.client = genai.Client(api_key=api_key)
         self.model_id = settings.gemini_model_id.strip()
-        self.prompts_dir = Path(__file__).parent / "prompts" / settings.gemini_prompt_version
+        self.prompts_dir = Path(__file__).parent / "prompts"
 
         self.single_feedback_prompt = self._load_prompt("single_feedback")
         self.lesson_summary_prompt = self._load_prompt("lesson_summary")
@@ -51,7 +51,7 @@ class GeminiAdapter:
         return content
 
     def _load_prompt(self, prompt_name: str) -> PromptTemplate:
-        """Load structured prompt template from versioned prompt directory."""
+        """Load structured prompt template from the task directory."""
         prompt_dir = self.prompts_dir / prompt_name
         if not prompt_dir.is_dir():
             raise AIFeedbackError(f"Prompt directory not found: {prompt_dir}")
@@ -279,6 +279,7 @@ class GeminiAdapter:
             feedback = json.loads(self._extract_json_text(result_text))
 
             required_fields = [
+                "transcription_text",
                 "pronunciation",
                 "completeness",
                 "fluency",
@@ -294,6 +295,7 @@ class GeminiAdapter:
                     raise AIFeedbackError(f"Field '{field}' must be a string")
 
             normalized_feedback = {
+                "transcription_text": "",
                 "pronunciation": feedback["pronunciation"].strip(),
                 "completeness": feedback["completeness"].strip(),
                 "fluency": feedback["fluency"].strip(),
@@ -301,11 +303,10 @@ class GeminiAdapter:
                 "issues": self._normalize_issues(feedback["issues"]),
             }
 
-            transcription_text = feedback.get("transcription_text")
-            if transcription_text is not None:
-                if not isinstance(transcription_text, str):
-                    raise AIFeedbackError("Field 'transcription_text' must be a string")
-                normalized_feedback["transcription_text"] = transcription_text.strip()
+            transcription_text = feedback["transcription_text"]
+            if not isinstance(transcription_text, str):
+                raise AIFeedbackError("Field 'transcription_text' must be a string")
+            normalized_feedback["transcription_text"] = transcription_text.strip()
 
             return normalized_feedback
 
