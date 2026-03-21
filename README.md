@@ -36,6 +36,7 @@ pnpm dev
 
 - 默认地址：`http://localhost:3002`
 - Vite 会将 `/api` 代理到后端 `http://127.0.0.1:8000`
+- 正式前端链路统一走相对路径 `/api/...`；如果直接在浏览器里请求 `http://127.0.0.1:8000/api/...`，是否能通取决于后端当前 CORS 配置。
 
 ### 后端
 
@@ -46,6 +47,8 @@ uv run uvicorn app.main:app --reload
 
 - 默认地址：`http://localhost:8000`
 - OpenAPI：`http://localhost:8000/docs`
+- 默认允许的开发 CORS 来源：`http://localhost:3002`、`http://127.0.0.1:3002`
+- 可用 `uv run python scripts/show_runtime_config.py` 查看当前进程实际使用的 `DATABASE_URL`、解析后的 SQLite 文件路径、当前 CORS 来源列表、`review_log` / `user_card_srs` 条数，以及最近写入的评测记录。
 
 ### 测试
 
@@ -59,6 +62,7 @@ uv run pytest
 - 默认在 `backend/` 目录下使用 `uv run ...` 与 `uv sync ...`
 - 如果本机 `uv` 不在 `PATH`，请先将 `uv` 安装目录加入 shell 的 `PATH`
 - 不建议混用系统 Python、系统 `pytest` 和 `uv run`，否则容易出现依赖不一致
+- 后端默认 `DATABASE_URL=sqlite:///data/langear.db` 会在运行时归一到 `backend/data/langear.db`，避免因进程工作目录不同误连到别的 SQLite 文件
 - 如果不希望在项目目录下生成 `.venv`，请按命令显式指定单独的环境路径，例如：
 
 ```bash
@@ -72,6 +76,7 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - 后端环境变量：`backend/.env`
 - 后端运行时不要依赖仓库根目录 `.env`
 - 可从 `backend/.env.example` 复制一份作为后端配置起点
+- 想确认当前后端实际会连接哪个数据库，可在 `backend/` 目录执行 `uv run python scripts/show_runtime_config.py`；该脚本只依赖 `DATABASE_URL`，不要求先配齐完整 Gemini/OSS 密钥
 
 ## 当前关键约束
 
@@ -105,6 +110,7 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - 生产模式：继续走 `study submission -> review_task -> GeminiAdapter -> review_log` 的正式链路，用于真实用户评测。
 - 离线评测模式：走 `backend/scripts/export_single_feedback_dataset.py` 与 `backend/scripts/run_single_feedback_eval.py`，只读取本地数据集并把 run 结果落盘，不写业务 `review_log`。
 - 两种模式共享 `GeminiAdapter` 的 prompt 渲染、响应解析与结构校验逻辑，但入口与产物分离，避免把 prompt 实验流程混进线上任务。
+- 线上真源仍然是 `DATABASE_URL` 指向数据库里的 `review_log` / `user_card_srs`；`backend/datasets/` 只是导出的离线快照目录。
 
 ## Prompt 离线评测工作流
 
@@ -129,6 +135,7 @@ uv run python scripts/export_single_feedback_dataset.py --limit 20
   - `input.json`：固定输入
   - `source_output.json`：历史线上输出快照，供人工参考
   - `user_audio.*` / `reference_audio.*`：本地音频归档
+- `dataset_manifest.json` 与 `exports/*.json` 会额外记录本次导出使用的数据库来源，明确该目录是离线 snapshot，不是运行时真源。
 
 如果当前还没有可用的 `review_log`，可以先把现有卡片记录和参考音频拉下来：
 

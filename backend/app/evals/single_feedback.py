@@ -17,6 +17,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
+from app.database_url import build_default_sqlite_database_url, resolve_database_url
 from app.models.card import Card
 from app.models.deck import Deck
 from app.models.review_log import ReviewLog
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
     from app.adapters.gemini_adapter import GeminiAdapter
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DATABASE_URL = "sqlite:///data/langear.db"
+DEFAULT_DATABASE_URL = build_default_sqlite_database_url(BACKEND_ROOT)
 DATASET_SCHEMA_VERSION = 1
 RUN_SCHEMA_VERSION = 1
 DEFAULT_SINGLE_FEEDBACK_DATASET_ROOT = (
@@ -109,7 +110,7 @@ def export_single_feedback_dataset(
     _ensure_dataset_layout(dataset_root)
 
     downloader = audio_downloader or _download_audio_reference
-    database_url = _resolve_database_url(config.database_url)
+    database_url = resolve_database_url(config.database_url, base_dir=BACKEND_ROOT)
 
     exported_sample_ids: list[str] = []
     skipped_existing: list[str] = []
@@ -145,17 +146,33 @@ def export_single_feedback_dataset(
         engine.dispose()
 
     manifest = rebuild_single_feedback_dataset_manifest(dataset_root)
+    provenance = _build_dataset_provenance(
+        configured_database_url=config.database_url,
+        resolved_database_url=database_url,
+    )
     export_report = {
         "schema_version": DATASET_SCHEMA_VERSION,
+        "dataset_role": "offline_snapshot",
+        "source_of_truth": "review_log/user_card_srs tables in the configured runtime database",
         "exported_at": _utc_now_iso(),
         "selected_records": selected_count,
         "exported_sample_ids": exported_sample_ids,
         "skipped_existing": skipped_existing,
         "errors": errors,
         "dataset_manifest_fingerprint": manifest["dataset_fingerprint"],
+        "source_database": provenance,
     }
     report_path = dataset_root / "exports" / f"{_timestamp_slug()}_export.json"
     _write_json(report_path, export_report)
+    manifest["dataset_role"] = "offline_snapshot"
+    manifest["source_of_truth"] = (
+        "review_log/user_card_srs tables in the configured runtime database"
+    )
+    manifest["last_export"] = {
+        "export_report_file": str(report_path.relative_to(dataset_root)),
+        "source_database": provenance,
+    }
+    _write_json(dataset_root / "dataset_manifest.json", manifest)
     return export_report
 
 
@@ -658,15 +675,21 @@ def _normalize_object_name(audio_ref: str) -> str:
     return audio_ref
 
 
-def _resolve_database_url(database_url: str) -> str:
-    url = make_url(database_url)
-    if url.drivername != "sqlite" or not url.database:
-        return database_url
-    database_path = Path(url.database)
-    if database_path.is_absolute() or url.database == ":memory:":
-        return database_url
-    resolved = (BACKEND_ROOT / database_path).resolve()
-    return f"sqlite:///{resolved}"
+def _build_dataset_provenance(
+    *,
+    configured_database_url: str,
+    resolved_database_url: str,
+) -> dict[str, Any]:
+    url = make_url(resolved_database_url)
+    sqlite_path = None
+    if url.drivername == "sqlite" and url.database and url.database != ":memory:":
+        sqlite_path = str(Path(url.database).resolve())
+
+    return {
+        "configured_url": configured_database_url,
+        "resolved_url": resolved_database_url,
+        "sqlite_path": sqlite_path,
+    }
 
 
 def _ensure_dataset_layout(dataset_root: Path) -> None:

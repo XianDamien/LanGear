@@ -94,6 +94,9 @@ def test_export_single_feedback_dataset_creates_local_sample_archive(
     assert input_payload["front_text"] == front_text
     assert source_output["transcription"]["text"] == "sample transcription"
     assert manifest["sample_count"] == 1
+    assert manifest["dataset_role"] == "offline_snapshot"
+    assert manifest["last_export"]["source_database"]["resolved_url"] == f"sqlite:///{db_path}"
+    assert report["source_database"]["sqlite_path"] == str(db_path.resolve())
 
 
 def test_export_single_feedback_dataset_from_cards_creates_reference_only_samples(
@@ -151,6 +154,7 @@ def test_export_single_feedback_dataset_from_cards_creates_reference_only_sample
     assert input_payload["front_text"] == front_text
     assert input_payload["user_audio_file"] is None
     assert manifest["readiness_counts"]["reference_only"] == 1
+    assert report["dataset_role"] == "offline_snapshot"
 
 
 def test_run_single_feedback_eval_records_variant_outputs(tmp_path: Path):

@@ -9,7 +9,10 @@ try:
     print("✓ FastAPI app imported successfully")
     print(f"✓ App title: {app.title}")
     print(f"✓ App version: {app.version}")
-    print(f"✓ Database URL: {settings.database_url}")
+    print(f"✓ Database URL (configured): {settings.database_url}")
+    print(f"✓ Database URL (resolved): {settings.resolved_database_url}")
+    if settings.sqlite_database_path is not None:
+        print(f"✓ SQLite file: {settings.sqlite_database_path}")
     print(f"✓ CORS origins: {settings.cors_origins_list}")
 
     # Check routers

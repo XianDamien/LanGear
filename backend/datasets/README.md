@@ -1,6 +1,7 @@
 # Gemini Prompt Eval Datasets
 
 本目录用于本地离线评测，不用于线上运行时读写。
+线上真源始终是 `DATABASE_URL` 指向数据库中的 `review_log` / `user_card_srs`，OSS 只保存音频文件。
 
 约定结构：
 
@@ -30,3 +31,4 @@ backend/datasets/gemini_single_feedback_eval/
   - `ready_for_eval=false`：只有文本和参考音频，先作为 reference-only 本地归档
 - `source_output.json` 保存导出时已有的历史产物，可作为人工参考，不等同于 gold label。
 - `runs/` 保存每次离线评测的输入快照、prompt 快照和输出结果，便于回放与对比。
+- `dataset_manifest.json` 的 `dataset_role=offline_snapshot`，并在 `last_export.source_database` 中记录最近一次导出使用的数据库来源，避免把本目录误认成线上真源。

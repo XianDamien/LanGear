@@ -150,6 +150,7 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 9. 每张卡片必须具备 `card_state`（`new`/`learning`/`review`/`relearning`），用于选卡、展示与学习调度；其状态需与 FSRS 原生 `state` 保持一致并可被稳定查询。
 10. 卡片反馈模块需支持可替换 provider；当前基线默认 `AI_FEEDBACK_PROVIDER=gemini`，并通过 `GEMINI_MODEL_ID` 控制模型；prompt 目录保持单一功能结构，版本追踪写入各任务 `metadata.json`。
 11. Prompt 迭代需支持独立于生产提交流程的离线评测模式：可将已完成单句反馈样本导出到本地 dataset 目录，保存样本元数据、固定输入、历史输出与音频归档；不同 prompt 变体的 run 结果需单独落盘，禁止回写业务 `review_log`。
+12. 结构化评测结果与 FSRS 状态的真源必须是 `DATABASE_URL` 指向数据库中的 `review_log` / `user_card_srs`；OSS 只存原音频与用户录音，`backend/datasets/` 只允许作为离线导出快照。
 
 ### 4.2 页面级需求
 
