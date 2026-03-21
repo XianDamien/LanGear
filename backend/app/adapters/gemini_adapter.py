@@ -23,6 +23,14 @@ class PromptTemplate:
     metadata: dict[str, Any] | None = None
 
 
+@dataclass(frozen=True)
+class GenerationConfig:
+    """Generation controls used for production and offline eval runs."""
+
+    temperature: float = 0.3
+    max_output_tokens: int = 2048
+
+
 class GeminiAdapter:
     """Adapter for Google Gemini AI multimodal evaluation."""
 
@@ -53,6 +61,11 @@ class GeminiAdapter:
     def _load_prompt(self, prompt_name: str) -> PromptTemplate:
         """Load structured prompt template from the task directory."""
         prompt_dir = self.prompts_dir / prompt_name
+        return self.load_prompt_from_dir(prompt_dir)
+
+    def load_prompt_from_dir(self, prompt_dir: str | Path) -> PromptTemplate:
+        """Load structured prompt template from an arbitrary prompt directory."""
+        prompt_dir = Path(prompt_dir)
         if not prompt_dir.is_dir():
             raise AIFeedbackError(f"Prompt directory not found: {prompt_dir}")
 
@@ -140,12 +153,12 @@ class GeminiAdapter:
         prompt: str,
         user_audio_url: str,
         reference_audio_url: str,
-        max_output_tokens: int,
+        generation_config: GenerationConfig,
     ) -> str:
         """Generate multimodal response with official SDK inline audio only."""
         config = types.GenerateContentConfig(
-            temperature=0.3,
-            max_output_tokens=max_output_tokens,
+            temperature=generation_config.temperature,
+            max_output_tokens=generation_config.max_output_tokens,
             response_mime_type="application/json",
         )
 
@@ -172,15 +185,19 @@ class GeminiAdapter:
         except Exception as e:
             raise AIFeedbackError(f"Gemini audio request failed: {e}")
 
-    def _generate_text_only(self, prompt: str, max_output_tokens: int) -> str:
+    def _generate_text_only(
+        self,
+        prompt: str,
+        generation_config: GenerationConfig,
+    ) -> str:
         """Generate text-only response."""
         try:
             response = self.client.models.generate_content(
                 model=self.model_id,
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    temperature=0.3,
-                    max_output_tokens=max_output_tokens,
+                    temperature=generation_config.temperature,
+                    max_output_tokens=generation_config.max_output_tokens,
                     response_mime_type="application/json",
                 ),
             )
@@ -260,11 +277,15 @@ class GeminiAdapter:
         front_text: str,
         user_audio_url: str,
         reference_audio_url: str,
+        prompt_template: PromptTemplate | None = None,
+        generation_config: GenerationConfig | None = None,
     ) -> dict[str, Any]:
         """Generate single-sentence feedback from user/reference audio."""
         try:
+            prompt_template = prompt_template or self.single_feedback_prompt
+            generation_config = generation_config or GenerationConfig()
             prompt = self._render_prompt_template(
-                self.single_feedback_prompt,
+                prompt_template,
                 original_text=front_text,
                 user_audio_url=user_audio_url,
                 reference_audio_url=reference_audio_url,
@@ -274,7 +295,7 @@ class GeminiAdapter:
                 prompt=prompt,
                 user_audio_url=user_audio_url,
                 reference_audio_url=reference_audio_url,
-                max_output_tokens=2048,
+                generation_config=generation_config,
             )
             feedback = json.loads(self._extract_json_text(result_text))
 
@@ -320,16 +341,23 @@ class GeminiAdapter:
     def generate_lesson_summary(
         self,
         feedbacks: list[dict[str, Any]],
+        prompt_template: PromptTemplate | None = None,
+        generation_config: GenerationConfig | None = None,
     ) -> dict[str, Any]:
         """Generate lesson-level summary from all feedback."""
         try:
+            prompt_template = prompt_template or self.lesson_summary_prompt
+            generation_config = generation_config or GenerationConfig()
             feedbacks_json = json.dumps(feedbacks, ensure_ascii=False, indent=2)
             prompt = self._render_prompt_template(
-                self.lesson_summary_prompt,
+                prompt_template,
                 feedbacks_json=feedbacks_json,
             )
 
-            result_text = self._generate_text_only(prompt, max_output_tokens=2048)
+            result_text = self._generate_text_only(
+                prompt,
+                generation_config=generation_config,
+            )
             summary = json.loads(self._extract_json_text(result_text))
 
             required_fields = ["overall", "patterns", "prioritized_actions"]

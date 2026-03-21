@@ -100,6 +100,77 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - `metadata.json` 记录说明、追踪 commit 与变更历史
 - `single_feedback` 当前输出包含：展示用 `transcription_text`、中文反馈文本、以及 `issues[]` / `suggestions[]` 上的问题点时间戳；不再请求字级时间戳
 
+## Gemini 双模式
+
+- 生产模式：继续走 `study submission -> review_task -> GeminiAdapter -> review_log` 的正式链路，用于真实用户评测。
+- 离线评测模式：走 `backend/scripts/export_single_feedback_dataset.py` 与 `backend/scripts/run_single_feedback_eval.py`，只读取本地数据集并把 run 结果落盘，不写业务 `review_log`。
+- 两种模式共享 `GeminiAdapter` 的 prompt 渲染、响应解析与结构校验逻辑，但入口与产物分离，避免把 prompt 实验流程混进线上任务。
+
+## Prompt 离线评测工作流
+
+- 数据集根目录：`backend/datasets/gemini_single_feedback_eval/`
+- 样本目录：`samples/<sample_id>/`
+- 运行结果目录：`runs/<run_id>/`
+- 导出记录目录：`exports/`
+- 目录说明见：[backend/datasets/README.md](/Users/damien/Desktop/LanProject/LanGear/.worktrees/wt-gemini-flash-prompt/backend/datasets/README.md)
+
+### 1. 导出本地数据集
+
+在后端目录执行：
+
+```bash
+cd backend
+uv run python scripts/export_single_feedback_dataset.py --limit 20
+```
+
+- 数据源是已完成的 `review_log(result_type=single, status=completed)`。
+- 每个样本会落下：
+  - `metadata.json`：样本元数据、来源记录、音频摘要、输入指纹
+  - `input.json`：固定输入
+  - `source_output.json`：历史线上输出快照，供人工参考
+  - `user_audio.*` / `reference_audio.*`：本地音频归档
+
+如果当前还没有可用的 `review_log`，可以先把现有卡片记录和参考音频拉下来：
+
+```bash
+cd backend
+uv run python scripts/export_single_feedback_dataset.py --source cards
+```
+
+- `--source cards` 会导出 `cards` 表中的 `front_text + reference_audio`，形成 `ready_for_eval=false` 的 reference-only 样本。
+- 这类样本先作为本地输入档案，不直接参与 `run_single_feedback_eval.py`。
+- 后续拿到用户录音或历史提交结果后，可以继续往同一个 dataset 根目录补 `ready_for_eval=true` 的正式评测样本。
+
+### 2. 运行 prompt 对比
+
+```bash
+cd backend
+uv run python scripts/run_single_feedback_eval.py \
+  --variant baseline=app/adapters/prompts/single_feedback \
+  --variant candidate=/absolute/path/to/prompt_variant \
+  --limit 20
+```
+
+- 每次 run 会固定：
+  - dataset 样本集合
+  - `GEMINI_MODEL_ID` 或 `--model-id`
+  - `temperature`
+  - `max_output_tokens`
+- 允许变化的主变量是 prompt 目录。
+- 每个 variant 会保存：
+  - prompt 快照
+  - `results.jsonl`
+  - 每个样本的输入、输出、错误与耗时
+- run 根目录会保存：
+  - `run_manifest.json`
+  - `comparison.json`
+
+### 3. 控制变量约定
+
+- 比较不同 prompt 时，先固定 dataset，再固定模型与 generation config。
+- 不要直接在生产 prompt 目录上覆盖试验；新增候选 prompt 目录后通过 `--variant` 显式传入。
+- 离线评测结果只用于实验复盘，不回写业务表，不替代正式用户反馈记录。
+
 ## 典型开发流程
 
 1. 启动后端服务。
