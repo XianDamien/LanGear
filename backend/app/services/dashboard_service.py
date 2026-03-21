@@ -1,12 +1,13 @@
 """Dashboard service for statistics and analytics."""
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.repositories.review_log_repo import ReviewLogRepository
 from app.repositories.settings_repo import SettingsRepository
+from app.utils.timezone import shanghai_now
 
 
 class DashboardService:
@@ -48,7 +49,7 @@ class DashboardService:
         daily_review_limit = settings.get("daily_review_limit", 100)
 
         # Get today's completed reviews
-        today = datetime.utcnow()
+        today = shanghai_now()
         today_completed = self.review_log_repo.count_reviews_by_date(today)
 
         # Calculate streak days (simplified - count consecutive days with reviews)
@@ -74,7 +75,7 @@ class DashboardService:
             Number of consecutive days with at least one review
         """
         streak = 0
-        current_date = datetime.utcnow()
+        current_date = shanghai_now()
 
         while True:
             count = self.review_log_repo.count_reviews_by_date(current_date)
@@ -99,7 +100,7 @@ class DashboardService:
             List of {date: str, count: int} objects
         """
         heatmap = []
-        current_date = datetime.utcnow()
+        current_date = shanghai_now()
 
         for i in range(days):
             date = current_date - timedelta(days=i)

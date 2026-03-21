@@ -7,8 +7,10 @@ Tests business logic for statistics and analytics.
 import pytest
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+
 from app.services.dashboard_service import DashboardService
 from app.models import Deck, Card, ReviewLog
+from app.utils.timezone import SHANGHAI_TZ
 from tests.test_data.seed_data import create_test_settings
 
 
@@ -108,3 +110,20 @@ class TestDashboardService:
         for entry in heatmap:
             assert isinstance(entry["date"], str)
             assert isinstance(entry["count"], int)
+
+    def test_get_dashboard_stats_uses_beijing_day_boundary(self, test_db: Session, monkeypatch):
+        """Test today's dashboard counts follow the Beijing business day."""
+        create_test_settings(test_db)
+        lesson, card = _create_lesson_and_card(test_db)
+
+        fixed_now = datetime(2026, 3, 21, 8, 30, tzinfo=SHANGHAI_TZ)
+        monkeypatch.setattr("app.services.dashboard_service.shanghai_now", lambda: fixed_now)
+
+        _add_review(test_db, card, lesson, created_at=datetime(2026, 3, 20, 15, 55, 0))
+        _add_review(test_db, card, lesson, created_at=datetime(2026, 3, 20, 16, 5, 0))
+        test_db.commit()
+
+        result = DashboardService(test_db).get_dashboard_stats()
+
+        assert result["today"]["completed"] == 1
+        assert result["heatmap"][-1]["count"] == 1

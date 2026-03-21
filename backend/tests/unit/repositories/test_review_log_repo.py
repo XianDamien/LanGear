@@ -594,3 +594,93 @@ class TestReviewLogRepository:
         count = repo.count_reviews_by_date(today)
 
         assert count == 3
+
+    def test_count_reviews_by_date_uses_beijing_day_window(self, test_db: Session):
+        """Test review counting follows Beijing midnight instead of UTC midnight."""
+        repo = ReviewLogRepository(test_db)
+
+        lesson = Deck(title="Lesson 1", type="lesson", level_index=0)
+        test_db.add(lesson)
+        test_db.flush()
+
+        card1 = Card(deck_id=lesson.id, card_index=0, front_text="Before boundary")
+        card2 = Card(deck_id=lesson.id, card_index=1, front_text="After boundary")
+        test_db.add_all([card1, card2])
+        test_db.flush()
+
+        test_db.add_all(
+            [
+                ReviewLog(
+                    card_id=card1.id,
+                    deck_id=lesson.id,
+                    rating="good",
+                    result_type="single",
+                    ai_feedback_json={},
+                    created_at=datetime(2026, 3, 20, 15, 59, 59),
+                ),
+                ReviewLog(
+                    card_id=card2.id,
+                    deck_id=lesson.id,
+                    rating="good",
+                    result_type="single",
+                    ai_feedback_json={},
+                    created_at=datetime(2026, 3, 20, 16, 0, 0),
+                ),
+            ]
+        )
+        test_db.commit()
+
+        assert repo.count_reviews_by_date(datetime(2026, 3, 20, 12, 0, 0)) == 1
+        assert repo.count_reviews_by_date(datetime(2026, 3, 21, 12, 0, 0)) == 1
+
+    def test_count_quota_usage_by_date_uses_study_session_bucket(self, test_db: Session):
+        """Test quota usage separates new and review buckets and skips failed logs."""
+        repo = ReviewLogRepository(test_db)
+
+        lesson = Deck(title="Lesson 1", type="lesson", level_index=0)
+        test_db.add(lesson)
+        test_db.flush()
+
+        card1 = Card(deck_id=lesson.id, card_index=0, front_text="New")
+        card2 = Card(deck_id=lesson.id, card_index=1, front_text="Review")
+        card3 = Card(deck_id=lesson.id, card_index=2, front_text="Failed")
+        test_db.add_all([card1, card2, card3])
+        test_db.flush()
+
+        review_day = datetime(2026, 3, 21, 1, 0, 0)
+        test_db.add_all(
+            [
+                ReviewLog(
+                    card_id=card1.id,
+                    deck_id=lesson.id,
+                    rating="good",
+                    result_type="single",
+                    status="completed",
+                    ai_feedback_json={"study_session": {"quota_bucket": "new"}},
+                    created_at=review_day,
+                ),
+                ReviewLog(
+                    card_id=card2.id,
+                    deck_id=lesson.id,
+                    rating="good",
+                    result_type="single",
+                    status="processing",
+                    ai_feedback_json={"study_session": {"quota_bucket": "review"}},
+                    created_at=review_day,
+                ),
+                ReviewLog(
+                    card_id=card3.id,
+                    deck_id=lesson.id,
+                    rating="good",
+                    result_type="single",
+                    status="failed",
+                    ai_feedback_json={"study_session": {"quota_bucket": "new"}},
+                    created_at=review_day,
+                ),
+            ]
+        )
+        test_db.commit()
+
+        usage = repo.count_quota_usage_by_date(datetime(2026, 3, 21, 12, 0, 0))
+
+        assert usage == {"new": 1, "review": 1}

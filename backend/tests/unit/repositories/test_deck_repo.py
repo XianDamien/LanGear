@@ -302,3 +302,42 @@ class TestDeckRepository:
 
         lessons = repo.get_children(unit.id)
         assert len(lessons) == 1
+
+    def test_get_lesson_ids_for_sources(self, test_db: Session):
+        """Test retrieving lesson IDs through the source -> unit -> lesson hierarchy."""
+        repo = DeckRepository(test_db)
+
+        source1 = Deck(title="Source 1", type="source", level_index=0)
+        source2 = Deck(title="Source 2", type="source", level_index=1)
+        test_db.add_all([source1, source2])
+        test_db.flush()
+
+        unit1 = Deck(title="Unit 1", type="unit", level_index=0, parent_id=source1.id)
+        unit2 = Deck(title="Unit 2", type="unit", level_index=0, parent_id=source2.id)
+        test_db.add_all([unit1, unit2])
+        test_db.flush()
+
+        lesson1 = Deck(title="Lesson 1", type="lesson", level_index=0, parent_id=unit1.id)
+        lesson2 = Deck(title="Lesson 2", type="lesson", level_index=0, parent_id=unit2.id)
+        test_db.add_all([lesson1, lesson2])
+        test_db.commit()
+
+        assert repo.get_lesson_ids_for_sources([source1.id, source2.id]) == [lesson1.id, lesson2.id]
+
+    def test_get_source_id_for_lesson(self, test_db: Session):
+        """Test resolving a lesson back to its source ID."""
+        repo = DeckRepository(test_db)
+
+        source = Deck(title="Source", type="source", level_index=0)
+        test_db.add(source)
+        test_db.flush()
+
+        unit = Deck(title="Unit", type="unit", level_index=0, parent_id=source.id)
+        test_db.add(unit)
+        test_db.flush()
+
+        lesson = Deck(title="Lesson", type="lesson", level_index=0, parent_id=unit.id)
+        test_db.add(lesson)
+        test_db.commit()
+
+        assert repo.get_source_id_for_lesson(lesson.id) == source.id

@@ -291,6 +291,42 @@ class TestSRSRepository:
 
         assert count == 2  # Only card1 and card2 are due
 
+    def test_count_due_by_lesson_excludes_new_state(self, test_db: Session):
+        """Test due counting excludes cards still in the pure-new state."""
+        repo = SRSRepository(test_db)
+
+        lesson = Deck(title="Lesson 1", type="lesson", level_index=0)
+        test_db.add(lesson)
+        test_db.flush()
+
+        due_time = datetime.utcnow() - timedelta(hours=1)
+        new_card = Card(deck_id=lesson.id, card_index=0, front_text="New card")
+        review_card = Card(deck_id=lesson.id, card_index=1, front_text="Review card")
+        test_db.add_all([new_card, review_card])
+        test_db.flush()
+
+        test_db.add_all(
+            [
+                UserCardSRS(
+                    card_id=new_card.id,
+                    state="new",
+                    stability=0.0,
+                    difficulty=5.0,
+                    due=due_time,
+                ),
+                UserCardSRS(
+                    card_id=review_card.id,
+                    state="review",
+                    stability=3.0,
+                    difficulty=4.0,
+                    due=due_time,
+                ),
+            ]
+        )
+        test_db.commit()
+
+        assert repo.count_due_by_lesson(lesson.id) == 1
+
     def test_count_due_by_lesson_only_counts_correct_lesson(self, test_db: Session):
         """Test that count_due_by_lesson only counts cards from the specified lesson."""
         repo = SRSRepository(test_db)

@@ -10,10 +10,12 @@ Tests card repository operations including:
 """
 
 import pytest
+from datetime import datetime
 from sqlalchemy.orm import Session
-from app.repositories.card_repo import CardRepository
-from app.models.deck import Deck
 from app.models.card import Card
+from app.models.deck import Deck
+from app.models.user_card_srs import UserCardSRS
+from app.repositories.card_repo import CardRepository
 
 
 @pytest.mark.unit
@@ -344,3 +346,41 @@ class TestCardRepository:
         assert "?" in card.front_text
         assert "'" in card.front_text
         assert "！" in card.back_text
+
+    def test_get_new_cards_returns_only_new_and_missing_srs(self, test_db: Session):
+        """Test get_new_cards includes missing/new cards and excludes review cards."""
+        repo = CardRepository(test_db)
+
+        lesson = Deck(title="Lesson 1", type="lesson", level_index=0)
+        test_db.add(lesson)
+        test_db.flush()
+
+        missing_srs = Card(deck_id=lesson.id, card_index=0, front_text="Missing")
+        new_card = Card(deck_id=lesson.id, card_index=1, front_text="New")
+        review_card = Card(deck_id=lesson.id, card_index=2, front_text="Review")
+        test_db.add_all([missing_srs, new_card, review_card])
+        test_db.flush()
+
+        test_db.add_all(
+            [
+                UserCardSRS(
+                    card_id=new_card.id,
+                    state="new",
+                    stability=0.0,
+                    difficulty=5.0,
+                    due=datetime.utcnow(),
+                ),
+                UserCardSRS(
+                    card_id=review_card.id,
+                    state="review",
+                    stability=3.0,
+                    difficulty=4.0,
+                    due=datetime.utcnow(),
+                ),
+            ]
+        )
+        test_db.commit()
+
+        results = repo.get_new_cards([lesson.id])
+
+        assert [card.id for card, _ in results] == [missing_srs.id, new_card.id]
