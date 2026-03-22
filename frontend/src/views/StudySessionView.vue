@@ -15,8 +15,8 @@ import CardBack from '@/components/study/CardBack.vue'
 import StudyTaskNav from '@/components/study/StudyTaskNav.vue'
 import WordExplanation from '@/components/study/WordExplanation.vue'
 import SummaryModal from '@/components/summary/SummaryModal.vue'
-import type { Rating } from '@/types/domain'
 import type { SubmissionDisplayError } from '@/types/api'
+import type { FsrsRating } from '@/types/domain'
 import { parseNumericIdOrThrow } from '@/utils/ids'
 
 const route = useRoute()
@@ -88,6 +88,7 @@ const studyCardClass = computed(() =>
     ? 'flex h-full min-h-0 flex-col overflow-hidden p-4 sm:p-6 lg:p-8'
     : 'flex h-full min-h-0 flex-col items-center justify-center p-6 text-center sm:p-8',
 )
+const sessionTitle = computed(() => lessonName.value || '学习任务')
 
 const currentTask = computed(() => studyTasksStore.getTask(currentCard.value?.id))
 
@@ -145,7 +146,7 @@ watch(
   async (lessonId) => {
     if (typeof lessonId !== 'string' || !lessonId) return
     clearCardSession()
-    await studyStore.loadLessonCards(lessonId)
+    await studyStore.loadStudySession(lessonId)
     studyTasksStore.initializeLesson(lessonId, cards.value)
     try {
       await studyTasksStore.restoreLessonHistory(lessonId, cards.value)
@@ -313,7 +314,7 @@ async function toggleRecording() {
   }
 }
 
-async function handleGrade(rating: Rating) {
+async function handleGrade(rating: FsrsRating) {
   if (!studyStore.submissionId) {
     ElMessage.warning('请先翻面等待 AI 反馈任务创建')
     return
@@ -477,15 +478,21 @@ function exitStudy() {
 </script>
 
 <template>
-  <div class="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-4 sm:px-6 sm:py-6">
+  <div
+    class="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-4 sm:px-6 sm:py-6"
+    data-testid="study-session-view"
+  >
     <div class="mb-4 grid grid-cols-[minmax(5rem,1fr)_auto_minmax(5rem,1fr)] items-center gap-3 sm:mb-6">
       <div class="flex min-w-[5rem]">
         <RetroButton variant="ghost" size="sm" class="w-[5rem] justify-center" @click="exitStudy">
           退出
         </RetroButton>
       </div>
-      <div class="min-w-0 text-center text-lg font-bold uppercase text-brand-accent sm:text-xl">
-        {{ lessonName }}
+      <div
+        class="min-w-0 text-center text-lg font-bold uppercase text-brand-accent sm:text-xl"
+        data-testid="study-lesson-title"
+      >
+        {{ sessionTitle }}
         <span class="font-pixel">{{ currentIndex + 1 }}</span>
         /
         <span class="font-pixel">{{ cards.length }}</span>
@@ -501,11 +508,11 @@ function exitStudy() {
       @select="handleSelectCard"
     />
 
-    <div v-if="loading" class="flex-1 flex items-center justify-center text-slate-500">
+    <div v-if="loading" class="flex-1 flex items-center justify-center text-slate-500" data-testid="study-loading">
       加载中...
     </div>
 
-    <div v-else-if="currentCard" class="relative flex flex-1 min-h-0 flex-col pb-4">
+    <div v-else-if="currentCard" class="relative flex flex-1 min-h-0 flex-col pb-4" data-testid="study-card">
       <RetroCard :class="studyCardClass">
         <CardFront
           v-if="!isFlipped"
@@ -533,6 +540,7 @@ function exitStudy() {
           :submit-state="submitState"
           :async-submit-state="asyncSubmitState"
           :feedback-v2="lastFeedbackV2"
+          :transcription-timestamps="lastFeedbackV2?.transcription.timestamps"
           :error-code="currentTask?.errorCode"
           :error-message="currentTask?.errorMessage"
           @play-original="playCurrentAudio"

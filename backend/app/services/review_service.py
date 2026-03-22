@@ -13,6 +13,7 @@ from app.repositories.srs_repo import SRSRepository
 from app.services.realtime_session_service import get_realtime_session_store
 from app.services.submission_trace import log_submission_trace
 from app.tasks.review_task import process_review_task
+from app.utils.timezone import from_storage_utc
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,10 @@ class ReviewService:
                 "REALTIME_TRANSCRIPT_NOT_READY: realtime final transcript is not ready"
             )
 
+        current_srs = self.srs_repo.get_by_card_id(card_id)
+        card_state = self.srs_repo.derive_card_state(current_srs)
+        quota_bucket = "new" if self.srs_repo.is_new_bucket(current_srs) else "review"
+
         # Create review_log with status='processing'
         log_submission_trace(
             logger,
@@ -135,7 +140,12 @@ class ReviewService:
             deck_id=lesson_id,
             rating=None,
             result_type="single",
-            ai_feedback_json={},  # Empty initially, will be filled by background task
+            ai_feedback_json={
+                "study_session": {
+                    "quota_bucket": quota_bucket,
+                    "scheduled_state": card_state,
+                }
+            },
         )
 
         # Commit to get the log ID
@@ -222,14 +232,26 @@ class ReviewService:
             raise ValueError("Cannot submit rating for summary submission")
 
         current_srs = self.srs_repo.get_by_card_id(review_log.card_id)
-        new_srs_data = self.fsrs_adapter.schedule_card(current_srs, rating)
+        new_srs_data = self.fsrs_adapter.schedule_card(
+            current_srs,
+            rating,
+            card_id=review_log.card_id,
+        )
 
         srs = self.srs_repo.upsert(
             card_id=review_log.card_id,
             state=new_srs_data["state"],
+            step=new_srs_data["step"],
             stability=new_srs_data["stability"],
             difficulty=new_srs_data["difficulty"],
             due=new_srs_data["due"],
+            last_review=new_srs_data["last_review"],
+        )
+        self.srs_repo.create_review_log(
+            card_id=review_log.card_id,
+            rating=new_srs_data["review_log"]["rating"],
+            review_datetime=new_srs_data["review_log"]["review_datetime"],
+            review_duration=new_srs_data["review_log"]["review_duration"],
         )
 
         review_log.rating = rating
@@ -238,11 +260,13 @@ class ReviewService:
         return {
             "submission_id": submission_id,
             "rating": rating,
+            "rating_label": rating,
             "srs": {
                 "state": srs.state,
                 "difficulty": srs.difficulty,
                 "stability": srs.stability,
-                "due": srs.due.isoformat(),
+                "due": from_storage_utc(srs.due).isoformat(),
+                "due_at": from_storage_utc(srs.due).isoformat(),
             },
         }
 
@@ -303,7 +327,7 @@ class ReviewService:
                         "state": srs.state,
                         "difficulty": srs.difficulty,
                         "stability": srs.stability,
-                        "due": srs.due.isoformat(),
+                        "due": from_storage_utc(srs.due).isoformat(),
                     }
 
             return result

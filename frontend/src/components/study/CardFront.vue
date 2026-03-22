@@ -30,7 +30,7 @@ function handleFlipClick() {
 </script>
 
 <template>
-  <div class="w-full max-w-md space-y-6 mx-auto">
+  <div class="w-full max-w-md space-y-6 mx-auto" data-testid="card-front">
     <!-- Play button -->
     <div class="flex justify-center mb-8">
       <div
@@ -38,6 +38,7 @@ function handleFlipClick() {
           'p-4 rounded-full border-4 inline-flex items-center justify-center w-24 h-24 cursor-pointer hover:bg-slate-50',
           audioPlaying ? 'border-brand-accent animate-pulse' : 'border-slate-300',
         ]"
+        data-testid="play-reference-audio"
         @click="emit('playAudio')"
       >
         <Volume2 v-if="audioPlaying" :size="40" class="text-brand-accent" />
@@ -51,6 +52,7 @@ function handleFlipClick() {
     <!-- Live transcript -->
     <div
       class="min-h-[60px] text-brand-accent font-sans text-lg border-b border-slate-200 pb-2"
+      data-testid="live-transcript"
     >
       {{ isRecording ? (liveTranscript || '...') : (userTranscript || '...') }}
     </div>
@@ -63,6 +65,7 @@ function handleFlipClick() {
       <RetroButton
         :variant="isRecording ? 'danger' : 'secondary'"
         class="w-full"
+        data-testid="record-toggle"
         @click="emit('toggleRecording')"
       >
         <Square v-if="isRecording" class="mr-2 animate-pulse" />
@@ -72,7 +75,11 @@ function handleFlipClick() {
     </div>
 
     <!-- v2.0: 上传进度指示器 -->
-    <div v-if="uploadState === 'uploading'" class="bg-blue-50 border border-blue-200 rounded p-3">
+    <div
+      v-if="uploadState === 'uploading'"
+      class="bg-blue-50 border border-blue-200 rounded p-3"
+      data-testid="upload-progress"
+    >
       <div class="flex items-center gap-2 mb-2">
         <Upload class="animate-pulse text-blue-600" :size="16" />
         <span class="text-sm text-blue-900">上传中...</span>
@@ -90,6 +97,7 @@ function handleFlipClick() {
       variant="primary"
       class="w-full mt-4"
       :disabled="uploadState === 'uploading'"
+      data-testid="flip-button"
       @click="handleFlipClick"
     >
       翻面复盘

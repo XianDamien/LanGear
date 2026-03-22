@@ -1,13 +1,53 @@
-"""
-Test data generation utilities for seeding the test database.
-
-Provides functions to create realistic test data with proper
-relationships and constraints matching actual model schemas.
-"""
+"""Test data generation utilities for seeding the test database."""
 
 from datetime import datetime, timedelta
+
 from sqlalchemy.orm import Session
-from app.models import Deck, Card, UserCardSRS, ReviewLog, Setting
+
+from app.models import Card, Deck, ReviewLog, Setting, UserCardSRS
+
+
+def _build_srs_snapshot(bucket: str, now: datetime) -> dict:
+    """Return a native FSRS snapshot payload for the requested test bucket."""
+    snapshots = {
+        "new": {
+            "state": "learning",
+            "step": 0,
+            "stability": None,
+            "difficulty": None,
+            "due": now,
+            "last_review": None,
+        },
+        "learning": {
+            "state": "learning",
+            "step": 1,
+            "stability": 1.0,
+            "difficulty": 5.0,
+            "due": now - timedelta(hours=1),
+            "last_review": now - timedelta(hours=2),
+        },
+        "review": {
+            "state": "review",
+            "step": None,
+            "stability": 7.0,
+            "difficulty": 4.0,
+            "due": now - timedelta(days=1),
+            "last_review": now - timedelta(days=2),
+        },
+        "relearning": {
+            "state": "relearning",
+            "step": 0,
+            "stability": 2.0,
+            "difficulty": 6.0,
+            "due": now,
+            "last_review": now - timedelta(days=1),
+        },
+    }
+
+    if bucket not in snapshots:
+        raise ValueError(f"Invalid SRS bucket: {bucket}")
+
+    return snapshots[bucket].copy()
 
 
 def create_full_deck_tree(db: Session) -> dict:
@@ -74,14 +114,10 @@ def create_full_deck_tree(db: Session) -> dict:
         db.add(card)
         db.flush()
 
-        # Create corresponding SRS state (all cards start as "new" and due)
+        # All cards start in the business "new" bucket as native initial snapshots.
         srs = UserCardSRS(
             card_id=card.id,
-            state="new",
-            stability=0.0,
-            difficulty=5.0,
-            due=datetime.utcnow() - timedelta(hours=1),  # Due 1 hour ago (UTC)
-            last_review=None
+            **_build_srs_snapshot("new", datetime.utcnow() - timedelta(hours=1)),
         )
         db.add(srs)
         cards.append(card)
@@ -96,14 +132,19 @@ def create_full_deck_tree(db: Session) -> dict:
     }
 
 
-def create_test_card_with_srs(db: Session, lesson_id: int = None, state: str = "new") -> dict:
+def create_test_card_with_srs(
+    db: Session,
+    lesson_id: int | None = None,
+    bucket: str = "new",
+) -> dict:
     """
     Create a single test card with SRS state.
 
     Args:
         db: Database session
         lesson_id: Optional lesson ID to attach the card to (creates new lesson if None)
-        state: SRS state ("new", "learning", "review", "relearning")
+        bucket: Business bucket / native state preset:
+            "new", "learning", "review", "relearning"
 
     Returns:
         dict: {"card": Card, "srs": UserCardSRS, "lesson": Deck}
@@ -136,27 +177,8 @@ def create_test_card_with_srs(db: Session, lesson_id: int = None, state: str = "
     db.add(card)
     db.flush()
 
-    # SRS state presets: (due_offset, stability, difficulty, last_review_offset)
-    now = datetime.now()
-    state_presets = {
-        "new":        (timedelta(0),       0.0, 5.0, None),
-        "learning":   (timedelta(hours=-1), 1.0, 5.0, timedelta(hours=-2)),
-        "review":     (timedelta(days=-1),  7.0, 4.0, timedelta(days=-2)),
-        "relearning": (timedelta(0),       2.0, 6.0, timedelta(days=-1)),
-    }
-
-    if state not in state_presets:
-        raise ValueError(f"Invalid state: {state}")
-
-    due_offset, stability, difficulty, lr_offset = state_presets[state]
-    srs = UserCardSRS(
-        card_id=card.id,
-        state=state,
-        stability=stability,
-        difficulty=difficulty,
-        due=now + due_offset,
-        last_review=now + lr_offset if lr_offset is not None else None
-    )
+    snapshot = _build_srs_snapshot(bucket, datetime.utcnow())
+    srs = UserCardSRS(card_id=card.id, **snapshot)
     db.add(srs)
     db.commit()
 

@@ -13,6 +13,8 @@ export interface Deck {
 
 export interface Card {
   id: string
+  lessonId?: string
+  cardIndex?: number
   frontAudio?: string
   frontText?: string
   backText: string
@@ -20,13 +22,18 @@ export interface Card {
   notes?: string
   difficulty: number
   ossAudioPath?: string | null
+  cardState?: CardState
+  dueAt?: string | null
   grammarInfo?: {
     nouns: string[]
     verbs: string[]
   }
 }
 
-export type Rating = 'again' | 'hard' | 'good' | 'easy'
+export type FsrsRating = 1 | 2 | 3 | 4
+export type RatingLabel = 'again' | 'hard' | 'good' | 'easy'
+export type Rating = RatingLabel
+export type CardState = 'new' | 'learning' | 'review' | 'relearning'
 
 export interface DailyStats {
   date: string
@@ -35,7 +42,7 @@ export interface DailyStats {
 
 export interface StudySessionResult {
   cardId: string
-  rating: Rating
+  rating: FsrsRating | Rating
   userAudioBlob?: Blob
   responseTime: number
 }

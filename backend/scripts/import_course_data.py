@@ -447,11 +447,12 @@ class CourseDataImporter:
                             # Create SRS state
                             srs = UserCardSRS(
                                 card_id=card.id,
-                                state="new",
-                                stability=0.0,
-                                difficulty=0.0,
+                                state="learning",
+                                step=0,
+                                stability=None,
+                                difficulty=None,
                                 due=datetime.utcnow(),
-                                last_review=datetime.utcnow(),
+                                last_review=None,
                             )
                             db.add(srs)
 
@@ -478,11 +479,12 @@ class CourseDataImporter:
                             # Create SRS state
                             srs = UserCardSRS(
                                 card_id=card.id,
-                                state="new",
-                                stability=0.0,
-                                difficulty=0.0,
+                                state="learning",
+                                step=0,
+                                stability=None,
+                                difficulty=None,
                                 due=datetime.utcnow(),
-                                last_review=datetime.utcnow(),
+                                last_review=None,
                             )
                             db.add(srs)
 

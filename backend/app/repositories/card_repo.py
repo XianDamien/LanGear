@@ -3,6 +3,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.card import Card
+from app.models.user_card_srs import UserCardSRS
 
 
 class CardRepository:
@@ -80,3 +81,26 @@ class CardRepository:
             Total number of cards
         """
         return self.db.query(Card).filter(Card.deck_id == lesson_id).count()
+
+    def get_new_cards(
+        self,
+        lesson_ids: list[int] | None = None,
+        limit: int | None = None,
+    ) -> list[tuple[Card, UserCardSRS | None]]:
+        """Get cards that are still in the new bucket."""
+        query = (
+            self.db.query(Card, UserCardSRS)
+            .join(UserCardSRS, UserCardSRS.card_id == Card.id)
+            .filter(UserCardSRS.last_review.is_(None))
+            .order_by(Card.deck_id, Card.card_index, Card.id)
+        )
+
+        if lesson_ids is not None:
+            if not lesson_ids:
+                return []
+            query = query.filter(Card.deck_id.in_(lesson_ids))
+
+        if limit is not None:
+            query = query.limit(limit)
+
+        return query.all()

@@ -261,6 +261,58 @@ class TestStudyRouter:
         assert "srs" in data
         assert "due" in data["srs"]
 
+    def test_submit_numeric_rating_updates_srs(
+        self,
+        client: TestClient,
+        test_db: Session,
+        sample_deck_tree,
+        all_adapters_mocked,
+        monkeypatch,
+    ):
+        """POST /study/submissions/{id}/rating should accept FSRS numeric ratings."""
+
+        class _FakeThread:
+            def __init__(self, target=None, args=(), daemon=None):
+                self.target = target
+                self.args = args
+                self.daemon = daemon
+
+            def start(self):
+                return None
+
+        monkeypatch.setattr("app.services.review_service.threading.Thread", _FakeThread)
+
+        store = get_realtime_session_store()
+        store.clear()
+
+        lesson_id = sample_deck_tree["lesson"].id
+        card_id = sample_deck_tree["cards"][0].id
+        realtime_session_id = _make_ready_realtime_session(lesson_id, card_id)
+
+        create_resp = client.post(
+            "/api/v1/study/submissions",
+            json={
+                "lesson_id": lesson_id,
+                "card_id": card_id,
+                "oss_audio_path": "recordings/20260209/test.webm",
+                "realtime_session_id": realtime_session_id,
+            },
+        )
+        assert create_resp.status_code == 200
+        submission_id = create_resp.json()["data"]["submission_id"]
+
+        rate_resp = client.post(
+            f"/api/v1/study/submissions/{submission_id}/rating",
+            json={"rating": 3},
+        )
+        assert rate_resp.status_code == 200
+        data = rate_resp.json()["data"]
+        assert data["submission_id"] == submission_id
+        assert data["rating"] == "good"
+        assert data["rating_label"] == "good"
+        assert "srs" in data
+        assert data["srs"]["due_at"] == data["srs"]["due"]
+
     def test_get_submission_completed_includes_issues(
         self,
         client: TestClient,

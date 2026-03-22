@@ -3,7 +3,13 @@ import { mockDashboardData } from './mock/dashboard'
 import { mockDeckTree, mockLessonCards } from './mock/decks'
 import { mockLessonSummary } from './mock/summary'
 import { mockSettings } from './mock/settings'
+import {
+  buildMockRatingSrs,
+  buildMockStudySession,
+  getMockRatingLabel,
+} from './mock/study'
 import type { SettingsData } from '@/types/api'
+import type { FsrsRating } from '@/types/domain'
 
 const SUBMISSION_STORAGE_PREFIX = 'submission_'
 
@@ -42,6 +48,20 @@ function readStoredSubmissions() {
   return records
 }
 
+function getParam(config: InternalAxiosRequestConfig, key: string): string | undefined {
+  const directValue = config.params?.[key]
+  if (directValue !== undefined && directValue !== null) {
+    return String(directValue)
+  }
+
+  const url = config.url || ''
+  const queryIndex = url.indexOf('?')
+  if (queryIndex === -1) return undefined
+
+  const searchParams = new URLSearchParams(url.slice(queryIndex + 1))
+  return searchParams.get(key) ?? undefined
+}
+
 async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockResponse | null> {
   const url = config.url || ''
   const method = (config.method || 'get').toLowerCase()
@@ -63,7 +83,12 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
     return data ? mockResolve(data) : mockError('NOT_FOUND', '课程不存在')
   }
 
-  // v2.0: GET /oss/sts-token
+  if (method === 'get' && url.startsWith('/study/session')) {
+    await delay()
+    const lessonId = Number(getParam(config, 'lesson_id'))
+    return mockResolve(buildMockStudySession(Number.isFinite(lessonId) ? lessonId : undefined))
+  }
+
   if (method === 'get' && url === '/oss/sts-token') {
     await delay()
     return mockResolve({
@@ -72,11 +97,10 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
       security_token: 'mock-token',
       expiration: new Date(Date.now() + 3600000).toISOString(),
       bucket: 'langear',
-      region: 'oss-cn-shanghai'
+      region: 'oss-cn-shanghai',
     })
   }
 
-  // v2.0: POST /study/submissions（异步版本）
   if (method === 'post' && url === '/study/submissions') {
     await delay(200)
     const body = parseBody(config) as {
@@ -104,19 +128,19 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
         realtime_session_id: body.realtime_session_id,
         transcription_text:
           typeof body.transcription_text === 'string' ? body.transcription_text.trim() : '',
-      })
+      }),
     )
     return mockResolve({
       submission_id: submissionId,
-      status: 'processing'
+      status: 'processing',
     })
   }
 
   if (method === 'get' && url === '/study/submissions') {
     await delay(150)
-    const lessonId = Number(config.params?.lesson_id)
-    const cardId =
-      config.params?.card_id != null ? Number(config.params.card_id) : null
+    const lessonId = Number(getParam(config, 'lesson_id'))
+    const cardIdParam = getParam(config, 'card_id')
+    const cardId = cardIdParam != null ? Number(cardIdParam) : null
 
     const items = readStoredSubmissions()
       .filter((item) => Number(item.lesson_id) === lessonId)
@@ -138,7 +162,6 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
     return mockResolve(items)
   }
 
-  // v2.0: GET /study/submissions/{id}
   const pollMatch = url.match(/^\/study\/submissions\/(\d+)$/)
   if (method === 'get' && pollMatch) {
     await delay(500)
@@ -152,59 +175,85 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
     const data = JSON.parse(stored)
     const elapsed = Date.now() - data.timestamp
 
-    // 模拟3秒处理时间
     if (elapsed < 3000) {
       return mockResolve({
         submission_id: Number(submissionId),
         status: 'processing',
-        progress: elapsed < 1500 ? 'asr_completed' : 'ai_processing'
+        progress: elapsed < 1500 ? 'asr_completed' : 'ai_processing',
       })
-    } else {
-      const transcriptText =
-        typeof data.transcription_text === 'string' ? data.transcription_text.trim() : ''
-
-      const completedResponse = {
-        submission_id: Number(submissionId),
-        status: 'completed',
-        result_type: 'single',
-        realtime_session_id: data.realtime_session_id,
-        oss_audio_path: data.oss_audio_path ?? null,
-        transcription: {
-          text: transcriptText,
-          timestamps: []
-        },
-        feedback: {
-          pronunciation: '发音整体清晰，注意连读部分。',
-          completeness: '内容完整，未遗漏关键信息。',
-          fluency: '语速适中，部分句末有停顿。',
-          suggestions: [
-            {
-              text: '注意 "the" 在元音前的发音变化',
-              target_word: 'the',
-              timestamp: 0.4
-            },
-            {
-              text: '尝试更自然的语调起伏'
-            }
-          ],
-          issues: []
-        },
-        srs: {
-          state: 'review',
-          difficulty: 0.3,
-          stability: 5.0,
-          due: new Date(Date.now() + 86400000 * 3).toISOString()
-        }
-      }
-      sessionStorage.setItem(
-        `submission_${submissionId}`,
-        JSON.stringify({
-          ...data,
-          ...completedResponse,
-        })
-      )
-      return mockResolve(completedResponse)
     }
+
+    const transcriptText =
+      typeof data.transcription_text === 'string' ? data.transcription_text.trim() : ''
+
+    const completedPayload = {
+      submission_id: Number(submissionId),
+      status: 'completed',
+      result_type: 'single',
+      realtime_session_id: data.realtime_session_id,
+      transcription: {
+        text: transcriptText,
+        timestamps: [],
+      },
+      feedback: {
+        pronunciation: '发音整体清晰，注意连读部分。',
+        completeness: '内容完整，未遗漏关键信息。',
+        fluency: '语速适中，部分句末有停顿。',
+        suggestions: [
+          {
+            text: '注意 "the" 在元音前的发音变化',
+            target_word: 'the',
+            timestamp: 0.4,
+          },
+          {
+            text: '尝试更自然的语调起伏',
+          },
+        ],
+        issues: [],
+      },
+      srs: {
+        state: 'review',
+        difficulty: 0.3,
+        stability: 5.0,
+        due: new Date(Date.now() + 86400000 * 3).toISOString(),
+        due_at: new Date(Date.now() + 86400000 * 3).toISOString(),
+      },
+    }
+
+    sessionStorage.setItem(
+      `submission_${submissionId}`,
+      JSON.stringify({
+        ...data,
+        status: 'completed',
+      }),
+    )
+    return mockResolve({
+      ...completedPayload,
+      oss_audio_path: data.oss_audio_path ?? null,
+    })
+  }
+
+  const ratingMatch = url.match(/^\/study\/submissions\/(\d+)\/rating$/)
+  if (method === 'post' && ratingMatch) {
+    await delay(200)
+    const body = parseBody(config) as { rating?: FsrsRating }
+    const rating = body?.rating
+
+    if (rating !== 1 && rating !== 2 && rating !== 3 && rating !== 4) {
+      return mockError('INVALID_RATING', 'rating 必须是 1 | 2 | 3 | 4', 400)
+    }
+
+    const stored = sessionStorage.getItem(`submission_${ratingMatch[1]}`)
+    if (!stored) {
+      return mockError('NOT_FOUND', 'Submission not found', 404)
+    }
+
+    return mockResolve({
+      submission_id: Number(ratingMatch[1]),
+      rating,
+      rating_label: getMockRatingLabel(rating),
+      srs: buildMockRatingSrs(rating),
+    })
   }
 
   const summaryMatch = url.match(/^\/decks\/([^/]+)\/summary$/)
