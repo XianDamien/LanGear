@@ -1,24 +1,26 @@
-"""FSRS adapter for spaced repetition scheduling."""
+"""Native FSRS adapter aligned with the upstream py-fsrs contract."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from fsrs import Card as FSRSCard
-from fsrs import Rating, Scheduler, State
+from fsrs import Rating, ReviewLog as FSRSReviewLog, Scheduler, State
 
 from app.exceptions import InvalidRatingError, SRSUpdateError
 from app.models.user_card_srs import UserCardSRS
+from app.utils.timezone import from_storage_utc, to_aware_utc, utc_now
+
+
+STATE_TO_STRING = {
+    State.Learning: "learning",
+    State.Review: "review",
+    State.Relearning: "relearning",
+}
+STRING_TO_STATE = {value: key for key, value in STATE_TO_STRING.items()}
 
 
 class FSRSAdapter:
-    """Adapter for FSRS (Free Spaced Repetition Scheduler) algorithm.
-
-    Handles:
-    - Rating string to FSRS Rating enum conversion
-    - FSRS State to database state string conversion
-    - Card scheduling calculations
-    - Result transformation to database format
-    """
+    """Bridge between persisted SQL rows and native py-fsrs objects."""
 
     def __init__(self):
         """Initialize FSRS scheduler with default parameters."""
@@ -47,86 +49,84 @@ class FSRSAdapter:
         return mapping[rating_str]
 
     def state_to_string(self, state: State) -> str:
-        """Convert FSRS State enum to database state string.
-
-        Args:
-            state: FSRS State enum value
-
-        Returns:
-            State string: 'new', 'learning', 'review', or 'relearning'
-        """
-        return state.name.lower()
+        """Convert FSRS State enum to the persisted string value."""
+        return STATE_TO_STRING[state]
 
     def string_to_state(self, state_str: str) -> State:
-        """Convert database state string to FSRS State enum.
+        """Convert persisted state string to FSRS State enum."""
+        try:
+            return STRING_TO_STATE[state_str]
+        except KeyError as exc:
+            raise SRSUpdateError(f"Unsupported FSRS state: {state_str}") from exc
 
-        Args:
-            state_str: State string from database
+    def to_fsrs_card(
+        self,
+        current_srs: UserCardSRS | None,
+        *,
+        card_id: int | None = None,
+    ) -> FSRSCard:
+        """Convert a stored `user_card_srs` row to a native FSRS Card."""
+        if current_srs is None:
+            if card_id is None:
+                raise SRSUpdateError("card_id is required when scheduling a card without SRS row")
+            return FSRSCard(card_id=card_id)
 
-        Returns:
-            FSRS State enum value
-        """
-        return State[state_str.upper()]
+        return FSRSCard(
+            card_id=current_srs.card_id,
+            state=self.string_to_state(current_srs.state),
+            step=current_srs.step,
+            stability=current_srs.stability,
+            difficulty=current_srs.difficulty,
+            due=from_storage_utc(current_srs.due),
+            last_review=from_storage_utc(current_srs.last_review),
+        )
+
+    def serialize_card(self, card: FSRSCard) -> dict[str, Any]:
+        """Serialize a native FSRS Card for persistence."""
+        return {
+            "card_id": card.card_id,
+            "state": self.state_to_string(card.state),
+            "step": card.step,
+            "stability": card.stability,
+            "difficulty": card.difficulty,
+            "due": to_aware_utc(card.due),
+            "last_review": from_storage_utc(card.last_review),
+        }
+
+    def serialize_review_log(self, review_log: FSRSReviewLog) -> dict[str, Any]:
+        """Serialize a native FSRS ReviewLog for persistence."""
+        return {
+            "card_id": review_log.card_id,
+            "rating": int(review_log.rating),
+            "review_datetime": to_aware_utc(review_log.review_datetime),
+            "review_duration": review_log.review_duration,
+        }
 
     def schedule_card(
         self,
         current_srs: UserCardSRS | None,
         rating_str: str,
+        *,
+        card_id: int | None = None,
+        review_datetime: datetime | None = None,
+        review_duration: int | None = None,
     ) -> dict[str, Any]:
-        """Calculate new FSRS state based on current state and rating.
-
-        Args:
-            current_srs: Current SRS state from database (None for new cards)
-            rating_str: User rating ('again', 'hard', 'good', or 'easy')
-
-        Returns:
-            Dictionary with new state:
-            {
-                "state": "review",
-                "stability": 12.3,
-                "difficulty": 5.8,
-                "due": datetime(...)
-            }
-
-        Raises:
-            InvalidRatingError: If rating is invalid
-            SRSUpdateError: If scheduling calculation fails
-        """
+        """Review a card through native py-fsrs and return card + review-log payloads."""
         try:
-            # Convert rating string to enum
             rating = self.rating_from_string(rating_str)
+            review_at = utc_now() if review_datetime is None else to_aware_utc(review_datetime)
+            fsrs_card = self.to_fsrs_card(current_srs, card_id=card_id)
+            updated_card, review_log = self.scheduler.review_card(
+                fsrs_card,
+                rating,
+                review_datetime=review_at,
+                review_duration=review_duration,
+            )
 
-            # Construct FSRS Card from current state
-            if current_srs is None:
-                # New card - use default FSRS state
-                fsrs_card = FSRSCard()
-            else:
-                # Existing card - reconstruct from database state
-                fsrs_card = FSRSCard(
-                    state=self.string_to_state(current_srs.state),
-                    stability=current_srs.stability,
-                    difficulty=current_srs.difficulty,
-                    due=current_srs.due,
-                )
-
-            # Get current time in UTC
-            now = datetime.now(timezone.utc)
-
-            # Calculate scheduling for all possible ratings
-            scheduling_cards = self.scheduler.review_card(fsrs_card, now)
-
-            # Select the result based on actual rating
-            result_card = scheduling_cards[rating].card
-
-            # Convert back to database format
-            return {
-                "state": self.state_to_string(result_card.state),
-                "stability": result_card.stability,
-                "difficulty": result_card.difficulty,
-                "due": result_card.due,
-            }
-
+            result = self.serialize_card(updated_card)
+            result["review_log"] = self.serialize_review_log(review_log)
+            return result
         except InvalidRatingError:
             raise
-        except Exception as e:
-            raise SRSUpdateError(f"FSRS scheduling failed: {str(e)}")
+        except Exception as exc:
+            raise SRSUpdateError(f"FSRS scheduling failed: {exc}") from exc

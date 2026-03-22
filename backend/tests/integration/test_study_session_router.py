@@ -42,9 +42,11 @@ def _create_scoped_source(
         UserCardSRS(
             card_id=card.id,
             state=state,
-            stability=3.0,
-            difficulty=4.0,
+            step=0 if state in {"learning", "relearning"} else None,
+            stability=None if state == "learning" else 3.0,
+            difficulty=None if state == "learning" else 4.0,
             due=datetime.utcnow() - timedelta(hours=1),
+            last_review=None if state == "learning" else datetime.utcnow() - timedelta(days=1),
         )
     )
     db.commit()
@@ -73,11 +75,21 @@ class TestStudySessionRouter:
 
         srs_rows = test_db.query(UserCardSRS).order_by(UserCardSRS.card_id).all()
         srs_rows[0].state = "learning"
+        srs_rows[0].step = 1
         srs_rows[0].due = datetime.utcnow() - timedelta(hours=2)
+        srs_rows[0].last_review = datetime.utcnow() - timedelta(hours=3)
         srs_rows[1].state = "review"
+        srs_rows[1].step = None
+        srs_rows[1].stability = 3.5
+        srs_rows[1].difficulty = 4.0
         srs_rows[1].due = datetime.utcnow() - timedelta(hours=1)
+        srs_rows[1].last_review = datetime.utcnow() - timedelta(days=1)
         srs_rows[2].state = "review"
+        srs_rows[2].step = None
+        srs_rows[2].stability = 3.5
+        srs_rows[2].difficulty = 4.0
         srs_rows[2].due = datetime.utcnow() + timedelta(days=1)
+        srs_rows[2].last_review = datetime.utcnow() - timedelta(days=1)
 
         test_db.add(
             ReviewLog(

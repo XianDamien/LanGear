@@ -1,6 +1,5 @@
 """Card repository for database operations."""
 
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.card import Card
@@ -91,13 +90,8 @@ class CardRepository:
         """Get cards that are still in the new bucket."""
         query = (
             self.db.query(Card, UserCardSRS)
-            .outerjoin(UserCardSRS, UserCardSRS.card_id == Card.id)
-            .filter(
-                or_(
-                    UserCardSRS.card_id.is_(None),
-                    UserCardSRS.state == "new",
-                )
-            )
+            .join(UserCardSRS, UserCardSRS.card_id == Card.id)
+            .filter(UserCardSRS.last_review.is_(None))
             .order_by(Card.deck_id, Card.card_index, Card.id)
         )
 

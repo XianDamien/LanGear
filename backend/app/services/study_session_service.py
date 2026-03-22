@@ -171,8 +171,8 @@ class StudySessionService:
         server_time: Any,
     ) -> dict[str, Any]:
         """Serialize a card row for the study session response."""
-        card_state = srs.state if srs is not None else "new"
-        due_at = to_shanghai(srs.due) if srs is not None else server_time
+        card_state = self.srs_repo.derive_card_state(srs)
+        due_at = server_time if card_state == "new" else to_shanghai(srs.due)
 
         return {
             "id": card.id,

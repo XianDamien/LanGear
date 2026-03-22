@@ -28,4 +28,5 @@ class Card(Base):
     # Relationships
     deck = relationship("Deck", back_populates="cards")
     srs_state = relationship("UserCardSRS", back_populates="card", uselist=False)
+    fsrs_review_logs = relationship("FSRSReviewLog", back_populates="card")
     review_logs = relationship("ReviewLog", back_populates="card")

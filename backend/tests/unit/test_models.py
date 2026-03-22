@@ -7,7 +7,7 @@ Tests model creation, relationships, and constraints.
 import pytest
 from datetime import datetime
 from sqlalchemy.orm import Session
-from app.models import Deck, Card, UserCardSRS, ReviewLog, Setting
+from app.models import Card, Deck, FSRSReviewLog, ReviewLog, Setting, UserCardSRS
 
 
 @pytest.mark.unit
@@ -115,8 +115,8 @@ class TestCardModel:
 class TestUserCardSRSModel:
     """Test UserCardSRS model."""
 
-    def test_create_srs_new_state(self, test_db: Session):
-        """Test creating SRS state for a new card."""
+    def test_create_initial_srs_snapshot(self, test_db: Session):
+        """Test creating an initial native-FSRS snapshot for a new-bucket card."""
         # Create card first
         lesson = Deck(title="Lesson 1", type="lesson", level_index=0)
         test_db.add(lesson)
@@ -135,25 +135,56 @@ class TestUserCardSRSModel:
         # Create SRS state (card_id is primary key)
         srs = UserCardSRS(
             card_id=card.id,
-            state="new",
-            stability=0.0,
-            difficulty=5.0,
+            state="learning",
+            step=0,
+            stability=None,
+            difficulty=None,
             due=datetime.now()
         )
         test_db.add(srs)
         test_db.commit()
 
         assert srs.card_id == card.id
-        assert srs.state == "new"
-        assert srs.stability == 0.0
-        assert srs.difficulty == 5.0
+        assert srs.state == "learning"
+        assert srs.step == 0
+        assert srs.stability is None
+        assert srs.difficulty is None
         assert srs.last_review is None
+        assert srs.is_initial is True
 
     def test_srs_state_values(self, test_db: Session):
-        """Test that all valid SRS states can be set on a model instance."""
-        for state in ["new", "learning", "review", "relearning"]:
-            srs = UserCardSRS(state=state, stability=0.0, difficulty=5.0, due=datetime.now())
+        """Test that only native FSRS states are used on the model."""
+        for state in ["learning", "review", "relearning"]:
+            srs = UserCardSRS(state=state, due=datetime.now())
             assert srs.state == state
+
+
+@pytest.mark.unit
+class TestFSRSReviewLogModel:
+    """Test FSRSReviewLog model."""
+
+    def test_create_fsrs_review_log(self, test_db: Session):
+        lesson = Deck(title="Lesson 1", type="lesson", level_index=0)
+        test_db.add(lesson)
+        test_db.flush()
+
+        card = Card(deck_id=lesson.id, card_index=0, front_text="T", back_text="T", audio_path="a.wav")
+        test_db.add(card)
+        test_db.flush()
+
+        review_log = FSRSReviewLog(
+            card_id=card.id,
+            rating=3,
+            review_datetime=datetime.now(),
+            review_duration=1500,
+        )
+        test_db.add(review_log)
+        test_db.commit()
+
+        assert review_log.id is not None
+        assert review_log.card_id == card.id
+        assert review_log.rating == 3
+        assert review_log.review_duration == 1500
 
 
 @pytest.mark.unit

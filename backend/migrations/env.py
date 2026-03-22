@@ -12,6 +12,7 @@ from app.database import Base
 from app.models import (  # noqa: F401
     card,
     deck,
+    fsrs_review_log,
     review_log,
     setting,
     user,
