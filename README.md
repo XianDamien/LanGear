@@ -64,6 +64,7 @@ uv run pytest
 - 如果本机 `uv` 不在 `PATH`，请先将 `uv` 安装目录加入 shell 的 `PATH`
 - 不建议混用系统 Python、系统 `pytest` 和 `uv run`，否则容易出现依赖不一致
 - 后端默认 `DATABASE_URL=sqlite:///data/langear.db` 会在运行时归一到 `backend/data/langear.db`，避免因进程工作目录不同误连到别的 SQLite 文件
+- `backend/data/langear.db` 是本地运行态 SQLite 文件，不会随 Git 提交同步到 GitHub；远端仓库不会包含你本机最新的 `review_log`、`user_card_srs` 或其他运行时数据
 - 如果不希望在项目目录下生成 `.venv`，请按命令显式指定单独的环境路径，例如：
 
 ```bash
@@ -78,6 +79,7 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - 后端运行时不要依赖仓库根目录 `.env`
 - 可从 `backend/.env.example` 复制一份作为后端配置起点
 - 想确认当前后端实际会连接哪个数据库，可在 `backend/` 目录执行 `uv run python scripts/show_runtime_config.py`；该脚本只依赖 `DATABASE_URL`，不要求先配齐完整 Gemini/OSS 密钥
+- 如果你在本地看到了评测/复习记录，但 GitHub 上的代码或别的 worktree 里看不到，优先假设是命中了不同的本地 SQLite，而不是“数据库会跟着仓库自动同步”
 
 ## 评测链路排查
 
