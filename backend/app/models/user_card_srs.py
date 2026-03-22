@@ -4,7 +4,7 @@ from sqlalchemy import CheckConstraint, Column, DateTime, Float, ForeignKey, Int
 from sqlalchemy.orm import relationship
 
 from app.database import Base
-from app.utils.timezone import utc_now_naive
+from app.utils.timezone import storage_now
 
 
 class UserCardSRS(Base):
@@ -27,9 +27,9 @@ class UserCardSRS(Base):
     step = Column(Integer, nullable=True)
     stability = Column(Float, nullable=True)
     difficulty = Column(Float, nullable=True)
-    due = Column(DateTime, nullable=False, default=utc_now_naive)
+    due = Column(DateTime, nullable=False, default=storage_now)
     last_review = Column(DateTime, nullable=True)
-    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive, nullable=False)
+    updated_at = Column(DateTime, default=storage_now, onupdate=storage_now, nullable=False)
 
     # Relationships
     card = relationship("Card", back_populates="srs_state")

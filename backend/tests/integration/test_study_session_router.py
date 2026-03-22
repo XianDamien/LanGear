@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models import Card, Deck, ReviewLog, Setting, UserCardSRS
+from app.utils.timezone import storage_now
 
 
 def _create_scoped_source(
@@ -45,8 +46,8 @@ def _create_scoped_source(
             step=0 if state in {"learning", "relearning"} else None,
             stability=None if state == "learning" else 3.0,
             difficulty=None if state == "learning" else 4.0,
-            due=datetime.utcnow() - timedelta(hours=1),
-            last_review=None if state == "learning" else datetime.utcnow() - timedelta(days=1),
+            due=storage_now() - timedelta(hours=1),
+            last_review=None if state == "learning" else storage_now() - timedelta(days=1),
         )
     )
     db.commit()
@@ -56,6 +57,33 @@ def _create_scoped_source(
 
 @pytest.mark.integration
 class TestStudySessionRouter:
+    def test_get_study_session_uses_beijing_timezone_offset(
+        self,
+        client: TestClient,
+        test_db: Session,
+        sample_deck_tree,
+    ):
+        """GET /study/session should serialize timestamps with fixed +08:00 offset."""
+        lesson = sample_deck_tree["lesson"]
+        srs_rows = test_db.query(UserCardSRS).order_by(UserCardSRS.card_id).all()
+        srs_rows[0].state = "review"
+        srs_rows[0].step = None
+        srs_rows[0].stability = 3.5
+        srs_rows[0].difficulty = 4.0
+        srs_rows[0].due = storage_now() - timedelta(minutes=30)
+        srs_rows[0].last_review = storage_now() - timedelta(hours=4)
+        test_db.commit()
+
+        response = client.get(f"/api/v1/study/session?lesson_id={lesson.id}")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert datetime.fromisoformat(data["server_time"]).utcoffset() == timedelta(hours=8)
+        assert all(
+            datetime.fromisoformat(card["due_at"]).utcoffset() == timedelta(hours=8)
+            for card in data["cards"]
+        )
+
     def test_get_study_session_prioritizes_due_review_then_new(
         self,
         client: TestClient,
@@ -76,25 +104,25 @@ class TestStudySessionRouter:
         srs_rows = test_db.query(UserCardSRS).order_by(UserCardSRS.card_id).all()
         srs_rows[0].state = "learning"
         srs_rows[0].step = 1
-        srs_rows[0].due = datetime.utcnow() - timedelta(hours=2)
-        srs_rows[0].last_review = datetime.utcnow() - timedelta(hours=3)
+        srs_rows[0].due = storage_now() - timedelta(hours=2)
+        srs_rows[0].last_review = storage_now() - timedelta(hours=3)
         srs_rows[1].state = "review"
         srs_rows[1].step = None
         srs_rows[1].stability = 3.5
         srs_rows[1].difficulty = 4.0
-        srs_rows[1].due = datetime.utcnow() - timedelta(hours=1)
-        srs_rows[1].last_review = datetime.utcnow() - timedelta(days=1)
+        srs_rows[1].due = storage_now() - timedelta(hours=1)
+        srs_rows[1].last_review = storage_now() - timedelta(days=1)
         srs_rows[2].state = "review"
         srs_rows[2].step = None
         srs_rows[2].stability = 3.5
         srs_rows[2].difficulty = 4.0
-        srs_rows[2].due = datetime.utcnow() + timedelta(days=1)
-        srs_rows[2].last_review = datetime.utcnow() - timedelta(days=1)
+        srs_rows[2].due = storage_now() + timedelta(days=1)
+        srs_rows[2].last_review = storage_now() - timedelta(days=1)
         srs_rows[3].state = "review"
         srs_rows[3].step = None
         srs_rows[3].stability = 5.0
         srs_rows[3].difficulty = 3.5
-        srs_rows[3].due = datetime.utcnow() - timedelta(days=2)
+        srs_rows[3].due = storage_now() - timedelta(days=2)
         srs_rows[3].last_review = None
 
         test_db.add(

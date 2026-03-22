@@ -6,7 +6,9 @@ import base64
 import threading
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
+
+from app.utils.timezone import app_now, to_app_timezone
 
 
 @dataclass(slots=True)
@@ -21,7 +23,7 @@ class RealtimeSession:
     partial_text: str = ""
     final_text: str = ""
     error: str | None = None
-    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=app_now)
     chunk_count: int = 0
     total_audio_bytes: int = 0
 
@@ -36,7 +38,7 @@ class RealtimeSession:
             "partial_text": self.partial_text,
             "final_text": self.final_text,
             "error": self.error,
-            "updated_at": self.updated_at.isoformat(),
+            "updated_at": to_app_timezone(self.updated_at).isoformat(),
         }
 
 
@@ -68,7 +70,7 @@ class RealtimeSessionStore:
                 lesson_id=lesson_id,
                 card_id=card_id,
                 model=model,
-                updated_at=datetime.now(UTC),
+                updated_at=app_now(),
             )
             self._sessions[session_id] = session
             return session
@@ -132,7 +134,7 @@ class RealtimeSessionStore:
             if session.chunk_count <= 0 or session.total_audio_bytes <= 0:
                 session.status = "failed"
                 session.error = "No realtime audio received"
-                session.updated_at = datetime.now(UTC)
+                session.updated_at = app_now()
                 raise RealtimeSessionError(
                     code="REALTIME_SESSION_FAILED",
                     message="No realtime audio received",
@@ -174,7 +176,7 @@ class RealtimeSessionStore:
                 )
             session = self._mark_collecting_locked(session)
             session.partial_text = text.strip()
-            session.updated_at = datetime.now(UTC)
+            session.updated_at = app_now()
             return session
 
     def mark_finalizing(self, session_id: str) -> RealtimeSession:
@@ -209,7 +211,7 @@ class RealtimeSessionStore:
             session = self._sessions.get(session_id)
             if not session:
                 return
-            session.updated_at = datetime.now(UTC)
+            session.updated_at = app_now()
 
     def mark_session_failed(self, session_id: str, error: str) -> None:
         """Mark a session failed."""
@@ -220,7 +222,7 @@ class RealtimeSessionStore:
             if session.status != "ready":
                 session.status = "failed"
                 session.error = error
-                session.updated_at = datetime.now(UTC)
+                session.updated_at = app_now()
 
     def clear(self) -> None:
         """Clear all sessions (used by tests)."""
@@ -228,7 +230,7 @@ class RealtimeSessionStore:
             self._sessions.clear()
 
     def _cleanup_expired_locked(self) -> None:
-        now = datetime.now(UTC)
+        now = app_now()
         to_delete = [
             session_id
             for session_id, session in self._sessions.items()
@@ -239,12 +241,12 @@ class RealtimeSessionStore:
 
     def _mark_collecting_locked(self, session: RealtimeSession) -> RealtimeSession:
         session.status = "collecting"
-        session.updated_at = datetime.now(UTC)
+        session.updated_at = app_now()
         return session
 
     def _mark_finalizing_locked(self, session: RealtimeSession) -> RealtimeSession:
         session.status = "finalizing"
-        session.updated_at = datetime.now(UTC)
+        session.updated_at = app_now()
         return session
 
     def _mark_ready_locked(self, session: RealtimeSession, final_text: str) -> RealtimeSession:
@@ -258,7 +260,7 @@ class RealtimeSessionStore:
         session.final_text = normalized
         session.status = "ready"
         session.error = None
-        session.updated_at = datetime.now(UTC)
+        session.updated_at = app_now()
         return session
 
 

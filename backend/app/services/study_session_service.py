@@ -10,7 +10,7 @@ from app.repositories.deck_repo import DeckRepository
 from app.repositories.review_log_repo import ReviewLogRepository
 from app.repositories.settings_repo import SettingsRepository
 from app.repositories.srs_repo import SRSRepository
-from app.utils.timezone import shanghai_now, to_shanghai, to_storage_utc
+from app.utils.timezone import app_now, to_app_timezone, to_storage_local
 
 
 class StudySessionService:
@@ -32,9 +32,9 @@ class StudySessionService:
         lesson_id: int | None = None,
     ) -> dict[str, Any]:
         """Build the current study session payload."""
-        server_time = shanghai_now()
+        server_time = app_now(self.db)
         business_date = server_time.date()
-        as_of = to_storage_utc(server_time)
+        as_of = to_storage_local(server_time, self.db)
 
         effective_scope = self._resolve_effective_scope(source_scope)
         lesson_ids = self._resolve_lesson_ids(effective_scope, lesson_id)
@@ -187,8 +187,12 @@ class StudySessionService:
         """Serialize a card row for the study session response."""
         card_state = self.srs_repo.derive_card_state(srs)
         is_new_card = self.srs_repo.is_new_bucket(srs)
-        due_at = server_time if is_new_card else to_shanghai(srs.due)
-        last_review_at = None if srs is None or srs.last_review is None else to_shanghai(srs.last_review)
+        due_at = server_time if is_new_card else to_app_timezone(srs.due, self.db)
+        last_review_at = (
+            None
+            if srs is None or srs.last_review is None
+            else to_app_timezone(srs.last_review, self.db)
+        )
 
         return {
             "id": card.id,

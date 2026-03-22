@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.services.dashboard_service import DashboardService
 from app.models import Deck, Card, ReviewLog
 from tests.test_data.seed_data import create_test_settings
+from app.utils.timezone import storage_now
 
 
 def _create_lesson_and_card(db: Session) -> tuple[Deck, Card]:
@@ -34,7 +35,7 @@ def _add_review(db: Session, card: Card, lesson: Deck, created_at: datetime = No
         result_type="single",
         ai_feedback_json={},
         status="completed",
-        created_at=created_at or datetime.utcnow()
+        created_at=created_at or storage_now()
     ))
 
 
@@ -62,7 +63,7 @@ class TestDashboardService:
         # 3 reviews today, 2 yesterday
         for _ in range(3):
             _add_review(test_db, card, lesson)
-        yesterday = datetime.utcnow() - timedelta(days=1)
+        yesterday = storage_now() - timedelta(days=1)
         for _ in range(2):
             _add_review(test_db, card, lesson, created_at=yesterday)
         test_db.commit()
@@ -78,7 +79,7 @@ class TestDashboardService:
         lesson, card = _create_lesson_and_card(test_db)
 
         for days_ago in range(5):
-            _add_review(test_db, card, lesson, created_at=datetime.utcnow() - timedelta(days=days_ago))
+            _add_review(test_db, card, lesson, created_at=storage_now() - timedelta(days=days_ago))
         test_db.commit()
 
         assert DashboardService(test_db).get_dashboard_stats()["streak_days"] == 5
@@ -88,7 +89,7 @@ class TestDashboardService:
         lesson, card = _create_lesson_and_card(test_db)
 
         _add_review(test_db, card, lesson)  # today
-        _add_review(test_db, card, lesson, created_at=datetime.utcnow() - timedelta(days=3))  # 3 days ago
+        _add_review(test_db, card, lesson, created_at=storage_now() - timedelta(days=3))  # 3 days ago
         test_db.commit()
 
         assert DashboardService(test_db).get_dashboard_stats()["streak_days"] == 1

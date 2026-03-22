@@ -6,7 +6,7 @@ import { ElMessage } from 'element-plus'
 export const useSettingsStore = defineStore('settings', () => {
   const dailyNewLimit = ref(10)
   const dailyReviewLimit = ref(30)
-  const defaultSourceScope = ref('all')
+  const defaultSourceScope = ref('')
   const saving = ref(false)
   const loading = ref(false)
 
@@ -38,5 +38,13 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  return { dailyNewLimit, dailyReviewLimit, defaultSourceScope, saving, loading, load, save }
+  return {
+    dailyNewLimit,
+    dailyReviewLimit,
+    defaultSourceScope,
+    saving,
+    loading,
+    load,
+    save,
+  }
 })

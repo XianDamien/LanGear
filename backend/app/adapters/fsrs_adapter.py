@@ -8,7 +8,7 @@ from fsrs import Rating, ReviewLog as FSRSReviewLog, Scheduler, State
 
 from app.exceptions import InvalidRatingError, SRSUpdateError
 from app.models.user_card_srs import UserCardSRS
-from app.utils.timezone import from_storage_utc, to_aware_utc, utc_now
+from app.utils.timezone import app_now, from_storage_local, to_utc
 
 
 STATE_TO_STRING = {
@@ -77,8 +77,8 @@ class FSRSAdapter:
             step=current_srs.step,
             stability=current_srs.stability,
             difficulty=current_srs.difficulty,
-            due=from_storage_utc(current_srs.due),
-            last_review=from_storage_utc(current_srs.last_review),
+            due=to_utc(current_srs.due),
+            last_review=to_utc(current_srs.last_review) if current_srs.last_review is not None else None,
         )
 
     def serialize_card(self, card: FSRSCard) -> dict[str, Any]:
@@ -89,8 +89,8 @@ class FSRSAdapter:
             "step": card.step,
             "stability": card.stability,
             "difficulty": card.difficulty,
-            "due": to_aware_utc(card.due),
-            "last_review": from_storage_utc(card.last_review),
+            "due": to_utc(card.due),
+            "last_review": to_utc(card.last_review) if card.last_review is not None else None,
         }
 
     def serialize_review_log(self, review_log: FSRSReviewLog) -> dict[str, Any]:
@@ -98,7 +98,7 @@ class FSRSAdapter:
         return {
             "card_id": review_log.card_id,
             "rating": int(review_log.rating),
-            "review_datetime": to_aware_utc(review_log.review_datetime),
+            "review_datetime": to_utc(review_log.review_datetime),
             "review_duration": review_log.review_duration,
         }
 
@@ -114,7 +114,7 @@ class FSRSAdapter:
         """Review a card through native py-fsrs and return card + review-log payloads."""
         try:
             rating = self.rating_from_string(rating_str)
-            review_at = utc_now() if review_datetime is None else to_aware_utc(review_datetime)
+            review_at = to_utc(app_now()) if review_datetime is None else to_utc(review_datetime)
             fsrs_card = self.to_fsrs_card(current_srs, card_id=card_id)
             updated_card, review_log = self.scheduler.review_card(
                 fsrs_card,

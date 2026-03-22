@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.models import Card, Deck, ReviewLog, Setting, UserCardSRS
+from app.utils.timezone import storage_now
 
 
 def _build_srs_snapshot(bucket: str, now: datetime) -> dict:
@@ -117,7 +118,7 @@ def create_full_deck_tree(db: Session) -> dict:
         # All cards start in the business "new" bucket as native initial snapshots.
         srs = UserCardSRS(
             card_id=card.id,
-            **_build_srs_snapshot("new", datetime.utcnow() - timedelta(hours=1)),
+            **_build_srs_snapshot("new", storage_now() - timedelta(hours=1)),
         )
         db.add(srs)
         cards.append(card)
@@ -177,7 +178,7 @@ def create_test_card_with_srs(
     db.add(card)
     db.flush()
 
-    snapshot = _build_srs_snapshot(bucket, datetime.utcnow())
+    snapshot = _build_srs_snapshot(bucket, storage_now())
     srs = UserCardSRS(card_id=card.id, **snapshot)
     db.add(srs)
     db.commit()
@@ -323,7 +324,7 @@ def create_multiple_review_logs(
 
     for i in range(count):
         rating = ratings[i % len(ratings)]
-        created_at = datetime.now() - timedelta(days=days_ago - i)
+        created_at = storage_now() - timedelta(days=days_ago - i)
 
         log = ReviewLog(
             card_id=card_id,

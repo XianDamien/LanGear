@@ -13,7 +13,7 @@ from app.repositories.srs_repo import SRSRepository
 from app.services.realtime_session_service import get_realtime_session_store
 from app.services.submission_trace import log_submission_trace
 from app.tasks.review_task import process_review_task
-from app.utils.timezone import from_storage_utc
+from app.utils.timezone import from_storage_local
 
 logger = logging.getLogger(__name__)
 NATIVE_SRS_STATES = {"learning", "review", "relearning"}
@@ -42,7 +42,7 @@ class ReviewService:
         if srs is None or srs.state not in NATIVE_SRS_STATES:
             return None
 
-        due_at = from_storage_utc(srs.due).isoformat()
+        due_at = from_storage_local(srs.due, self.db).isoformat()
         return {
             "state": srs.state,
             "difficulty": srs.difficulty,
@@ -367,7 +367,7 @@ class ReviewService:
                     "status": submission.status,
                     "error_code": submission.error_code,
                     "error_message": submission.error_message,
-                    "created_at": submission.created_at.isoformat(),
+                    "created_at": from_storage_local(submission.created_at, self.db).isoformat(),
                     "oss_audio_path": feedback_json.get("oss_path"),
                     "transcription": feedback_json.get("transcription"),
                     "feedback": feedback_json.get("feedback"),

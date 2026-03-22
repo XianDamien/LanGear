@@ -1,10 +1,9 @@
 """System settings model."""
 
-from datetime import datetime
-
-from sqlalchemy import Column, DateTime, Integer, JSON, String
+from sqlalchemy import Column, DateTime, JSON, String
 
 from app.database import Base
+from app.utils.timezone import storage_now
 
 
 class Setting(Base):
@@ -17,4 +16,4 @@ class Setting(Base):
 
     key = Column(String(100), primary_key=True)
     value = Column(JSON, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=storage_now, onupdate=storage_now, nullable=False)

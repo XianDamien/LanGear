@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.models.review_log import ReviewLog
 from app.models.user_card_srs import UserCardSRS
 from app.services.realtime_session_service import get_realtime_session_store
+from app.utils.timezone import storage_now
 
 
 def _make_ready_realtime_session(lesson_id: int, card_id: int) -> str:
@@ -244,8 +245,8 @@ class TestStudyRouter:
         srs.step = None
         srs.stability = 3.0
         srs.difficulty = 4.0
-        srs.due = datetime.utcnow() - timedelta(hours=1)
-        srs.last_review = datetime.utcnow() - timedelta(days=1)
+        srs.due = storage_now() - timedelta(hours=1)
+        srs.last_review = storage_now() - timedelta(days=1)
         test_db.commit()
 
         realtime_session_id = _make_ready_realtime_session(lesson_id, card_id)
@@ -432,8 +433,8 @@ class TestStudyRouter:
         srs.step = None
         srs.stability = 4.0
         srs.difficulty = 3.5
-        srs.due = datetime.utcnow() + timedelta(days=2)
-        srs.last_review = datetime.utcnow() - timedelta(hours=6)
+        srs.due = storage_now() + timedelta(days=2)
+        srs.last_review = storage_now() - timedelta(hours=6)
 
         review_log = ReviewLog(
             card_id=card_id,

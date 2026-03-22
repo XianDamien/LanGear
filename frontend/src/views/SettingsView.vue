@@ -59,14 +59,12 @@ async function handleSave() {
           <label class="block text-sm font-bold uppercase text-slate-500 mb-2">
             默认教材范围
           </label>
-          <select
-            v-model="defaultSourceScope"
+          <input
+            v-model.trim="defaultSourceScope"
+            type="text"
+            placeholder="留空表示全部，或填写 source ID，逗号分隔"
             class="w-full border border-slate-200 p-2 text-slate-900 font-sans focus:border-brand-accent outline-none bg-white"
-          >
-            <option value="all">全部教材</option>
-            <option value="nce">新概念英语</option>
-            <option value="ielts">雅思听力</option>
-          </select>
+          />
         </div>
 
         <RetroButton

@@ -1,59 +1,68 @@
-"""Timezone helpers for native-FSRS UTC storage and Shanghai business-day views."""
+"""Fixed Beijing-time helpers."""
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
-SHANGHAI_TZ = timezone(timedelta(hours=8))
-UTC_TZ = UTC
+from sqlalchemy.orm import Session
 
-
-def utc_now() -> datetime:
-    """Return the current aware UTC datetime."""
-    return datetime.now(UTC_TZ)
+APP_TIMEZONE = "Asia/Shanghai"
+APP_ZONEINFO = ZoneInfo(APP_TIMEZONE)
 
 
-def shanghai_now() -> datetime:
-    """Return the current aware datetime in Asia/Shanghai."""
-    return datetime.now(SHANGHAI_TZ)
+def get_app_timezone(db: Session | None = None) -> ZoneInfo:
+    """Return the fixed business timezone object."""
+    del db
+    return APP_ZONEINFO
 
 
-def utc_now_naive() -> datetime:
-    """Return a naive UTC datetime for database storage."""
-    return utc_now().replace(tzinfo=None)
+def app_now(db: Session | None = None) -> datetime:
+    """Return the current aware datetime in Beijing time."""
+    return datetime.now(get_app_timezone(db))
 
 
-def to_aware_utc(value: datetime) -> datetime:
-    """Convert aware or naive datetime to aware UTC."""
+def to_app_timezone(value: datetime, db: Session | None = None) -> datetime:
+    """Convert aware or storage-local naive datetimes to Beijing time."""
+    app_timezone = get_app_timezone(db)
     if value.tzinfo is None:
-        return value.replace(tzinfo=UTC_TZ)
-    return value.astimezone(UTC_TZ)
+        return value.replace(tzinfo=app_timezone)
+    return value.astimezone(app_timezone)
 
 
-def from_storage_utc(value: datetime | None) -> datetime | None:
-    """Convert a stored naive UTC datetime back to aware UTC."""
+def to_utc(value: datetime, db: Session | None = None) -> datetime:
+    """Convert aware or storage-local naive datetimes to aware UTC."""
+    return to_app_timezone(value, db).astimezone(UTC)
+
+
+def to_storage_local(value: datetime, db: Session | None = None) -> datetime:
+    """Convert aware or local datetimes to storage-local naive values."""
+    return to_app_timezone(value, db).replace(tzinfo=None)
+
+
+def from_storage_local(value: datetime | None, db: Session | None = None) -> datetime | None:
+    """Convert storage-local naive datetimes back to aware business-timezone values."""
     if value is None:
         return None
-    return to_aware_utc(value)
+    return value.replace(tzinfo=get_app_timezone(db))
 
 
-def to_storage_utc(value: datetime) -> datetime:
-    """Convert aware or naive datetime to naive UTC for persistence."""
-    return to_aware_utc(value).replace(tzinfo=None)
+def storage_now(db: Session | None = None) -> datetime:
+    """Return the current storage-local naive datetime."""
+    return to_storage_local(app_now(db), db)
 
 
-def to_shanghai(value: datetime) -> datetime:
-    """Convert aware or naive datetime to Asia/Shanghai aware datetime."""
-    return to_aware_utc(value).astimezone(SHANGHAI_TZ)
-
-
-def shanghai_day_window(value: date | datetime) -> tuple[datetime, datetime]:
-    """Return the UTC storage window for a Shanghai business day."""
+def app_day_window(
+    value: date | datetime,
+    db: Session | None = None,
+) -> tuple[datetime, datetime]:
+    """Return the storage-local naive window for a Beijing business day."""
     if isinstance(value, datetime):
-        business_date = to_shanghai(value).date()
+        business_date = to_app_timezone(value, db).date()
     else:
         business_date = value
 
-    day_start = datetime.combine(business_date, time.min, tzinfo=SHANGHAI_TZ)
+    app_timezone = get_app_timezone(db)
+    day_start = datetime.combine(business_date, time.min, tzinfo=app_timezone)
     day_end = day_start + timedelta(days=1)
-    return to_storage_utc(day_start), to_storage_utc(day_end)
+    return to_storage_local(day_start, db), to_storage_local(day_end, db)

@@ -9,6 +9,7 @@ from app.models.card import Card
 from app.models.deck import Deck
 from app.models.user_card_srs import UserCardSRS
 from app.repositories.srs_repo import SRSRepository
+from app.utils.timezone import storage_now
 
 
 def _create_card(test_db: Session, lesson_title: str = "Lesson 1", card_index: int = 0) -> Card:
@@ -39,7 +40,7 @@ def _create_srs(
         step=step,
         stability=stability,
         difficulty=difficulty,
-        due=due or datetime.utcnow(),
+        due=due or storage_now(),
         last_review=last_review,
     )
     test_db.add(srs)
@@ -72,7 +73,7 @@ class TestSRSRepository:
     def test_upsert_insert_initial_snapshot(self, test_db: Session):
         repo = SRSRepository(test_db)
         card = _create_card(test_db)
-        due_time = datetime.utcnow() + timedelta(days=1)
+        due_time = storage_now() + timedelta(days=1)
 
         srs = repo.upsert(
             card_id=card.id,
@@ -98,7 +99,7 @@ class TestSRSRepository:
         _create_srs(test_db, card.id, state="learning", step=0, last_review=None)
         test_db.commit()
 
-        review_time = datetime.utcnow()
+        review_time = storage_now()
         due_time = review_time + timedelta(days=7)
         updated = repo.upsert(
             card_id=card.id,
@@ -129,14 +130,14 @@ class TestSRSRepository:
                 step=0,
                 stability=None,
                 difficulty=None,
-                due=datetime.utcnow(),
+                due=storage_now(),
                 last_review=None,
             )
 
     def test_create_review_log(self, test_db: Session):
         repo = SRSRepository(test_db)
         card = _create_card(test_db)
-        review_time = datetime.utcnow()
+        review_time = storage_now()
 
         review_log = repo.create_review_log(
             card_id=card.id,
@@ -166,7 +167,7 @@ class TestSRSRepository:
             new_card.id,
             state="learning",
             step=0,
-            due=datetime.utcnow() - timedelta(hours=1),
+            due=storage_now() - timedelta(hours=1),
             last_review=None,
         )
         _create_srs(
@@ -176,8 +177,8 @@ class TestSRSRepository:
             step=None,
             stability=5.0,
             difficulty=4.0,
-            due=datetime.utcnow() - timedelta(hours=1),
-            last_review=datetime.utcnow() - timedelta(days=1),
+            due=storage_now() - timedelta(hours=1),
+            last_review=storage_now() - timedelta(days=1),
         )
         test_db.commit()
 
@@ -205,8 +206,8 @@ class TestSRSRepository:
             step=None,
             stability=5.0,
             difficulty=4.0,
-            due=datetime.utcnow() - timedelta(hours=1),
-            last_review=datetime.utcnow() - timedelta(days=1),
+            due=storage_now() - timedelta(hours=1),
+            last_review=storage_now() - timedelta(days=1),
         )
         _create_srs(
             test_db,
@@ -215,15 +216,15 @@ class TestSRSRepository:
             step=None,
             stability=5.0,
             difficulty=4.0,
-            due=datetime.utcnow() + timedelta(days=1),
-            last_review=datetime.utcnow() - timedelta(days=1),
+            due=storage_now() + timedelta(days=1),
+            last_review=storage_now() - timedelta(days=1),
         )
         _create_srs(
             test_db,
             initial_card.id,
             state="learning",
             step=0,
-            due=datetime.utcnow() - timedelta(hours=1),
+            due=storage_now() - timedelta(hours=1),
             last_review=None,
         )
         test_db.commit()
@@ -246,7 +247,7 @@ class TestSRSRepository:
             initial_card.id,
             state="learning",
             step=0,
-            due=datetime.utcnow(),
+            due=storage_now(),
             last_review=None,
         )
         _create_srs(
@@ -256,8 +257,8 @@ class TestSRSRepository:
             step=None,
             stability=4.0,
             difficulty=5.0,
-            due=datetime.utcnow(),
-            last_review=datetime.utcnow() - timedelta(days=1),
+            due=storage_now(),
+            last_review=storage_now() - timedelta(days=1),
         )
         test_db.commit()
 

@@ -8,6 +8,7 @@ import type {
 } from '@/types/api'
 import type { Card } from '@/types/domain'
 import { parseNumericIdOrThrow } from '@/utils/ids'
+import { formatBusinessIso } from '@/utils/businessTime'
 import type { UploadState } from './study'
 
 export type TaskReviewStatus = 'idle' | 'submitting' | 'processing' | 'completed' | 'failed'
@@ -109,7 +110,7 @@ export const useStudyTasksStore = defineStore('studyTasks', () => {
       reviewStatus: 'submitting',
       errorCode: null,
       errorMessage: null,
-      createdAt: ensureTask(cardId, cardIndex).createdAt ?? new Date().toISOString(),
+      createdAt: ensureTask(cardId, cardIndex).createdAt ?? formatBusinessIso(new Date()),
     })
   }
 
@@ -153,7 +154,7 @@ export const useStudyTasksStore = defineStore('studyTasks', () => {
       signedAudioUrl: signedAudioUrl ?? null,
       errorCode: null,
       errorMessage: null,
-      createdAt: current.createdAt ?? new Date().toISOString(),
+      createdAt: current.createdAt ?? formatBusinessIso(new Date()),
     })
   }
 
@@ -164,7 +165,7 @@ export const useStudyTasksStore = defineStore('studyTasks', () => {
       progress: null,
       errorCode,
       errorMessage,
-      createdAt: ensureTask(cardId, cardIndex).createdAt ?? new Date().toISOString(),
+      createdAt: ensureTask(cardId, cardIndex).createdAt ?? formatBusinessIso(new Date()),
     })
   }
 
@@ -213,7 +214,7 @@ export const useStudyTasksStore = defineStore('studyTasks', () => {
       progress: null,
       errorCode: null,
       errorMessage: null,
-      createdAt: ensureTask(cardId, cardIndex).createdAt ?? new Date().toISOString(),
+      createdAt: ensureTask(cardId, cardIndex).createdAt ?? formatBusinessIso(new Date()),
     })
     startPolling(cardId, cardIndex, submissionId)
   }

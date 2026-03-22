@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Database
     database_url: str = DEFAULT_DATABASE_URL
 
+    # Business timezone
+    app_timezone: str = "Asia/Shanghai"
+
     # Google Gemini API
     gemini_api_key: str
     gemini_model_id: str = "gemini-3.1-flash-lite-preview"
@@ -87,6 +90,7 @@ class Settings(BaseSettings):
     def validate_ai_feedback_settings(self) -> "Settings":
         """Validate provider-specific AI feedback settings."""
         self.database_url = self.resolved_database_url
+        self.app_timezone = "Asia/Shanghai"
         provider = self.ai_feedback_provider.strip().lower()
         if provider == "gemini" and not self.gemini_model_id.strip():
             raise ValueError(

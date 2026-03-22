@@ -10,8 +10,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from tests.test_data.fixtures import sample_settings
-
 
 @pytest.mark.integration
 class TestSettingsRouter:
@@ -52,7 +50,7 @@ class TestSettingsRouter:
         assert "-" in request_id
 
     def test_get_settings_empty_database(self, client: TestClient, test_db: Session):
-        """Test GET /api/v1/settings returns empty dict when no settings exist."""
+        """Test GET /api/v1/settings returns empty settings when none are stored."""
         # Act
         response = client.get("/api/v1/settings")
 
@@ -81,6 +79,24 @@ class TestSettingsRouter:
         assert data["daily_review_limit"] == 150
         assert data["default_source_scope"] == [1, 2]
 
+    def test_get_settings_hides_legacy_app_timezone(self, client: TestClient, test_db: Session):
+        """Test GET /api/v1/settings does not expose removed app_timezone."""
+        from app.models import Setting
+
+        test_db.add_all(
+            [
+                Setting(key="daily_new_limit", value=25),
+                Setting(key="app_timezone", value="Europe/Budapest"),
+            ]
+        )
+        test_db.commit()
+
+        response = client.get("/api/v1/settings")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data == {"daily_new_limit": 25}
+
     def test_get_settings_with_fixture(self, client: TestClient, test_db: Session, sample_settings):
         """Test GET /api/v1/settings works with sample_settings fixture."""
         # Act
@@ -89,7 +105,10 @@ class TestSettingsRouter:
         # Assert
         assert response.status_code == 200
         data = response.json()["data"]
-        assert len(data) >= 4
+        assert data["daily_new_limit"] == 20
+        assert data["daily_review_limit"] == 50
+        assert "max_interval" not in data
+        assert "enable_audio" not in data
 
     # PUT /api/v1/settings tests
 
@@ -209,6 +228,16 @@ class TestSettingsRouter:
         data = response.json()["data"]
         assert data["default_source_scope"] == []
 
+    def test_update_settings_rejects_app_timezone(self, client: TestClient, test_db: Session):
+        """Test PUT /api/v1/settings rejects removed app_timezone setting."""
+        response = client.put(
+            "/api/v1/settings",
+            json={"app_timezone": "Europe/Budapest"}
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"]["error"]["code"] == "INVALID_SETTINGS"
+
     def test_update_settings_ignores_none_values(self, client: TestClient, test_db: Session):
         """Test PUT /api/v1/settings ignores None values in request."""
         # Arrange
@@ -315,6 +344,16 @@ class TestSettingsRouter:
 
         # Assert - should fail at validation level (422) or business logic level (400)
         assert response.status_code in [400, 422]
+
+    def test_update_settings_rejects_unknown_timezone_key(self, client: TestClient, test_db: Session):
+        """Test PUT /api/v1/settings rejects removed timezone setting."""
+        response = client.put(
+            "/api/v1/settings",
+            json={"app_timezone": "Mars/Olympus"}
+        )
+
+        assert response.status_code == 400
+        assert "Invalid settings keys" in response.json()["detail"]["error"]["message"]
 
     def test_update_settings_allows_zero_limits(self, client: TestClient, test_db: Session):
         """Test PUT /api/v1/settings allows zero as valid limit value."""

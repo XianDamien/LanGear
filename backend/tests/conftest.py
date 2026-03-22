@@ -14,6 +14,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("APP_TIMEZONE", "Asia/Shanghai")
 os.environ.setdefault("GEMINI_API_KEY", "test-gemini-key")
 os.environ.setdefault("GEMINI_MODEL_ID", "gemini-test-model")
 os.environ.setdefault("OSS_ACCESS_KEY_ID", "test-oss-key")

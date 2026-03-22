@@ -15,6 +15,13 @@ FSRS 底层契约按原生 `py-fsrs` 对齐：`user_card_srs.state` 只持久化
 - 存储：阿里云 OSS
 - 调度：FSRS
 
+## 时间与时区
+
+- 当前版本固定使用北京时间 `Asia/Shanghai`，不支持运行时切换业务时区。
+- 数据库中的业务时间统一存储为“北京时间本地 naive datetime”；历史旧数据从“UTC-naive”升级时，会在 Alembic 迁移中一次性平移到北京时间。
+- API 对外时间统一返回带 `+08:00` 偏移的 ISO 8601 字符串，不再输出 `Z`。
+- 当前不支持每用户独立时区，也不在 Settings 中暴露业务时区配置项。
+
 ## 仓库结构
 
 ```text
@@ -84,6 +91,7 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - 前端环境变量：`frontend/.env`
 - 后端环境变量：`backend/.env`
 - 后端运行时不要依赖仓库根目录 `.env`
+- 当前版本固定使用 `Asia/Shanghai` 作为业务时区；如 `backend/.env` 中存在 `APP_TIMEZONE`，也应保持为 `Asia/Shanghai`
 - 并行 worktree 开发时，也要保证各自 worktree 下存在 `backend/.env`；推荐直接在 worktree 内创建指向主工作区 `backend/.env` 的本地 symlink，避免 `uv run alembic ...` / `uv run pytest ...` 因缺少环境变量而失败
 - 可从 `backend/.env.example` 复制一份作为后端配置起点
 - 想确认当前后端实际会连接哪个数据库，可在 `backend/` 目录执行 `uv run python scripts/show_runtime_config.py`；该脚本只依赖 `DATABASE_URL`，不要求先配齐完整 Gemini/OSS 密钥
@@ -116,6 +124,7 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - 后端 Gemini 配置来源固定为 `backend/.env`
 - Gemini prompt 按版本目录管理，且每个任务使用 `system.md` + `user.md` + `metadata.json` 结构
 - `single_feedback` 由 Gemini 同时产出展示转写与问题点反馈；`transcription.timestamps` 仅为兼容保留空数组，不再承载词级跳转
+- 后端运行时统一按北京时间返回 Study / Dashboard / Health / 历史记录接口时间
 - 前端真实接口默认走 `/api/v1`
 - `VITE_USE_MOCK=true` 时才切换到 mock 适配器
 - 学习页评分按钮前端使用 `1|2|3|4`，后端统一映射为 `again/hard/good/easy`

@@ -4,6 +4,7 @@ import OSS from 'ali-oss'
 import { getSTSToken } from '@/services/api/study'
 import { normalizeOssRegion } from '@/services/ossRegion'
 import { buildE2EOssAudioPath, isE2EMode } from '@/utils/e2e'
+import { formatBusinessDateStamp } from '@/utils/businessTime'
 
 export function useRecorder() {
   const isRecording = ref(false)
@@ -233,7 +234,7 @@ export function useRecorder() {
       })
 
       const timestamp = Date.now()
-      const dateStr = new Date().toISOString().split('T')[0]?.replace(/-/g, '') ?? ''
+      const dateStr = formatBusinessDateStamp(new Date())
       const filename = `${cardId}_${timestamp}.webm`
       const path = `recordings/${dateStr}/${filename}`
 

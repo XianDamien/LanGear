@@ -10,6 +10,7 @@ import {
 } from './mock/study'
 import type { SettingsData } from '@/types/api'
 import type { FsrsRating } from '@/types/domain'
+import { formatBusinessIso } from '@/utils/businessTime'
 
 const SUBMISSION_STORAGE_PREFIX = 'submission_'
 
@@ -91,11 +92,11 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
 
   if (method === 'get' && url === '/oss/sts-token') {
     await delay()
-    return mockResolve({
+      return mockResolve({
       access_key_id: 'STS.mock123',
       access_key_secret: 'mock-secret',
       security_token: 'mock-token',
-      expiration: new Date(Date.now() + 3600000).toISOString(),
+      expiration: formatBusinessIso(new Date(Date.now() + 3600000)),
       bucket: 'langear',
       region: 'oss-cn-shanghai',
     })
@@ -123,7 +124,7 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
         card_id: body.card_id ?? null,
         status: 'processing',
         timestamp: Date.now(),
-        created_at: new Date().toISOString(),
+        created_at: formatBusinessIso(new Date()),
         oss_audio_path: typeof body.oss_audio_path === 'string' ? body.oss_audio_path : null,
         realtime_session_id: body.realtime_session_id,
         transcription_text:
@@ -215,10 +216,10 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
         state: 'review',
         difficulty: 0.3,
         stability: 5.0,
-        due: new Date(Date.now() + 86400000 * 3).toISOString(),
-        due_at: new Date(Date.now() + 86400000 * 3).toISOString(),
+        due: formatBusinessIso(new Date(Date.now() + 86400000 * 3)),
+        due_at: formatBusinessIso(new Date(Date.now() + 86400000 * 3)),
         is_new_card: false,
-        last_review_at: new Date().toISOString(),
+        last_review_at: formatBusinessIso(new Date()),
       },
     }
 

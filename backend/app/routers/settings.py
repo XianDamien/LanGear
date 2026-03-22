@@ -3,7 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -14,6 +14,8 @@ router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
 
 class SettingsUpdateRequest(BaseModel):
     """Request model for updating settings."""
+
+    model_config = ConfigDict(extra="allow")
 
     daily_new_limit: int | None = None
     daily_review_limit: int | None = None

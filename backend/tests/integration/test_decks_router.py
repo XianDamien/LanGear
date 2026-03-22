@@ -12,6 +12,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.utils.timezone import storage_now
+
 
 @pytest.mark.integration
 class TestDecksRouter:
@@ -119,14 +121,14 @@ class TestDecksRouter:
         srs_rows[0].step = None
         srs_rows[0].stability = 4.0
         srs_rows[0].difficulty = 3.5
-        srs_rows[0].due = datetime.utcnow() - timedelta(hours=1)
-        srs_rows[0].last_review = datetime.utcnow() - timedelta(days=1)
+        srs_rows[0].due = storage_now() - timedelta(hours=1)
+        srs_rows[0].last_review = storage_now() - timedelta(days=1)
         srs_rows[1].state = "review"
         srs_rows[1].step = None
         srs_rows[1].stability = 4.0
         srs_rows[1].difficulty = 3.5
-        srs_rows[1].due = datetime.utcnow() + timedelta(days=1)
-        srs_rows[1].last_review = datetime.utcnow() - timedelta(days=1)
+        srs_rows[1].due = storage_now() + timedelta(days=1)
+        srs_rows[1].last_review = storage_now() - timedelta(days=1)
         test_db.commit()
 
         response = client.get("/api/v1/decks/tree")
@@ -285,8 +287,8 @@ class TestDecksRouter:
         srs.step = None
         srs.stability = 4.0
         srs.difficulty = 3.5
-        srs.due = datetime.utcnow() + timedelta(days=1)
-        srs.last_review = datetime.utcnow() - timedelta(hours=4)
+        srs.due = storage_now() + timedelta(days=1)
+        srs.last_review = storage_now() - timedelta(hours=4)
         test_db.commit()
 
         response = client.get(f"/api/v1/decks/{lesson_id}/cards")

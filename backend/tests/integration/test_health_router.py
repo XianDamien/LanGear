@@ -5,7 +5,7 @@ Tests the /health endpoint which provides service health status.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 
 
@@ -43,19 +43,17 @@ class TestHealthRouter:
         data = response.json()
         assert "timestamp" in data
 
-        # Verify timestamp is valid ISO format
-        timestamp_str = data["timestamp"].rstrip("Z")
-        timestamp = datetime.fromisoformat(timestamp_str)
+        timestamp = datetime.fromisoformat(data["timestamp"])
         assert timestamp is not None
 
     def test_health_check_timestamp_format(self, client: TestClient):
-        """Test GET /health timestamp uses correct format (ISO 8601 with Z suffix)."""
+        """Test GET /health timestamp uses business timezone ISO 8601 offset."""
         # Act
         response = client.get("/health")
 
         # Assert
         data = response.json()
-        assert data["timestamp"].endswith("Z")
+        assert datetime.fromisoformat(data["timestamp"]).utcoffset() == timedelta(hours=8)
 
     def test_health_check_no_request_id(self, client: TestClient):
         """Test GET /health does not include request_id (unlike other endpoints)."""

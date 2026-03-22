@@ -21,6 +21,7 @@ from app.database_url import build_default_sqlite_database_url, resolve_database
 from app.models.card import Card
 from app.models.deck import Deck
 from app.models.review_log import ReviewLog
+from app.utils.timezone import app_now, from_storage_local, to_utc
 
 if TYPE_CHECKING:
     from app.adapters.gemini_adapter import GeminiAdapter
@@ -529,7 +530,7 @@ def _export_from_review_logs(
                     "card_id": card.id,
                     "deck_id": deck.id,
                     "deck_title": deck.title,
-                    "review_created_at": review_log.created_at.replace(tzinfo=UTC).isoformat(),
+                    "review_created_at": from_storage_local(review_log.created_at).isoformat(),
                 },
                 "text": {
                     "front_text": card.front_text,
@@ -729,11 +730,11 @@ def _infer_audio_suffix(audio_ref: str) -> str:
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+    return to_utc(app_now()).isoformat()
 
 
 def _timestamp_slug() -> str:
-    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return to_utc(app_now()).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _sha256_file(path: Path) -> str:

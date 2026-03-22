@@ -14,6 +14,7 @@ import pytest
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.repositories.review_log_repo import ReviewLogRepository
+from app.utils.timezone import storage_now
 from app.models.deck import Deck
 from app.models.card import Card
 from app.models.review_log import ReviewLog
@@ -462,7 +463,7 @@ class TestReviewLogRepository:
         """Test counting reviews when no reviews exist for the date."""
         repo = ReviewLogRepository(test_db)
 
-        today = datetime.utcnow()
+        today = storage_now()
         count = repo.count_reviews_by_date(today)
 
         assert count == 0
@@ -477,7 +478,7 @@ class TestReviewLogRepository:
         test_db.flush()
 
         # Create reviews for today
-        today = datetime.utcnow().replace(hour=12, minute=0, second=0, microsecond=0)
+        today = storage_now().replace(hour=12, minute=0, second=0, microsecond=0)
 
         for i in range(5):
             card = Card(deck_id=lesson.id, card_index=i, front_text=f"Card {i}")
@@ -511,7 +512,7 @@ class TestReviewLogRepository:
         test_db.add(lesson)
         test_db.flush()
 
-        today = datetime.utcnow().replace(hour=12, minute=0, second=0, microsecond=0)
+        today = storage_now().replace(hour=12, minute=0, second=0, microsecond=0)
         yesterday = today - timedelta(days=1)
 
         # Create reviews for today
@@ -561,7 +562,7 @@ class TestReviewLogRepository:
         test_db.add(lesson)
         test_db.flush()
 
-        today = datetime.utcnow()
+        today = storage_now()
 
         # Create single reviews
         for i in range(3):
@@ -615,7 +616,7 @@ class TestReviewLogRepository:
             result_type="single",
             ai_feedback_json={},
             status="processing",
-            created_at=datetime.utcnow() - timedelta(minutes=5),
+            created_at=storage_now() - timedelta(minutes=5),
         )
         newer = ReviewLog(
             card_id=second_card.id,
@@ -624,7 +625,7 @@ class TestReviewLogRepository:
             result_type="single",
             ai_feedback_json={},
             status="failed",
-            created_at=datetime.utcnow(),
+            created_at=storage_now(),
         )
         summary = ReviewLog(
             card_id=None,

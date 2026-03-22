@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.fsrs_review_log import FSRSReviewLog
 from app.models.user_card_srs import UserCardSRS
-from app.utils.timezone import to_storage_utc, utc_now_naive
+from app.utils.timezone import storage_now, to_storage_local
 
 VALID_SRS_STATES = {"learning", "review", "relearning"}
 
@@ -48,9 +48,9 @@ class SRSRepository:
             raise ValueError(f"Unsupported native FSRS state: {state}")
 
         normalized_step = None if state == "review" else (0 if step is None else step)
-        storage_due = to_storage_utc(due)
+        storage_due = to_storage_local(due, self.db)
         storage_last_review = (
-            to_storage_utc(last_review)
+            to_storage_local(last_review, self.db)
             if last_review is not None
             else None
         )
@@ -93,7 +93,7 @@ class SRSRepository:
         review_log = FSRSReviewLog(
             card_id=card_id,
             rating=rating,
-            review_datetime=to_storage_utc(review_datetime),
+            review_datetime=to_storage_local(review_datetime, self.db),
             review_duration=review_duration,
         )
         self.db.add(review_log)
@@ -132,7 +132,7 @@ class SRSRepository:
         """Get due non-new cards joined with their card records."""
         from app.models.card import Card
 
-        now = as_of if as_of is not None else utc_now_naive()
+        now = to_storage_local(as_of, self.db) if as_of is not None else storage_now(self.db)
         query = (
             self.db.query(Card, UserCardSRS)
             .join(UserCardSRS, UserCardSRS.card_id == Card.id)
@@ -167,7 +167,7 @@ class SRSRepository:
         """Count due cards while excluding pure-new states."""
         from app.models.card import Card
 
-        now = as_of if as_of is not None else utc_now_naive()
+        now = to_storage_local(as_of, self.db) if as_of is not None else storage_now(self.db)
         query = (
             self.db.query(UserCardSRS)
             .join(Card, Card.id == UserCardSRS.card_id)

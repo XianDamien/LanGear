@@ -9,6 +9,7 @@ from aliyunsdksts.request.v20150401 import AssumeRoleRequest
 
 from app.config import settings
 from app.exceptions import AudioUploadError
+from app.utils.timezone import app_now
 
 
 class OSSAdapter:
@@ -74,8 +75,9 @@ class OSSAdapter:
         """
         try:
             # Generate object path: recordings/{date}/{card_id}_{timestamp}.{format}
-            date_str = datetime.now().strftime("%Y%m%d")
-            timestamp = int(datetime.now().timestamp())
+            now = app_now()
+            date_str = now.strftime("%Y%m%d")
+            timestamp = int(now.timestamp())
             object_name = f"recordings/{date_str}/{card_id}_{timestamp}.{format}"
 
             # Upload to OSS

@@ -1,14 +1,13 @@
 """Unit tests for configuration validation."""
 
 import pytest
-from pydantic import ValidationError
 
 from app.config import BACKEND_ROOT, Settings
 
 
 @pytest.mark.unit
 def test_gemini_model_id_cannot_be_blank_for_gemini_provider():
-    with pytest.raises(ValidationError) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         Settings(
             _env_file=None,
             database_url="sqlite:///data/langear.db",
@@ -27,7 +26,9 @@ def test_gemini_model_id_cannot_be_blank_for_gemini_provider():
 
 
 @pytest.mark.unit
-def test_gemini_settings_use_default_model_id():
+def test_gemini_settings_use_default_model_id(monkeypatch):
+    monkeypatch.delenv("GEMINI_MODEL_ID", raising=False)
+
     settings = Settings(
         _env_file=None,
         database_url="sqlite:///data/langear.db",
@@ -45,7 +46,9 @@ def test_gemini_settings_use_default_model_id():
 
 
 @pytest.mark.unit
-def test_settings_can_skip_aliyun_role_arn_until_sts_is_used():
+def test_settings_can_skip_aliyun_role_arn_until_sts_is_used(monkeypatch):
+    monkeypatch.delenv("GEMINI_MODEL_ID", raising=False)
+
     settings = Settings(
         _env_file=None,
         database_url="sqlite:///data/langear.db",
@@ -83,7 +86,9 @@ def test_gemini_settings_pass_with_explicit_model_id():
 
 
 @pytest.mark.unit
-def test_non_gemini_provider_can_skip_gemini_model_id():
+def test_non_gemini_provider_can_skip_gemini_model_id(monkeypatch):
+    monkeypatch.delenv("GEMINI_MODEL_ID", raising=False)
+
     settings = Settings(
         _env_file=None,
         database_url="sqlite:///data/langear.db",
@@ -160,3 +165,41 @@ def test_settings_can_skip_oss_public_base_url():
     )
 
     assert settings.oss_public_base_url is None
+
+
+@pytest.mark.unit
+def test_app_timezone_is_forced_to_asia_shanghai():
+    settings = Settings(
+        _env_file=None,
+        database_url="sqlite:///data/langear.db",
+        app_timezone="Europe/Budapest",
+        gemini_api_key="test-key",
+        ai_feedback_provider="gemini",
+        oss_access_key_id="id",
+        oss_access_key_secret="secret",
+        oss_endpoint="oss-cn-shanghai.aliyuncs.com",
+        oss_bucket_name="bucket",
+        aliyun_role_arn="acs:ram::123456789012:role/test",
+        dashscope_api_key="dashscope-key",
+    )
+
+    assert settings.app_timezone == "Asia/Shanghai"
+
+
+@pytest.mark.unit
+def test_invalid_app_timezone_input_is_ignored():
+    settings = Settings(
+        _env_file=None,
+        database_url="sqlite:///data/langear.db",
+        app_timezone="Mars/Olympus",
+        gemini_api_key="test-key",
+        ai_feedback_provider="gemini",
+        oss_access_key_id="id",
+        oss_access_key_secret="secret",
+        oss_endpoint="oss-cn-shanghai.aliyuncs.com",
+        oss_bucket_name="bucket",
+        aliyun_role_arn="acs:ram::123456789012:role/test",
+        dashscope_api_key="dashscope-key",
+    )
+
+    assert settings.app_timezone == "Asia/Shanghai"

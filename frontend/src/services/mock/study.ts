@@ -4,6 +4,7 @@ import type {
   StudySessionResponse,
   SubmitReviewResponse,
 } from '@/types/api'
+import { formatBusinessIso } from '@/utils/businessTime'
 import { mockLessonCards } from './decks'
 
 const ratingLabelMap: Record<FsrsRating, RatingLabel> = {
@@ -20,13 +21,8 @@ const lessonSourceScope: Record<number, number[]> = {
   2001: [2],
 }
 
-function formatShanghaiIso(rawDate: Date): string {
-  const shifted = new Date(rawDate.getTime() + 8 * 60 * 60 * 1000)
-  return shifted.toISOString().replace('Z', '+08:00')
-}
-
 function formatHoursAgoIso(hours: number): string {
-  return formatShanghaiIso(new Date(Date.now() - hours * 60 * 60 * 1000))
+  return formatBusinessIso(new Date(Date.now() - hours * 60 * 60 * 1000))
 }
 
 function buildMockCardMeta(index: number): {
@@ -41,28 +37,28 @@ function buildMockCardMeta(index: number): {
         cardState: 'learning',
         isNewCard: true,
         lastReviewAt: null,
-        dueAt: formatShanghaiIso(new Date()),
+        dueAt: formatBusinessIso(new Date()),
       }
     case 1:
       return {
         cardState: 'learning',
         isNewCard: false,
         lastReviewAt: formatHoursAgoIso(12),
-        dueAt: formatShanghaiIso(new Date(Date.now() + 3 * 60 * 60 * 1000)),
+        dueAt: formatBusinessIso(new Date(Date.now() + 3 * 60 * 60 * 1000)),
       }
     case 2:
       return {
         cardState: 'review',
         isNewCard: false,
         lastReviewAt: formatHoursAgoIso(36),
-        dueAt: formatShanghaiIso(new Date(Date.now() + 24 * 60 * 60 * 1000)),
+        dueAt: formatBusinessIso(new Date(Date.now() + 24 * 60 * 60 * 1000)),
       }
     default:
       return {
         cardState: 'relearning',
         isNewCard: false,
         lastReviewAt: formatHoursAgoIso(6),
-        dueAt: formatShanghaiIso(new Date(Date.now() + 60 * 60 * 1000)),
+        dueAt: formatBusinessIso(new Date(Date.now() + 60 * 60 * 1000)),
       }
   }
 }
@@ -104,8 +100,8 @@ export function buildMockStudySession(lessonId?: number): StudySessionResponse {
   const newCards = cards.filter((card) => isNewCard(card))
 
   return {
-    server_time: formatShanghaiIso(new Date()),
-    session_date: formatShanghaiIso(new Date()).slice(0, 10),
+    server_time: formatBusinessIso(new Date()),
+    session_date: formatBusinessIso(new Date()).slice(0, 10),
     scope: {
       lesson_id: resolvedLessonId,
       source_ids: lessonSourceScope[resolvedLessonId] ?? [1],
@@ -147,8 +143,8 @@ export function buildMockRatingSrs(rating: FsrsRating) {
     difficulty: rating === 1 ? 0.72 : rating === 2 ? 0.56 : rating === 3 ? 0.41 : 0.28,
     stability: rating === 1 ? 0.4 : rating === 2 ? 2.1 : rating === 3 ? 5.8 : 9.4,
     is_new_card: false,
-    last_review_at: formatShanghaiIso(new Date()),
-    due_at: formatShanghaiIso(
+    last_review_at: formatBusinessIso(new Date()),
+    due_at: formatBusinessIso(
       new Date(Date.now() + nextDueHours[rating] * 60 * 60 * 1000),
     ),
   }
@@ -174,7 +170,7 @@ export function mockSubmitReview(_cardId: string, userTranscript: string): Submi
       state: 'review',
       difficulty: 0.3,
       stability: 5.0,
-      due: new Date(Date.now() + 86400000 * 3).toISOString(),
+      due: formatBusinessIso(new Date(Date.now() + 86400000 * 3)),
     },
   }
 }

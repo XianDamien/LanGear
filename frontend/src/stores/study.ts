@@ -20,6 +20,7 @@ import type {
   SubmitRatingResponse,
 } from '@/types/api'
 import { parseNumericIdOrThrow } from '@/utils/ids'
+import { formatBusinessIso } from '@/utils/businessTime'
 
 export type RecordingState = 'idle' | 'recording' | 'stopped'
 export type SubmitState = 'idle' | 'submitting' | 'success' | 'failed'
@@ -214,7 +215,7 @@ export const useStudyStore = defineStore('study', () => {
           dueAt: resolveDueAt(data.srs),
           isNewCard: data.srs.is_new_card ?? false,
           lastReviewAt:
-            data.srs.last_review_at ?? currentCard.value.lastReviewAt ?? new Date().toISOString(),
+            data.srs.last_review_at ?? currentCard.value.lastReviewAt ?? formatBusinessIso(new Date()),
         }
         cards.value = nextCards
       }

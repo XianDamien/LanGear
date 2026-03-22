@@ -9,7 +9,7 @@ from app.repositories.card_repo import CardRepository
 from app.repositories.deck_repo import DeckRepository
 from app.repositories.review_log_repo import ReviewLogRepository
 from app.repositories.srs_repo import SRSRepository
-from app.utils.timezone import shanghai_now, to_shanghai
+from app.utils.timezone import app_now, to_app_timezone
 
 
 class ContentService:
@@ -150,7 +150,7 @@ class ContentService:
         # Get all cards ordered by card_index
         cards = self.card_repo.get_by_lesson(lesson_id)
         srs_map = self._get_lesson_srs_map(lesson_id)
-        server_time = shanghai_now()
+        server_time = app_now(self.db)
 
         # Get latest user recording OSS paths per card
         oss_paths = self.review_log_repo.get_latest_oss_paths_by_lesson(lesson_id)
@@ -160,8 +160,12 @@ class ContentService:
             srs = srs_map.get(card.id)
             card_state = self.srs_repo.derive_card_state(srs)
             is_new_card = self.srs_repo.is_new_bucket(srs)
-            due_at = server_time if is_new_card else to_shanghai(srs.due)
-            last_review_at = None if srs is None or srs.last_review is None else to_shanghai(srs.last_review)
+            due_at = server_time if is_new_card else to_app_timezone(srs.due, self.db)
+            last_review_at = (
+                None
+                if srs is None or srs.last_review is None
+                else to_app_timezone(srs.last_review, self.db)
+            )
             result_cards.append(
                 {
                     "id": card.id,

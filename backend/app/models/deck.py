@@ -1,12 +1,11 @@
 """Deck model for source/unit/lesson hierarchy."""
-
-from datetime import datetime
 from typing import Literal
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.utils.timezone import storage_now
 
 DeckType = Literal["source", "unit", "lesson"]
 
@@ -27,8 +26,8 @@ class Deck(Base):
     type = Column(String(20), nullable=False, index=True)  # source/unit/lesson
     parent_id = Column(Integer, ForeignKey("decks.id"), nullable=True, index=True)
     level_index = Column(Integer, nullable=False, default=0)  # Sort order within parent
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=storage_now, nullable=False)
+    updated_at = Column(DateTime, default=storage_now, onupdate=storage_now, nullable=False)
 
     # Relationships
     parent = relationship("Deck", remote_side=[id], backref="children")

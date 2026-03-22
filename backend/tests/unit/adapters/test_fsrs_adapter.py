@@ -9,6 +9,7 @@ from fsrs import Rating, State
 from app.adapters.fsrs_adapter import FSRSAdapter
 from app.exceptions import InvalidRatingError, SRSUpdateError
 from app.models.user_card_srs import UserCardSRS
+from app.utils.timezone import storage_now
 
 
 def _mock_review_output(
@@ -201,8 +202,8 @@ class TestFSRSAdapter:
         current_srs.step = None
         current_srs.stability = 10.0
         current_srs.difficulty = 5.0
-        current_srs.due = datetime.utcnow()
-        current_srs.last_review = datetime.utcnow()
+        current_srs.due = storage_now()
+        current_srs.last_review = storage_now()
 
         with patch.object(fsrs_adapter.scheduler, "review_card", side_effect=Exception("boom")):
             with pytest.raises(SRSUpdateError, match="FSRS scheduling failed: boom"):

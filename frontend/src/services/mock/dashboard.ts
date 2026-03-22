@@ -1,4 +1,5 @@
 import type { DashboardData } from '@/types/api'
+import { formatBusinessDate } from '@/utils/businessTime'
 
 export const mockDashboardData: DashboardData = {
   stats: {
@@ -24,7 +25,7 @@ export const mockDashboardData: DashboardData = {
     const d = new Date()
     d.setDate(d.getDate() - (89 - i))
     return {
-      date: d.toISOString().slice(0, 10),
+      date: formatBusinessDate(d),
       count: Math.floor(Math.random() * 50),
     }
   }),

@@ -20,10 +20,10 @@ class TestSettingsService:
         result = service.get_settings()
 
         assert isinstance(result, dict)
-        assert len(result) == 0
+        assert result == {}
 
     def test_get_settings_with_data(self, test_db: Session):
-        """Test getting settings with existing data."""
+        """Test getting settings with existing supported data."""
         create_test_settings(test_db)
 
         service = SettingsService(test_db)
@@ -31,10 +31,27 @@ class TestSettingsService:
 
         assert "daily_new_limit" in result
         assert "daily_review_limit" in result
-        assert "max_interval" in result
-        assert "enable_audio" in result
+        assert "max_interval" not in result
+        assert "enable_audio" not in result
         assert result["daily_new_limit"] == 20
         assert result["daily_review_limit"] == 50
+
+    def test_get_settings_filters_legacy_app_timezone_key(self, test_db: Session):
+        """Test removed app_timezone is not exposed in read responses."""
+        from app.models import Setting
+
+        test_db.add_all(
+            [
+                Setting(key="daily_new_limit", value=20),
+                Setting(key="app_timezone", value="Europe/Budapest"),
+            ]
+        )
+        test_db.commit()
+
+        service = SettingsService(test_db)
+        result = service.get_settings()
+
+        assert result == {"daily_new_limit": 20}
 
     def test_update_settings_success(self, test_db: Session):
         """Test updating settings with valid data."""
@@ -133,3 +150,10 @@ class TestSettingsService:
 
         assert result["daily_new_limit"] == 0
         assert result["daily_review_limit"] == 0
+
+    def test_update_settings_rejects_app_timezone_key(self, test_db: Session):
+        """Test app_timezone is no longer a supported setting key."""
+        service = SettingsService(test_db)
+
+        with pytest.raises(ValueError, match="Invalid settings keys"):
+            service.update_settings({"app_timezone": "Europe/Budapest"})

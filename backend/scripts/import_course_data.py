@@ -30,8 +30,8 @@ import json
 import os
 import re
 import sys
+import time
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +48,7 @@ from app.models.user_card_srs import UserCardSRS
 from app.repositories.card_repo import CardRepository
 from app.repositories.deck_repo import DeckRepository
 from app.repositories.srs_repo import SRSRepository
+from app.utils.timezone import app_now, storage_now
 
 # Progress tracking file
 PROGRESS_FILE = ".import_progress.json"
@@ -76,7 +77,7 @@ class ImportProgress:
 
     def save(self):
         """Save progress to file."""
-        self.data["timestamp"] = datetime.utcnow().isoformat()
+        self.data["timestamp"] = app_now().isoformat()
         with open(self.filepath, "w") as f:
             json.dump(self.data, f, indent=2)
 
@@ -451,7 +452,7 @@ class CourseDataImporter:
                                 step=0,
                                 stability=None,
                                 difficulty=None,
-                                due=datetime.utcnow(),
+                                due=storage_now(),
                                 last_review=None,
                             )
                             db.add(srs)
@@ -483,7 +484,7 @@ class CourseDataImporter:
                                 step=0,
                                 stability=None,
                                 difficulty=None,
-                                due=datetime.utcnow(),
+                                due=storage_now(),
                                 last_review=None,
                             )
                             db.add(srs)
@@ -705,7 +706,7 @@ class CourseDataImporter:
 
     def run_all(self):
         """Run all import stages."""
-        start_time = datetime.utcnow()
+        start_time = time.perf_counter()
 
         # Stage 1: Discovery
         manifest = self.discover()
@@ -732,7 +733,7 @@ class CourseDataImporter:
             db.close()
 
         # Print summary
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = time.perf_counter() - start_time
         print("\n" + "=" * 60)
         print("IMPORT COMPLETE")
         print("=" * 60)

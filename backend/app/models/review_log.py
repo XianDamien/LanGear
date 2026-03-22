@@ -1,11 +1,10 @@
 """Review log model for training records and AI feedback."""
 
-from datetime import datetime
-
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.utils.timezone import storage_now
 
 
 class ReviewLog(Base):
@@ -33,7 +32,7 @@ class ReviewLog(Base):
     error_code = Column(String(50), nullable=True)  # Error code if failed
     error_message = Column(Text, nullable=True)  # Error message if failed
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = Column(DateTime, default=storage_now, nullable=False, index=True)
 
     # Relationships
     card = relationship("Card", back_populates="review_logs")

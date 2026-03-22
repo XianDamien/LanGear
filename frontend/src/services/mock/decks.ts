@@ -1,5 +1,10 @@
 import type { Deck } from '@/types/domain'
 import type { DeckTreeResponse, LessonCardsResponse } from '@/types/api'
+import { formatBusinessIso } from '@/utils/businessTime'
+
+function mockIso(value: string): string {
+  return formatBusinessIso(new Date(value))
+}
 
 const mockTree: Deck[] = [
   {
@@ -138,8 +143,8 @@ export const mockLessonCards: Record<string, LessonCardsResponse> = {
         difficulty: 2,
         cardState: 'review',
         isNewCard: false,
-        lastReviewAt: '2026-03-21T10:00:00+08:00',
-        dueAt: '2026-03-23T09:00:00+08:00',
+        lastReviewAt: mockIso('2026-03-21T02:00:00Z'),
+        dueAt: mockIso('2026-03-23T01:00:00Z'),
         grammarInfo: {
           nouns: ['language', 'patience', 'practice'],
           verbs: ['requires', 'learning'],
@@ -159,8 +164,8 @@ export const mockLessonCards: Record<string, LessonCardsResponse> = {
         difficulty: 1,
         cardState: 'learning',
         isNewCard: false,
-        lastReviewAt: '2026-03-22T07:30:00+08:00',
-        dueAt: '2026-03-22T12:30:00+08:00',
+        lastReviewAt: mockIso('2026-03-21T23:30:00Z'),
+        dueAt: mockIso('2026-03-22T04:30:00Z'),
         grammarInfo: { nouns: ['sunday', 'sundays'], verbs: ['get'] },
       },
       {
@@ -171,8 +176,8 @@ export const mockLessonCards: Record<string, LessonCardsResponse> = {
         difficulty: 1,
         cardState: 'relearning',
         isNewCard: false,
-        lastReviewAt: '2026-03-22T08:15:00+08:00',
-        dueAt: '2026-03-22T10:15:00+08:00',
+        lastReviewAt: mockIso('2026-03-22T00:15:00Z'),
+        dueAt: mockIso('2026-03-22T02:15:00Z'),
         grammarInfo: { nouns: ['bed', 'lunchtime'], verbs: ['stay'] },
       },
     ],
@@ -189,8 +194,8 @@ export const mockLessonCards: Record<string, LessonCardsResponse> = {
         difficulty: 2,
         cardState: 'review',
         isNewCard: false,
-        lastReviewAt: '2026-03-20T16:00:00+08:00',
-        dueAt: '2026-03-24T09:00:00+08:00',
+        lastReviewAt: mockIso('2026-03-20T08:00:00Z'),
+        dueAt: mockIso('2026-03-24T01:00:00Z'),
         grammarInfo: { nouns: ['postcards', 'holidays'], verbs: ['spoil'] },
       },
     ],

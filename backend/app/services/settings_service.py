@@ -6,6 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.repositories.settings_repo import SettingsRepository
 
+VALID_SETTING_KEYS = {
+    "daily_new_limit",
+    "daily_review_limit",
+    "default_source_scope",
+}
+
 
 class SettingsService:
     """Service for managing system settings."""
@@ -25,10 +31,15 @@ class SettingsService:
             {
                 "daily_new_limit": 20,
                 "daily_review_limit": 100,
-                "default_source_scope": [1, 2]
+                "default_source_scope": [1, 2],
             }
         """
-        return self.settings_repo.get_all()
+        settings = self.settings_repo.get_all()
+        return {
+            key: value
+            for key, value in settings.items()
+            if key in VALID_SETTING_KEYS
+        }
 
     def update_settings(self, updates: dict[str, Any]) -> dict[str, Any]:
         """Update system settings.
@@ -43,9 +54,7 @@ class SettingsService:
             ValueError: If invalid settings provided
         """
         # Validate settings
-        valid_keys = {"daily_new_limit", "daily_review_limit", "default_source_scope"}
-
-        invalid_keys = set(updates.keys()) - valid_keys
+        invalid_keys = set(updates.keys()) - VALID_SETTING_KEYS
         if invalid_keys:
             raise ValueError(f"Invalid settings keys: {invalid_keys}")
 
@@ -69,4 +78,4 @@ class SettingsService:
 
         self.db.commit()
 
-        return self.settings_repo.get_all()
+        return self.get_settings()

@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.review_log import ReviewLog
-from app.utils.timezone import shanghai_day_window, utc_now_naive
+from app.utils.timezone import app_day_window, storage_now
 
 
 class ReviewLogRepository:
@@ -42,7 +42,7 @@ class ReviewLogRepository:
             rating=rating,
             result_type=result_type,
             ai_feedback_json=ai_feedback_json,
-            created_at=utc_now_naive(),
+            created_at=storage_now(self.db),
         )
         self.db.add(log)
         self.db.flush()
@@ -94,7 +94,7 @@ class ReviewLogRepository:
         Returns:
             Number of reviews
         """
-        start, end = shanghai_day_window(date)
+        start, end = app_day_window(date, self.db)
 
         return (
             self.db.query(ReviewLog)
@@ -107,8 +107,8 @@ class ReviewLogRepository:
         )
 
     def count_quota_usage_by_date(self, value: date | datetime) -> dict[str, int]:
-        """Count new and review quota usage for a Shanghai business day."""
-        start, end = shanghai_day_window(value)
+        """Count new and review quota usage for a business day."""
+        start, end = app_day_window(value, self.db)
         logs = (
             self.db.query(ReviewLog)
             .filter(

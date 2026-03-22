@@ -1,11 +1,10 @@
 """Card model for individual sentences."""
 
-from datetime import datetime
-
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.utils.timezone import storage_now
 
 
 class Card(Base):
@@ -22,8 +21,8 @@ class Card(Base):
     front_text = Column(Text, nullable=False)  # English text
     back_text = Column(Text, nullable=True)  # Chinese translation (optional)
     audio_path = Column(String(500), nullable=True)  # OSS URL for original audio
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=storage_now, nullable=False)
+    updated_at = Column(DateTime, default=storage_now, onupdate=storage_now, nullable=False)
 
     # Relationships
     deck = relationship("Deck", back_populates="cards")
