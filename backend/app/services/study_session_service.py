@@ -5,7 +5,6 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.adapters.oss_adapter import OSSAdapter
-from app.repositories.card_repo import CardRepository
 from app.repositories.deck_repo import DeckRepository
 from app.repositories.review_log_repo import ReviewLogRepository
 from app.repositories.settings_repo import SettingsRepository
@@ -19,7 +18,6 @@ class StudySessionService:
     def __init__(self, db: Session):
         """Initialize service dependencies."""
         self.db = db
-        self.card_repo = CardRepository(db)
         self.deck_repo = DeckRepository(db)
         self.review_log_repo = ReviewLogRepository(db)
         self.settings_repo = SettingsRepository(db)
@@ -60,7 +58,7 @@ class StudySessionService:
             limit=review_slots_left,
             as_of=as_of,
         )
-        new_cards = self.card_repo.get_new_cards(
+        new_cards = self._get_new_cards(
             lesson_ids=lesson_ids,
             limit=new_remaining,
         )
@@ -163,6 +161,35 @@ class StudySessionService:
         except Exception:
             return None
 
+    def _get_new_cards(
+        self,
+        lesson_ids: list[int],
+        limit: int,
+    ) -> list[tuple[Any, Any]]:
+        """Get cards that remain in the derived new bucket."""
+        from app.models.card import Card
+        from app.models.user_card_srs import UserCardSRS
+
+        if not lesson_ids or limit <= 0:
+            return []
+
+        rows = (
+            self.db.query(Card, UserCardSRS)
+            .outerjoin(UserCardSRS, UserCardSRS.card_id == Card.id)
+            .filter(Card.deck_id.in_(lesson_ids))
+            .order_by(Card.deck_id, Card.card_index, Card.id)
+            .all()
+        )
+
+        new_cards: list[tuple[Any, Any]] = []
+        for card, srs in rows:
+            if self.srs_repo.is_new_bucket(srs):
+                new_cards.append((card, srs))
+                if len(new_cards) >= limit:
+                    break
+
+        return new_cards
+
     def _serialize_card(
         self,
         card: Any,
@@ -172,7 +199,8 @@ class StudySessionService:
     ) -> dict[str, Any]:
         """Serialize a card row for the study session response."""
         card_state = self.srs_repo.derive_card_state(srs)
-        due_at = server_time if card_state == "new" else to_shanghai(srs.due)
+        is_new_card = card_state == "new"
+        due_at = server_time if is_new_card else to_shanghai(srs.due)
 
         return {
             "id": card.id,
@@ -183,5 +211,6 @@ class StudySessionService:
             "audio_path": self._safe_signed_audio_url(card.audio_path),
             "oss_audio_path": latest_oss_path,
             "card_state": card_state,
+            "is_new_card": is_new_card,
             "due_at": due_at.isoformat(),
         }

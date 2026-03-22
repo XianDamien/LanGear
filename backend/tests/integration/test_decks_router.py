@@ -6,6 +6,8 @@ Tests:
 - GET /api/v1/decks/{lesson_id}/cards - Lesson cards retrieval
 """
 
+from datetime import datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -97,9 +99,44 @@ class TestDecksRouter:
         assert "total_cards" in lesson
         assert "completed_cards" in lesson
         assert "due_cards" in lesson
+        assert "new_cards" in lesson
         assert lesson["total_cards"] == 5
-        assert lesson["completed_cards"] == 5  # All cards have SRS state from seed data
-        assert lesson["due_cards"] == 5
+        assert lesson["completed_cards"] == 0
+        assert lesson["due_cards"] == 0
+        assert lesson["new_cards"] == 5
+
+    def test_get_deck_tree_derives_new_and_due_statistics(
+        self,
+        client: TestClient,
+        test_db: Session,
+        sample_deck_tree,
+    ):
+        """Test GET /api/v1/decks/tree derives completed/due/new from SRS review status."""
+        from app.models import UserCardSRS
+
+        srs_rows = test_db.query(UserCardSRS).order_by(UserCardSRS.card_id).all()
+        srs_rows[0].state = "review"
+        srs_rows[0].step = None
+        srs_rows[0].stability = 4.0
+        srs_rows[0].difficulty = 3.5
+        srs_rows[0].due = datetime.utcnow() - timedelta(hours=1)
+        srs_rows[0].last_review = datetime.utcnow() - timedelta(days=1)
+        srs_rows[1].state = "review"
+        srs_rows[1].step = None
+        srs_rows[1].stability = 4.0
+        srs_rows[1].difficulty = 3.5
+        srs_rows[1].due = datetime.utcnow() + timedelta(days=1)
+        srs_rows[1].last_review = datetime.utcnow() - timedelta(days=1)
+        test_db.commit()
+
+        response = client.get("/api/v1/decks/tree")
+
+        assert response.status_code == 200
+        lesson = response.json()["data"]["sources"][0]["units"][0]["lessons"][0]
+        assert lesson["total_cards"] == 5
+        assert lesson["completed_cards"] == 2
+        assert lesson["due_cards"] == 1
+        assert lesson["new_cards"] == 3
 
     def test_get_deck_tree_empty_database(self, client: TestClient, test_db: Session):
         """Test GET /api/v1/decks/tree returns empty sources when no decks exist."""
@@ -201,6 +238,10 @@ class TestDecksRouter:
         assert "front_text" in card
         assert "back_text" in card
         assert "audio_path" in card
+        assert "card_state" in card
+        assert "is_new_card" in card
+        assert "due_at" in card
+        assert "last_review_at" in card
 
     def test_get_lesson_cards_correct_content(self, client: TestClient, test_db: Session, sample_deck_tree):
         """Test GET /api/v1/decks/{lesson_id}/cards returns correct card content."""
@@ -223,6 +264,39 @@ class TestDecksRouter:
             or "audio%2Fnce2%2Funit1%2Flesson1%2F0.wav" in audio_path
         )
         assert card["card_index"] == 0
+        assert card["card_state"] == "new"
+        assert card["is_new_card"] is True
+        assert card["last_review_at"] is None
+        assert datetime.fromisoformat(card["due_at"]).utcoffset() == timedelta(hours=8)
+
+    def test_get_lesson_cards_derives_card_state_from_srs(
+        self,
+        client: TestClient,
+        test_db: Session,
+        sample_deck_tree,
+    ):
+        """Test GET /api/v1/decks/{lesson_id}/cards derives public SRS fields."""
+        from app.models import UserCardSRS
+
+        lesson_id = sample_deck_tree["lesson"].id
+        card_id = sample_deck_tree["cards"][0].id
+        srs = test_db.query(UserCardSRS).filter(UserCardSRS.card_id == card_id).one()
+        srs.state = "review"
+        srs.step = None
+        srs.stability = 4.0
+        srs.difficulty = 3.5
+        srs.due = datetime.utcnow() + timedelta(days=1)
+        srs.last_review = datetime.utcnow() - timedelta(hours=4)
+        test_db.commit()
+
+        response = client.get(f"/api/v1/decks/{lesson_id}/cards")
+
+        assert response.status_code == 200
+        card = response.json()["data"]["cards"][0]
+        assert card["card_state"] == "review"
+        assert card["is_new_card"] is False
+        assert card["last_review_at"] is not None
+        assert datetime.fromisoformat(card["due_at"]).utcoffset() == timedelta(hours=8)
 
     def test_get_lesson_cards_ordered_by_index(self, client: TestClient, test_db: Session, sample_deck_tree):
         """Test GET /api/v1/decks/{lesson_id}/cards returns cards in correct order."""

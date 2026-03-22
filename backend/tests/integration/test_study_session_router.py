@@ -90,6 +90,12 @@ class TestStudySessionRouter:
         srs_rows[2].difficulty = 4.0
         srs_rows[2].due = datetime.utcnow() + timedelta(days=1)
         srs_rows[2].last_review = datetime.utcnow() - timedelta(days=1)
+        srs_rows[3].state = "review"
+        srs_rows[3].step = None
+        srs_rows[3].stability = 5.0
+        srs_rows[3].difficulty = 3.5
+        srs_rows[3].due = datetime.utcnow() - timedelta(days=2)
+        srs_rows[3].last_review = None
 
         test_db.add(
             ReviewLog(
@@ -109,6 +115,10 @@ class TestStudySessionRouter:
         data = response.json()["data"]
         assert data["summary"]["due_count"] == 2
         assert [card["card_state"] for card in data["cards"]] == ["learning", "review", "new", "new"]
+        assert [card["is_new_card"] for card in data["cards"]] == [False, False, True, True]
+        assert all(card["is_new_card"] == (card["card_state"] == "new") for card in data["cards"])
+        assert data["cards"][2]["id"] == cards[3].id
+        assert data["cards"][2]["card_state"] == "new"
         assert data["cards"][0]["oss_audio_path"] == "recordings/20260321/example.webm"
         assert datetime.fromisoformat(data["server_time"]).utcoffset() == timedelta(hours=8)
         assert all(

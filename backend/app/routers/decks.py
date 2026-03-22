@@ -20,6 +20,7 @@ def get_deck_tree(db: Session = Depends(get_db)):
         - request_id: Unique request ID
         - data:
             - sources: List of source decks with nested units and lessons
+            - each lesson includes total_cards/completed_cards/due_cards/new_cards
 
     Example response:
         {
@@ -58,7 +59,8 @@ def get_lesson_cards(lesson_id: int, db: Session = Depends(get_db)):
         - request_id: Unique request ID
         - data:
             - lesson_id: Lesson ID
-            - cards: List of card objects
+            - cards: List of card objects with
+              card_state/is_new_card/due_at/last_review_at
 
     Raises:
         404: If lesson not found

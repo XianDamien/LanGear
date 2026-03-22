@@ -16,6 +16,7 @@ from app.tasks.review_task import process_review_task
 from app.utils.timezone import from_storage_utc
 
 logger = logging.getLogger(__name__)
+NATIVE_SRS_STATES = {"learning", "review", "relearning"}
 
 
 class ReviewService:
@@ -35,6 +36,20 @@ class ReviewService:
         self.srs_repo = SRSRepository(db)
         self.fsrs_adapter = FSRSAdapter()
         self.realtime_store = get_realtime_session_store()
+
+    def _serialize_native_srs(self, srs: Any) -> dict[str, Any] | None:
+        """Serialize native SRS data while hiding the derived new bucket."""
+        if srs is None or srs.state not in NATIVE_SRS_STATES:
+            return None
+
+        due_at = from_storage_utc(srs.due).isoformat()
+        return {
+            "state": srs.state,
+            "difficulty": srs.difficulty,
+            "stability": srs.stability,
+            "due": due_at,
+            "due_at": due_at,
+        }
 
     def submit_card_review(
         self,
@@ -257,18 +272,15 @@ class ReviewService:
         review_log.rating = rating
         self.db.commit()
 
-        return {
+        result = {
             "submission_id": submission_id,
             "rating": rating,
             "rating_label": rating,
-            "srs": {
-                "state": srs.state,
-                "difficulty": srs.difficulty,
-                "stability": srs.stability,
-                "due": from_storage_utc(srs.due).isoformat(),
-                "due_at": from_storage_utc(srs.due).isoformat(),
-            },
         }
+        native_srs = self._serialize_native_srs(srs)
+        if native_srs is not None:
+            result["srs"] = native_srs
+        return result
 
     def get_submission_result(self, submission_id: int) -> dict[str, Any]:
         """Get submission result (for polling).
@@ -322,13 +334,9 @@ class ReviewService:
             # SRS is only returned after rating is submitted (decoupled flow)
             if review_log.rating and review_log.card_id is not None:
                 srs = self.srs_repo.get_by_card_id(review_log.card_id)
-                if srs:
-                    result["srs"] = {
-                        "state": srs.state,
-                        "difficulty": srs.difficulty,
-                        "stability": srs.stability,
-                        "due": from_storage_utc(srs.due).isoformat(),
-                    }
+                native_srs = self._serialize_native_srs(srs)
+                if native_srs is not None:
+                    result["srs"] = native_srs
 
             return result
 
