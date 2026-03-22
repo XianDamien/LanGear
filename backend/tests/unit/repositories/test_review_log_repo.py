@@ -594,3 +594,83 @@ class TestReviewLogRepository:
         count = repo.count_reviews_by_date(today)
 
         assert count == 3
+
+    def test_list_single_submissions_orders_newest_first(self, test_db: Session):
+        """Test listing single-card submissions ordered by creation time desc."""
+        repo = ReviewLogRepository(test_db)
+
+        lesson = Deck(title="Lesson 1", type="lesson", level_index=0)
+        test_db.add(lesson)
+        test_db.flush()
+
+        first_card = Card(deck_id=lesson.id, card_index=0, front_text="First", back_text="一")
+        second_card = Card(deck_id=lesson.id, card_index=1, front_text="Second", back_text="二")
+        test_db.add_all([first_card, second_card])
+        test_db.flush()
+
+        older = ReviewLog(
+            card_id=first_card.id,
+            deck_id=lesson.id,
+            rating=None,
+            result_type="single",
+            ai_feedback_json={},
+            status="processing",
+            created_at=datetime.utcnow() - timedelta(minutes=5),
+        )
+        newer = ReviewLog(
+            card_id=second_card.id,
+            deck_id=lesson.id,
+            rating=None,
+            result_type="single",
+            ai_feedback_json={},
+            status="failed",
+            created_at=datetime.utcnow(),
+        )
+        summary = ReviewLog(
+            card_id=None,
+            deck_id=lesson.id,
+            rating=None,
+            result_type="summary",
+            ai_feedback_json={},
+            status="completed",
+        )
+        test_db.add_all([older, newer, summary])
+        test_db.commit()
+
+        results = repo.list_single_submissions(lesson_id=lesson.id)
+        assert [log.id for log in results] == [newer.id, older.id]
+
+    def test_list_single_submissions_supports_card_filter(self, test_db: Session):
+        """Test listing single-card submissions by lesson and card."""
+        repo = ReviewLogRepository(test_db)
+
+        lesson = Deck(title="Lesson 1", type="lesson", level_index=0)
+        test_db.add(lesson)
+        test_db.flush()
+
+        first_card = Card(deck_id=lesson.id, card_index=0, front_text="First", back_text="一")
+        second_card = Card(deck_id=lesson.id, card_index=1, front_text="Second", back_text="二")
+        test_db.add_all([first_card, second_card])
+        test_db.flush()
+
+        first_log = ReviewLog(
+            card_id=first_card.id,
+            deck_id=lesson.id,
+            rating=None,
+            result_type="single",
+            ai_feedback_json={},
+            status="processing",
+        )
+        second_log = ReviewLog(
+            card_id=second_card.id,
+            deck_id=lesson.id,
+            rating=None,
+            result_type="single",
+            ai_feedback_json={},
+            status="completed",
+        )
+        test_db.add_all([first_log, second_log])
+        test_db.commit()
+
+        results = repo.list_single_submissions(lesson_id=lesson.id, card_id=first_card.id)
+        assert [log.id for log in results] == [first_log.id]

@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from app.adapters.gemini_adapter import GeminiAdapter
+from app.adapters.gemini_adapter import GenerationConfig, GeminiAdapter, PromptTemplate
 from app.exceptions import AIFeedbackError
 
 
@@ -105,6 +105,7 @@ class TestGeminiAdapter:
         adapter, mock_client = gemini_adapter
 
         feedback_data = {
+            "transcription_text": "Test sentence",
             "pronunciation": "Good",
             "completeness": "Complete",
             "fluency": "Fluent",
@@ -125,10 +126,35 @@ class TestGeminiAdapter:
         assert result["pronunciation"] == "Good"
         assert result["issues"] == []
 
+    def test_generate_single_feedback_requires_transcription_text(self, gemini_adapter):
+        adapter, mock_client = gemini_adapter
+
+        feedback_data = {
+            "pronunciation": "Good",
+            "completeness": "Complete",
+            "fluency": "Fluent",
+            "suggestions": [],
+            "issues": [],
+        }
+
+        mock_response = Mock()
+        mock_response.text = json.dumps(feedback_data)
+        mock_client.models.generate_content.return_value = mock_response
+
+        with pytest.raises(AIFeedbackError) as exc_info:
+            adapter.generate_single_feedback(
+                front_text="Test sentence",
+                user_audio_url="https://example.com/user.wav",
+                reference_audio_url="https://example.com/ref.wav",
+            )
+
+        assert "Missing required field: transcription_text" in str(exc_info.value)
+
     def test_generate_single_feedback_missing_field(self, gemini_adapter):
         adapter, mock_client = gemini_adapter
 
         feedback_data = {
+            "transcription_text": "test sentence",
             "pronunciation": "Good",
             "completeness": "Complete",
             "fluency": "Fluent",
@@ -153,6 +179,7 @@ class TestGeminiAdapter:
         adapter, mock_client = gemini_adapter
 
         feedback_data = {
+            "transcription_text": "test sentence",
             "pronunciation": "Good",
             "completeness": "Complete",
             "fluency": "Fluent",
@@ -177,6 +204,7 @@ class TestGeminiAdapter:
         adapter, mock_client = gemini_adapter
 
         feedback_data = {
+            "transcription_text": "test sentence",
             "pronunciation": "Good",
             "completeness": "Complete",
             "fluency": "Fluent",
@@ -196,6 +224,58 @@ class TestGeminiAdapter:
 
         assert result["suggestions"][0]["text"] == "Speak slightly slower"
         assert result["suggestions"][0]["target_word"] is None
+
+    def test_load_prompt_from_custom_directory(self, gemini_adapter, tmp_path: Path):
+        adapter, _ = gemini_adapter
+        prompt_dir = tmp_path / "prompt"
+        prompt_dir.mkdir()
+        (prompt_dir / "system.md").write_text("system", encoding="utf-8")
+        (prompt_dir / "user.md").write_text("user", encoding="utf-8")
+        (prompt_dir / "metadata.json").write_text(
+            json.dumps({"prompt_version": "custom"}),
+            encoding="utf-8",
+        )
+
+        prompt = adapter.load_prompt_from_dir(prompt_dir)
+
+        assert prompt == PromptTemplate(
+            system="system",
+            user="user",
+            metadata={"prompt_version": "custom"},
+        )
+
+    def test_generate_single_feedback_accepts_custom_prompt_and_generation_config(
+        self,
+        gemini_adapter,
+    ):
+        adapter, mock_client = gemini_adapter
+        mock_response = Mock()
+        mock_response.text = json.dumps(
+            {
+                "transcription_text": "Test sentence",
+                "pronunciation": "Good",
+                "completeness": "Complete",
+                "fluency": "Fluent",
+                "suggestions": [],
+                "issues": [],
+            }
+        )
+        mock_client.models.generate_content.return_value = mock_response
+
+        adapter.generate_single_feedback(
+            front_text="Test sentence",
+            user_audio_url="https://example.com/user.wav",
+            reference_audio_url="https://example.com/ref.wav",
+            prompt_template=PromptTemplate(system="system", user="user"),
+            generation_config=GenerationConfig(
+                temperature=0.1,
+                max_output_tokens=512,
+            ),
+        )
+
+        config = mock_client.models.generate_content.call_args.kwargs["config"]
+        assert config.temperature == 0.1
+        assert config.max_output_tokens == 512
 
     def test_generate_single_feedback_makes_single_audio_request_without_retry(self, gemini_adapter):
         adapter, mock_client = gemini_adapter

@@ -7,11 +7,13 @@ import {
   submitRating,
   getOSSSignedUrl,
 } from '@/services/api/study'
+import { extractApiError } from '@/services/http'
 import type { Card, Rating } from '@/types/domain'
 import type {
   SubmitReviewResponse,
   PollingResponseCompleted,
-  WordTimestamp,
+  SubmissionDisplayError,
+  SubmitReviewResponseAsync,
 } from '@/types/api'
 import { parseNumericIdOrThrow } from '@/utils/ids'
 
@@ -75,7 +77,6 @@ export const useStudyStore = defineStore('study', () => {
   const uploadState = ref<UploadState>('idle')
   const asyncSubmitState = ref<AsyncSubmitState>('idle')
   const submissionId = ref<number | null>(null)
-  const transcriptionTimestamps = ref<WordTimestamp[]>([])
   const currentAudioElement = ref<HTMLAudioElement | null>(null)
   const lastFeedbackV2 = ref<PollingResponseCompleted | null>(null)
 
@@ -131,7 +132,6 @@ export const useStudyStore = defineStore('study', () => {
     uploadState.value = 'idle'
     asyncSubmitState.value = 'idle'
     submissionId.value = null
-    transcriptionTimestamps.value = []
     lastFeedbackV2.value = null
     resetTimestampAudio()
   }
@@ -181,20 +181,27 @@ export const useStudyStore = defineStore('study', () => {
 
     try {
       const transcriptionText = userTranscript.value.trim() || liveTranscript.value.trim()
-      const { data } = await submitReviewAsync({
+      const response = await submitReviewAsync({
         lesson_id: parsedLessonId,
         card_id: parsedCardId,
         oss_audio_path: ossAudioPath,
         realtime_session_id: realtimeSessionId,
         ...(transcriptionText ? { transcription_text: transcriptionText } : {}),
       })
+      const data = response.data as SubmitReviewResponseAsync
 
       submissionId.value = data.submission_id
       asyncSubmitState.value = 'processing'
       return data.submission_id
-    } catch {
+    } catch (error) {
+      const apiError = extractApiError(error)
       asyncSubmitState.value = 'failed'
-      throw new Error('提交失败，请重试')
+      const submissionError: SubmissionDisplayError = {
+        errorCode: apiError.code || null,
+        errorMessage: apiError.message,
+        requestId: apiError.request_id,
+      }
+      throw submissionError
     }
   }
 
@@ -292,7 +299,6 @@ export const useStudyStore = defineStore('study', () => {
     uploadState,
     asyncSubmitState,
     submissionId,
-    transcriptionTimestamps,
     lastFeedbackV2,
     createFeedbackSubmission,
     submitCardRating,

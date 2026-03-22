@@ -26,3 +26,7 @@ docs/*
 
 # Old output directories
 2_processed_output.old/
+
+# Local prompt eval datasets and run artifacts
+backend/datasets/*
+!backend/datasets/README.md

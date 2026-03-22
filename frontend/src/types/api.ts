@@ -6,6 +6,12 @@ export interface ApiError {
   request_id: string
 }
 
+export interface SubmissionDisplayError {
+  errorCode: string | null
+  errorMessage: string
+  requestId?: string | null
+}
+
 export interface STSToken {
   access_key_id: string
   access_key_secret: string
@@ -31,13 +37,13 @@ export interface TranscriptionResult {
 
 export interface FeedbackSuggestion {
   text: string
-  target_word?: string
-  timestamp?: number
+  target_word?: string | null
+  timestamp?: number | null
 }
 
 export interface FeedbackIssue {
   problem: string
-  timestamp?: number
+  timestamp?: number | null
 }
 
 export interface SubmitReviewRequest {
@@ -108,6 +114,24 @@ export type PollingResponse =
   | PollingResponseProcessing
   | PollingResponseCompleted
   | PollingResponseFailed
+
+export interface StudySubmissionListItem {
+  submission_id: number
+  card_id: number | null
+  lesson_id: number
+  status: SubmissionStatus
+  error_code: string | null
+  error_message: string | null
+  created_at: string
+  oss_audio_path: string | null
+  transcription: TranscriptionResult | null
+  feedback: PollingResponseCompleted['feedback'] | null
+}
+
+export interface StudySubmissionListParams {
+  lesson_id: number
+  card_id?: number
+}
 
 /**
  * @deprecated 使用 SubmitReviewRequest (v2.0) 替代

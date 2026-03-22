@@ -48,6 +48,10 @@ logger.info("LanGear API started successfully")
 async def startup_event():
     """Application startup event."""
     logger.info("Starting LanGear API v2.0")
+    if settings.sqlite_database_path is not None:
+        logger.info(f"SQLite database path: {settings.sqlite_database_path}")
+    else:
+        logger.info("Database driver: non-sqlite")
     logger.info(f"CORS origins: {settings.cors_origins_list}")
 
 

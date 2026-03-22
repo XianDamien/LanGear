@@ -68,6 +68,7 @@ class TestStudyRouter:
     def test_submit_submission_realtime_not_ready(
         self,
         client: TestClient,
+        test_db: Session,
         sample_deck_tree,
         monkeypatch,
     ):
@@ -107,10 +108,12 @@ class TestStudyRouter:
 
         assert resp.status_code == 400
         assert resp.json()["detail"]["error"]["code"] == "REALTIME_TRANSCRIPT_NOT_READY"
+        assert test_db.query(ReviewLog).count() == 0
 
     def test_submit_submission_realtime_failed(
         self,
         client: TestClient,
+        test_db: Session,
         sample_deck_tree,
         monkeypatch,
     ):
@@ -151,6 +154,7 @@ class TestStudyRouter:
 
         assert resp.status_code == 400
         assert resp.json()["detail"]["error"]["code"] == "REALTIME_SESSION_FAILED"
+        assert test_db.query(ReviewLog).count() == 0
 
     def test_submit_submission_without_rating_success(
         self,
@@ -195,7 +199,15 @@ class TestStudyRouter:
         body = resp.json()
         assert "request_id" in body
         assert body["data"]["status"] == "processing"
-        assert isinstance(body["data"]["submission_id"], int)
+        submission_id = body["data"]["submission_id"]
+        assert isinstance(submission_id, int)
+
+        review_log = test_db.query(ReviewLog).filter(ReviewLog.id == submission_id).first()
+        assert review_log is not None
+        assert review_log.status == "processing"
+        assert review_log.result_type == "single"
+        assert review_log.deck_id == lesson_id
+        assert review_log.card_id == card_id
 
     def test_submit_rating_updates_srs(
         self,
@@ -292,3 +304,121 @@ class TestStudyRouter:
         assert data["status"] == "completed"
         assert "issues" in data["feedback"]
         assert data["feedback"]["issues"][0]["timestamp"] == 0.9
+
+    def test_list_submissions_returns_processing_failed_and_completed(
+        self,
+        client: TestClient,
+        test_db: Session,
+        sample_deck_tree,
+    ):
+        """GET /study/submissions should return mixed statuses for a lesson."""
+        lesson_id = sample_deck_tree["lesson"].id
+        card_one_id = sample_deck_tree["cards"][0].id
+        card_two_id = sample_deck_tree["cards"][1].id
+
+        logs = [
+            ReviewLog(
+                card_id=card_one_id,
+                deck_id=lesson_id,
+                rating=None,
+                result_type="single",
+                status="processing",
+                ai_feedback_json={},
+            ),
+            ReviewLog(
+                card_id=card_one_id,
+                deck_id=lesson_id,
+                rating=None,
+                result_type="single",
+                status="failed",
+                error_code="REALTIME_SESSION_FAILED",
+                error_message="Realtime session failed",
+                ai_feedback_json={},
+            ),
+            ReviewLog(
+                card_id=card_two_id,
+                deck_id=lesson_id,
+                rating=None,
+                result_type="single",
+                status="completed",
+                ai_feedback_json={
+                    "transcription": {
+                        "text": "Completed transcript",
+                        "timestamps": [],
+                    },
+                    "feedback": {
+                        "pronunciation": "Good",
+                        "completeness": "Complete",
+                        "fluency": "Fluent",
+                        "suggestions": [],
+                        "issues": [],
+                    },
+                    "oss_path": "recordings/20260319/completed.webm",
+                },
+            ),
+        ]
+        test_db.add_all(logs)
+        test_db.commit()
+
+        resp = client.get(f"/api/v1/study/submissions?lesson_id={lesson_id}")
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert [item["status"] for item in data] == ["completed", "failed", "processing"]
+        assert data[0]["transcription"]["text"] == "Completed transcript"
+        assert data[0]["feedback"]["pronunciation"] == "Good"
+        assert data[1]["error_code"] == "REALTIME_SESSION_FAILED"
+        assert data[2]["submission_id"] == logs[0].id
+
+    def test_list_submissions_filters_by_card_id(
+        self,
+        client: TestClient,
+        test_db: Session,
+        sample_deck_tree,
+    ):
+        """GET /study/submissions should support card_id filtering."""
+        lesson_id = sample_deck_tree["lesson"].id
+        card_one_id = sample_deck_tree["cards"][0].id
+        card_two_id = sample_deck_tree["cards"][1].id
+
+        test_db.add_all(
+            [
+                ReviewLog(
+                    card_id=card_one_id,
+                    deck_id=lesson_id,
+                    rating=None,
+                    result_type="single",
+                    status="failed",
+                    error_code="AI_FEEDBACK_FAILED",
+                    error_message="bad output",
+                    ai_feedback_json={},
+                ),
+                ReviewLog(
+                    card_id=card_two_id,
+                    deck_id=lesson_id,
+                    rating=None,
+                    result_type="single",
+                    status="completed",
+                    ai_feedback_json={
+                        "transcription": {"text": "other card", "timestamps": []},
+                        "feedback": {
+                            "pronunciation": "Good",
+                            "completeness": "Complete",
+                            "fluency": "Fluent",
+                            "suggestions": [],
+                            "issues": [],
+                        },
+                        "oss_path": "recordings/20260319/other.webm",
+                    },
+                ),
+            ]
+        )
+        test_db.commit()
+
+        resp = client.get(
+            f"/api/v1/study/submissions?lesson_id={lesson_id}&card_id={card_one_id}"
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert len(data) == 1
+        assert data[0]["card_id"] == card_one_id
+        assert data[0]["status"] == "failed"

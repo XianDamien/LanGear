@@ -2,13 +2,12 @@
 import RetroButton from '@/components/ui/RetroButton.vue'
 import HighlightedText from './HighlightedText.vue'
 import GradeButtons from './GradeButtons.vue'
-import TimestampWord from './TimestampWord.vue'
 import type { Card, Rating } from '@/types/domain'
 import type {
   SubmitReviewResponse,
   PollingResponseCompleted,
-  WordTimestamp,
-  FeedbackSuggestion
+  FeedbackSuggestion,
+  FeedbackIssue,
 } from '@/types/api'
 import type { AsyncSubmitState } from '@/stores/study'
 
@@ -24,7 +23,8 @@ defineProps<{
   submitState: string
   asyncSubmitState?: AsyncSubmitState
   feedbackV2?: PollingResponseCompleted | null
-  transcriptionTimestamps?: WordTimestamp[]
+  errorCode?: string | null
+  errorMessage?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -37,8 +37,14 @@ const emit = defineEmits<{
 }>()
 
 function handleSuggestionClick(suggestion: FeedbackSuggestion) {
-  if (suggestion.timestamp !== undefined) {
+  if (suggestion.timestamp != null) {
     emit('timestampJump', suggestion.timestamp)
+  }
+}
+
+function handleIssueClick(issue: FeedbackIssue) {
+  if (issue.timestamp != null) {
+    emit('timestampJump', issue.timestamp)
   }
 }
 </script>
@@ -104,27 +110,16 @@ function handleSuggestionClick(suggestion: FeedbackSuggestion) {
           </div>
         </div>
 
-        <!-- RIGHT: ASR transcription -->
+        <!-- RIGHT: Display transcription -->
         <div class="rounded border border-slate-200 bg-white p-4">
           <div class="mb-2 text-xs font-bold uppercase text-slate-500">你的转写结果</div>
 
-          <!-- Timestamp words -->
-          <div v-if="transcriptionTimestamps?.length" class="flex flex-wrap gap-1">
-            <TimestampWord
-              v-for="(ts, idx) in transcriptionTimestamps"
-              :key="idx"
-              :timestamp="ts"
-              @jump="emit('timestampJump', $event)"
-            />
-          </div>
-
-          <!-- Fallback: plain text -->
-          <div v-else class="text-lg text-brand-accent">
+          <div class="text-lg leading-relaxed text-brand-accent">
             {{ userTranscript || '暂无转写' }}
           </div>
 
           <div class="mt-2 text-xs text-slate-500">
-            点击词语可跳转到对应时间点
+            跳转回听请使用下方问题点或改进建议中的时间定位
           </div>
         </div>
       </div>
@@ -138,6 +133,18 @@ function handleSuggestionClick(suggestion: FeedbackSuggestion) {
           <div class="h-4 w-3/4 rounded bg-slate-200"></div>
           <div class="h-4 w-1/2 rounded bg-slate-200"></div>
           <span class="text-xs text-slate-500">AI 分析中...</span>
+        </div>
+
+        <div
+          v-else-if="asyncSubmitState === 'failed'"
+          class="rounded border-l-4 border-rose-400 bg-rose-50 p-4 text-sm"
+        >
+          <p class="font-semibold text-rose-900">
+            {{ errorCode || 'SUBMISSION_FAILED' }}
+          </p>
+          <p class="mt-2 text-rose-800">
+            {{ errorMessage || '提交失败，请重试' }}
+          </p>
         </div>
 
         <!-- v2.0 completed state -->
@@ -171,7 +178,7 @@ function handleSuggestionClick(suggestion: FeedbackSuggestion) {
                   :key="idx"
                   :class="[
                     'text-sm text-amber-900',
-                    suggestion.timestamp !== undefined &&
+                    suggestion.timestamp != null &&
                       'cursor-pointer hover:text-brand-accent hover:underline'
                   ]"
                   @click="handleSuggestionClick(suggestion)"
@@ -180,6 +187,27 @@ function handleSuggestionClick(suggestion: FeedbackSuggestion) {
                   <span v-if="suggestion.target_word" class="font-semibold text-brand-accent">
                     ({{ suggestion.target_word }})
                   </span>
+                </li>
+              </ul>
+            </div>
+
+            <div
+              v-if="feedbackV2.feedback.issues.length > 0"
+              class="rounded border-l-4 border-rose-400 bg-rose-50 p-3"
+            >
+              <p class="mb-2 text-sm font-semibold text-rose-900">问题点:</p>
+              <ul class="list-inside list-disc space-y-1">
+                <li
+                  v-for="(issue, idx) in feedbackV2.feedback.issues"
+                  :key="idx"
+                  :class="[
+                    'text-sm text-rose-900',
+                    issue.timestamp != null &&
+                      'cursor-pointer hover:text-brand-accent hover:underline'
+                  ]"
+                  @click="handleIssueClick(issue)"
+                >
+                  {{ issue.problem }}
                 </li>
               </ul>
             </div>

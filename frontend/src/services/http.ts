@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { installMockAdapter } from './mockAdapter'
+import type { ApiError } from '@/types/api'
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
@@ -22,15 +23,35 @@ if (import.meta.env.VITE_USE_MOCK === 'true') {
       return response
     },
     (error) => {
-      const msg =
-        error.response?.data?.detail?.error?.message ||
-        error.response?.data?.error?.message ||
-        error.message ||
-        '网络请求失败'
-      ElMessage.error(msg)
+      const apiError = extractApiError(error)
+      if (!(error.config as { skipErrorMessage?: boolean } | undefined)?.skipErrorMessage) {
+        ElMessage.error(apiError.message)
+      }
       return Promise.reject(error)
     },
   )
+}
+
+export function extractApiError(error: unknown): ApiError {
+  const responseData = (error as { response?: { data?: unknown } })?.response?.data as
+    | {
+        detail?: { error?: Partial<ApiError> }
+        error?: Partial<ApiError>
+      }
+    | undefined
+
+  const detailError = responseData?.detail?.error
+  const directError = responseData?.error
+
+  return {
+    code: detailError?.code || directError?.code || 'UNKNOWN_ERROR',
+    message:
+      detailError?.message ||
+      directError?.message ||
+      (error as { message?: string })?.message ||
+      '网络请求失败',
+    request_id: detailError?.request_id || directError?.request_id || 'unknown',
+  }
 }
 
 export default http

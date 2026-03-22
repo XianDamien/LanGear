@@ -11,6 +11,7 @@ from app.repositories.card_repo import CardRepository
 from app.repositories.review_log_repo import ReviewLogRepository
 from app.repositories.srs_repo import SRSRepository
 from app.services.realtime_session_service import get_realtime_session_store
+from app.services.submission_trace import log_submission_trace
 from app.tasks.review_task import process_review_task
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ class ReviewService:
         card_id: int,
         oss_audio_path: str,
         realtime_session_id: str,
+        request_id: str | None = None,
     ) -> dict[str, Any]:
         """Submit a card feedback request (synchronous part).
 
@@ -59,38 +61,75 @@ class ReviewService:
         Raises:
             ValueError: If request validation fails
         """
+        log_submission_trace(
+            logger,
+            "submit_received",
+            request_id=request_id,
+            lesson_id=lesson_id,
+            card_id=card_id,
+            realtime_session_id=realtime_session_id,
+            oss_audio_path=oss_audio_path,
+        )
+
+        def raise_validation_error(error_message: str) -> None:
+            error_code = error_message.split(":", 1)[0]
+            log_submission_trace(
+                logger,
+                "submit_validation_failed",
+                level="warning",
+                request_id=request_id,
+                lesson_id=lesson_id,
+                card_id=card_id,
+                realtime_session_id=realtime_session_id,
+                oss_audio_path=oss_audio_path,
+                error_code=error_code,
+                error_message=error_message,
+                review_log_committed=False,
+            )
+            raise ValueError(error_message)
+
         # Validate card and lesson
         card = self.card_repo.get_by_id(card_id)
         if not card:
-            raise ValueError(f"Card {card_id} not found")
+            raise_validation_error(f"Card {card_id} not found")
 
         if card.deck_id != lesson_id:
-            raise ValueError(f"Card {card_id} does not belong to lesson {lesson_id}")
+            raise_validation_error(f"Card {card_id} does not belong to lesson {lesson_id}")
 
         # Validate OSS path format
         if not oss_audio_path.startswith("recordings/"):
-            raise ValueError("Invalid OSS path. Must start with 'recordings/'")
+            raise_validation_error("Invalid OSS path. Must start with 'recordings/'")
 
         # Validate realtime session
         realtime_session = self.realtime_store.get_session(realtime_session_id)
         if not realtime_session:
-            raise ValueError(f"REALTIME_SESSION_NOT_FOUND: {realtime_session_id}")
+            raise_validation_error(f"REALTIME_SESSION_NOT_FOUND: {realtime_session_id}")
 
         if realtime_session.lesson_id != lesson_id or realtime_session.card_id != card_id:
-            raise ValueError(
+            raise_validation_error(
                 "REALTIME_SESSION_NOT_FOUND: session does not match lesson/card context"
             )
 
         if realtime_session.status == "failed":
             message = realtime_session.error or "Realtime session failed"
-            raise ValueError(f"REALTIME_SESSION_FAILED: {message}")
+            raise_validation_error(f"REALTIME_SESSION_FAILED: {message}")
 
         if realtime_session.status != "ready" or not realtime_session.final_text.strip():
-            raise ValueError(
+            raise_validation_error(
                 "REALTIME_TRANSCRIPT_NOT_READY: realtime final transcript is not ready"
             )
 
         # Create review_log with status='processing'
+        log_submission_trace(
+            logger,
+            "review_log_create_started",
+            request_id=request_id,
+            lesson_id=lesson_id,
+            card_id=card_id,
+            realtime_session_id=realtime_session_id,
+            oss_audio_path=oss_audio_path,
+            review_log_committed=False,
+        )
         review_log = self.review_log_repo.create(
             card_id=card_id,
             deck_id=lesson_id,
@@ -103,7 +142,18 @@ class ReviewService:
         self.db.commit()
 
         submission_id = review_log.id
-        logger.info(f"Created review submission {submission_id} for card {card_id}")
+        log_submission_trace(
+            logger,
+            "review_log_created",
+            request_id=request_id,
+            submission_id=submission_id,
+            lesson_id=lesson_id,
+            card_id=card_id,
+            realtime_session_id=realtime_session_id,
+            oss_audio_path=oss_audio_path,
+            review_log_committed=True,
+            status="processing",
+        )
 
         # Launch background task
         task_thread = threading.Thread(
@@ -115,11 +165,22 @@ class ReviewService:
                 oss_audio_path,
                 realtime_session_id,
                 realtime_session.final_text.strip(),
+                request_id,
             ),
             daemon=True,
         )
         task_thread.start()
-        logger.info(f"Started background task for submission {submission_id}")
+        log_submission_trace(
+            logger,
+            "background_task_started",
+            request_id=request_id,
+            submission_id=submission_id,
+            lesson_id=lesson_id,
+            card_id=card_id,
+            realtime_session_id=realtime_session_id,
+            oss_audio_path=oss_audio_path,
+            status="processing",
+        )
 
         return {
             "submission_id": submission_id,
@@ -252,3 +313,33 @@ class ReviewService:
             "submission_id": submission_id,
             "status": review_log.status,
         }
+
+    def list_submissions(
+        self,
+        lesson_id: int,
+        card_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """List submission history for a lesson/card."""
+        submissions = self.review_log_repo.list_single_submissions(
+            lesson_id=lesson_id,
+            card_id=card_id,
+        )
+        result: list[dict[str, Any]] = []
+        for submission in submissions:
+            feedback_json = submission.ai_feedback_json or {}
+            result.append(
+                {
+                    "submission_id": submission.id,
+                    "card_id": submission.card_id,
+                    "lesson_id": submission.deck_id,
+                    "status": submission.status,
+                    "error_code": submission.error_code,
+                    "error_message": submission.error_message,
+                    "created_at": submission.created_at.isoformat(),
+                    "oss_audio_path": feedback_json.get("oss_path"),
+                    "transcription": feedback_json.get("transcription"),
+                    "feedback": feedback_json.get("feedback"),
+                }
+            )
+
+        return result

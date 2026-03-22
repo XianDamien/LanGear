@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig, AxiosResponse } from 'axios'
 import OSS from 'ali-oss'
 import http from '../http'
 import { normalizeOssRegion } from '@/services/ossRegion'
@@ -9,8 +10,14 @@ import type {
   SubmitRatingRequest,
   SubmitRatingResponse,
   SubmitReviewRequestV1,
-  SubmitReviewResponse
+  SubmitReviewResponse,
+  StudySubmissionListItem,
+  StudySubmissionListParams,
 } from '@/types/api'
+
+const silentErrorRequestConfig = {
+  skipErrorMessage: true,
+} as AxiosRequestConfig
 
 export function getSTSToken() {
   return http.get<STSToken>('/oss/sts-token')
@@ -33,8 +40,14 @@ export async function getOSSSignedUrl(ossPath: string): Promise<string> {
   return client.signatureUrl(ossPath, { expires: 3600 })
 }
 
-export function submitReviewAsync(payload: SubmitReviewRequest) {
-  return http.post<SubmitReviewResponseAsync>('/study/submissions', payload)
+export function submitReviewAsync(
+  payload: SubmitReviewRequest,
+): Promise<AxiosResponse<SubmitReviewResponseAsync>> {
+  return http.post<SubmitReviewResponseAsync>(
+    '/study/submissions',
+    payload,
+    silentErrorRequestConfig,
+  )
 }
 
 export function submitRating(submissionId: number, payload: SubmitRatingRequest) {
@@ -43,6 +56,10 @@ export function submitRating(submissionId: number, payload: SubmitRatingRequest)
 
 export function pollSubmissionResult(submissionId: number) {
   return http.get<PollingResponse>(`/study/submissions/${submissionId}`)
+}
+
+export function listStudySubmissions(params: StudySubmissionListParams) {
+  return http.get<StudySubmissionListItem[]>('/study/submissions', { params })
 }
 
 /** @deprecated Use submitReviewAsync instead */

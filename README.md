@@ -2,7 +2,7 @@
 
 LanGear 是一个 AI 英语复述训练平台，核心链路是“原音频播放 -> 用户录音 -> 实时 ASR -> OSS 上传 -> 后端异步生成 AI 反馈 -> 前端轮询展示结果”。
 
-当前 Study 页顶部提供句子任务导航栏：任务状态（待练、上传中、评测中、完成、失败）独立于当前卡片展示与切换，切卡不会中断已提交任务的前端跟踪。
+当前 Study 页顶部提供句子任务导航栏：任务状态（待练、上传中、评测中、完成、失败）独立于当前卡片展示与切换，切卡不会中断已提交任务的前端跟踪。进入 lesson 时，前端会先调用 `GET /api/v1/study/submissions?lesson_id=...`，用后端 `review_log` 历史回填最近的 `processing` / `failed` / `completed` submission，刷新后不再只依赖前端内存态。
 
 ## 技术栈
 
@@ -36,7 +36,8 @@ pnpm dev
 ```
 
 - 默认地址：`http://localhost:3002`
-- Vite 会将 `/api` 代理到后端 `http://localhost:8000`
+- Vite 会将 `/api` 代理到后端 `http://127.0.0.1:8000`
+- 正式前端链路统一走相对路径 `/api/...`；如果直接在浏览器里请求 `http://127.0.0.1:8000/api/...`，是否能通取决于后端当前 CORS 配置。
 
 ### 后端
 
@@ -47,6 +48,8 @@ uv run uvicorn app.main:app --reload
 
 - 默认地址：`http://localhost:8000`
 - OpenAPI：`http://localhost:8000/docs`
+- 默认允许的开发 CORS 来源：`http://localhost:3002`、`http://127.0.0.1:3002`
+- 可用 `uv run python scripts/show_runtime_config.py` 查看当前进程实际使用的 `DATABASE_URL`、解析后的 SQLite 文件路径、当前 CORS 来源列表、`review_log` / `user_card_srs` 条数，以及最近写入的评测记录。
 
 ### 测试
 
@@ -60,18 +63,36 @@ uv run pytest
 - 默认在 `backend/` 目录下使用 `uv run ...` 与 `uv sync ...`
 - 如果本机 `uv` 不在 `PATH`，请先将 `uv` 安装目录加入 shell 的 `PATH`
 - 不建议混用系统 Python、系统 `pytest` 和 `uv run`，否则容易出现依赖不一致
+- 后端默认 `DATABASE_URL=sqlite:///data/langear.db` 会在运行时归一到 `backend/data/langear.db`，避免因进程工作目录不同误连到别的 SQLite 文件
 - 如果不希望在项目目录下生成 `.venv`，请按命令显式指定单独的环境路径，例如：
 
 ```bash
 cd backend
 UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pytest
 ```
+
 ## 环境变量
 
 - 前端环境变量：`frontend/.env`
 - 后端环境变量：`backend/.env`
 - 后端运行时不要依赖仓库根目录 `.env`
 - 可从 `backend/.env.example` 复制一份作为后端配置起点
+- 想确认当前后端实际会连接哪个数据库，可在 `backend/` 目录执行 `uv run python scripts/show_runtime_config.py`；该脚本只依赖 `DATABASE_URL`，不要求先配齐完整 Gemini/OSS 密钥
+
+## 评测链路排查
+
+- Study 页当前依赖两个接口恢复任务状态：
+  - `GET /api/v1/study/submissions?lesson_id=...&card_id=...`
+  - `GET /api/v1/study/submissions/{submission_id}`
+- 历史状态真源是 `review_log`，不是卡片接口里的“最新 completed oss path”弱口径。
+- `POST /api/v1/study/submissions` 的前置校验失败会直接返回明确 `error_code` / `error_message`，例如 `REALTIME_SESSION_NOT_FOUND`、`REALTIME_TRANSCRIPT_NOT_READY`、`REALTIME_SESSION_FAILED`、`INVALID_OSS_PATH`；这类失败不会创建 `review_log`。
+- 前端开发态只会代理到当前配置的 `127.0.0.1:8000`。如果本地同时运行多个 worktree 或多个 backend 端口，先确认浏览器命中的实例，再判断“评测结果没保存”。
+- 排查多 worktree / 多后端实例时，先在目标后端目录执行 `uv run python scripts/show_runtime_config.py`，确认：
+  - 当前进程监听端口
+  - 当前 `DATABASE_URL`
+  - 实际命中的 SQLite 文件
+  - 最近 `review_log` 写入记录
+- 如果前端显示“任务历史加载失败，请确认后端实例和数据库是否正确”，优先检查前端代理目标是否仍指向你预期的 `127.0.0.1:8000`，以及该实例是否连接到你预期的 SQLite。
 
 ## 当前关键约束
 
@@ -81,6 +102,7 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - 不添加 Gemini runtime fallback 分支
 - 后端 Gemini 配置来源固定为 `backend/.env`
 - Gemini prompt 按版本目录管理，且每个任务使用 `system.md` + `user.md` + `metadata.json` 结构
+- `single_feedback` 由 Gemini 同时产出展示转写与问题点反馈；`transcription.timestamps` 仅为兼容保留空数组，不再承载词级跳转
 - 前端真实接口默认走 `/api/v1`
 - `VITE_USE_MOCK=true` 时才切换到 mock 适配器
 
@@ -98,6 +120,80 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - `user.md` 放运行时输入模板、处理指令和输出 schema
 - `metadata.json` 记录版本、说明和 changelog
 - 激活版本通过 `backend/.env` 中的 `GEMINI_PROMPT_VERSION` 控制
+- `single_feedback` 当前输出包含：展示用 `transcription_text`、中文反馈文本、以及 `issues[]` / `suggestions[]` 上的问题点时间戳；不再请求字级时间戳
+
+## Gemini 双模式
+
+- 生产模式：继续走 `study submission -> review_task -> GeminiAdapter -> review_log` 的正式链路，用于真实用户评测。
+- 离线评测模式：走 `backend/scripts/export_single_feedback_dataset.py` 与 `backend/scripts/run_single_feedback_eval.py`，只读取本地数据集并把 run 结果落盘，不写业务 `review_log`。
+- 两种模式共享 `GeminiAdapter` 的 prompt 渲染、响应解析与结构校验逻辑，但入口与产物分离，避免把 prompt 实验流程混进线上任务。
+- 线上真源仍然是 `DATABASE_URL` 指向数据库里的 `review_log` / `user_card_srs`；`backend/datasets/` 只是导出的离线快照目录。
+
+## Prompt 离线评测工作流
+
+- 数据集根目录：`backend/datasets/gemini_single_feedback_eval/`
+- 样本目录：`samples/<sample_id>/`
+- 运行结果目录：`runs/<run_id>/`
+- 导出记录目录：`exports/`
+- 目录说明见 `backend/datasets/README.md`
+
+### 1. 导出本地数据集
+
+在后端目录执行：
+
+```bash
+cd backend
+uv run python scripts/export_single_feedback_dataset.py --limit 20
+```
+
+- 数据源是已完成的 `review_log(result_type=single, status=completed)`。
+- 每个样本会落下：
+  - `metadata.json`：样本元数据、来源记录、音频摘要、输入指纹
+  - `input.json`：固定输入
+  - `source_output.json`：历史线上输出快照，供人工参考
+  - `user_audio.*` / `reference_audio.*`：本地音频归档
+- `dataset_manifest.json` 与 `exports/*.json` 会额外记录本次导出使用的数据库来源，明确该目录是离线 snapshot，不是运行时真源。
+
+如果当前还没有可用的 `review_log`，可以先把现有卡片记录和参考音频拉下来：
+
+```bash
+cd backend
+uv run python scripts/export_single_feedback_dataset.py --source cards
+```
+
+- `--source cards` 会导出 `cards` 表中的 `front_text + reference_audio`，形成 `ready_for_eval=false` 的 reference-only 样本。
+- 这类样本先作为本地输入档案，不直接参与 `run_single_feedback_eval.py`。
+- 后续拿到用户录音或历史提交结果后，可以继续往同一个 dataset 根目录补 `ready_for_eval=true` 的正式评测样本。
+
+### 2. 运行 prompt 对比
+
+```bash
+cd backend
+uv run python scripts/run_single_feedback_eval.py \
+  --variant baseline=app/adapters/prompts/v1/single_feedback \
+  --variant candidate=/absolute/path/to/prompt_variant \
+  --limit 20
+```
+
+- 每次 run 会固定：
+  - dataset 样本集合
+  - `GEMINI_MODEL_ID` 或 `--model-id`
+  - `temperature`
+  - `max_output_tokens`
+- 允许变化的主变量是 prompt 目录。
+- 每个 variant 会保存：
+  - prompt 快照
+  - `results.jsonl`
+  - 每个样本的输入、输出、错误与耗时
+- run 根目录会保存：
+  - `run_manifest.json`
+  - `comparison.json`
+
+### 3. 控制变量约定
+
+- 比较不同 prompt 时，先固定 dataset，再固定模型与 generation config。
+- 不要直接在生产 prompt 目录上覆盖试验；新增候选 prompt 目录后通过 `--variant` 显式传入。
+- 离线评测结果只用于实验复盘，不回写业务表，不替代正式用户反馈记录。
 
 ## 典型开发流程
 
@@ -116,14 +212,13 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - `PRD.md`：详细产品与实现总纲
 - `PRD_BASELINE.md`：当前联调基线与对齐口径
 - `docs/prd_versions/`：单一 PRD 版本追踪目录，包含 `metadata.json`、`current.md` 与 `archived/` 快照
-- `skills/`：项目级协作 skill；例如 `langear-prompt-update` 用于安全更新 Gemini prompt
 
 ## PRD 版本追踪
 
 ```bash
 python3 scripts/prd_version_manager.py status
 python3 scripts/prd_version_manager.py sync
-python3 scripts/prd_version_manager.py snapshot --version v2.2 --date 2026-03-20 --changes "..."
+python3 scripts/prd_version_manager.py snapshot --version v2.2 --date 2026-03-22 --changes "..."
 ```
 
 - 根目录 `PRD.md` 是版本追踪的编辑源文件

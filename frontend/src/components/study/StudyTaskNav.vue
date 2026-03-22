@@ -19,7 +19,7 @@ function getTask(cardId: string) {
 function getStatusLabel(task: StudyTaskEntry | undefined): string {
   if (!task) return '待练'
   if (task.reviewStatus === 'completed') return '完成'
-  if (task.reviewStatus === 'failed') return '失败'
+  if (task.reviewStatus === 'failed') return task.errorCode || '失败'
   if (task.reviewStatus === 'submitting' || task.reviewStatus === 'processing') return '评测中'
   if (task.uploadState === 'uploading') return '上传中'
   if (task.uploadState === 'failed') return '上传失败'
@@ -35,6 +35,14 @@ function getStatusClass(task: StudyTaskEntry | undefined): string {
   if (task.uploadState === 'uploading') return 'bg-sky-500'
   if (task.uploadState === 'uploaded') return 'bg-brand-accent'
   return 'bg-slate-300'
+}
+
+function getStatusDetail(task: StudyTaskEntry | undefined): string | undefined {
+  if (!task) return undefined
+  if (task.reviewStatus === 'failed') {
+    return [task.errorCode, task.errorMessage].filter(Boolean).join(': ')
+  }
+  return undefined
 }
 </script>
 
@@ -55,6 +63,7 @@ function getStatusClass(task: StudyTaskEntry | undefined): string {
             ? 'border-brand-accent bg-white shadow-mech-sm'
             : 'border-slate-200 bg-white/70 hover:border-brand-accent/60',
         ]"
+        :title="getStatusDetail(getTask(card.id))"
         @click="emit('select', index)"
       >
         <div class="mb-2 flex items-center justify-between gap-2">

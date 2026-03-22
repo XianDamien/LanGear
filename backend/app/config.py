@@ -4,9 +4,14 @@ from pathlib import Path
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
+
+from app.database_url import build_default_sqlite_database_url, resolve_database_url
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_DATABASE_URL = build_default_sqlite_database_url(BACKEND_ROOT)
+DEFAULT_CORS_ORIGINS = "http://localhost:3002,http://127.0.0.1:3002"
 
 
 class Settings(BaseSettings):
@@ -20,7 +25,7 @@ class Settings(BaseSettings):
     )
 
     # Database
-    database_url: str = "sqlite:///data/langear.db"
+    database_url: str = DEFAULT_DATABASE_URL
 
     # Google Gemini API
     gemini_api_key: str
@@ -56,16 +61,30 @@ class Settings(BaseSettings):
     realtime_asr_ws_base_url: str | None = None
 
     # CORS
-    cors_origins: str = "http://localhost:3002"
+    cors_origins: str = DEFAULT_CORS_ORIGINS
+
+    @property
+    def resolved_database_url(self) -> str:
+        """Return the runtime database URL with sqlite paths normalized."""
+        return resolve_database_url(self.database_url, base_dir=BACKEND_ROOT)
+
+    @property
+    def sqlite_database_path(self) -> Path | None:
+        """Return the resolved sqlite file path when DATABASE_URL uses sqlite."""
+        url = make_url(self.resolved_database_url)
+        if url.drivername != "sqlite" or not url.database or url.database == ":memory:":
+            return None
+        return Path(url.database).resolve()
 
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS origins from comma-separated string."""
-        return [origin.strip() for origin in self.cors_origins.split(",")]
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @model_validator(mode="after")
     def validate_ai_feedback_settings(self) -> "Settings":
         """Validate provider-specific AI feedback settings."""
+        self.database_url = self.resolved_database_url
         provider = self.ai_feedback_provider.strip().lower()
         if provider == "gemini" and not self.gemini_model_id.strip():
             raise ValueError(
