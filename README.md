@@ -1,8 +1,8 @@
 # LanGear
 
-LanGear 是一个 AI 英语复述训练平台，核心链路是“原音频播放 -> 用户录音 -> 实时 ASR -> OSS 上传 -> 后端异步生成 AI 反馈 -> 前端轮询展示结果”。
+LanGear 是一个 AI 英语复述训练平台，核心链路是“原音频播放 -> 用户录音 -> 实时 ASR -> OSS 上传 -> 后端异步生成 AI 反馈 -> 前端轮询展示结果 -> 用户评分触发 FSRS 更新”。
 
-当前 Study 页顶部提供句子任务导航栏：任务状态（待练、上传中、评测中、完成、失败）独立于当前卡片展示与切换，切卡不会中断已提交任务的前端跟踪。进入 lesson 时，前端会先调用 `GET /api/v1/study/submissions?lesson_id=...`，用后端 `review_log` 历史回填最近的 `processing` / `failed` / `completed` submission，刷新后不再只依赖前端内存态。
+当前 Study 页顶部提供句子任务导航栏：任务状态（待练、上传中、评测中、完成、失败）独立于当前卡片展示与切换，切卡不会中断已提交任务的前端跟踪。学习页卡片列表由 `/api/v1/study/session` 提供，按 `learning/relearning -> review -> new` 顺序返回，并受每日 new/review quota 约束。进入 lesson 时，前端会先调用 `GET /api/v1/study/submissions?lesson_id=...`，用后端 `review_log` 历史回填最近的 `processing` / `failed` / `completed` submission，刷新后不再只依赖前端内存态。
 
 ## 技术栈
 
@@ -58,6 +58,11 @@ cd backend
 uv run pytest
 ```
 
+```bash
+cd frontend
+pnpm test:e2e
+```
+
 ### `uv` 使用说明
 
 - 默认在 `backend/` 目录下使用 `uv run ...` 与 `uv sync ...`
@@ -80,6 +85,9 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - 可从 `backend/.env.example` 复制一份作为后端配置起点
 - 想确认当前后端实际会连接哪个数据库，可在 `backend/` 目录执行 `uv run python scripts/show_runtime_config.py`；该脚本只依赖 `DATABASE_URL`，不要求先配齐完整 Gemini/OSS 密钥
 - 如果你在本地看到了评测/复习记录，但 GitHub 上的代码或别的 worktree 里看不到，优先假设是命中了不同的本地 SQLite，而不是“数据库会跟着仓库自动同步”
+- `OSS_PUBLIC_BASE_URL` 不是后端启动必填项；默认采用 STS 上传 + 预签名 URL 访问 OSS
+- `ALIYUN_ROLE_ARN` 仅用于 `/api/v1/oss/sts-token` 生成前端直传 OSS 所需的临时 STS 凭证
+- 缺失 `ALIYUN_ROLE_ARN` 时，后端仍可启动，但前端直传 OSS 的 STS 能力不可用
 
 ## 评测链路排查
 
@@ -107,6 +115,8 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - `single_feedback` 由 Gemini 同时产出展示转写与问题点反馈；`transcription.timestamps` 仅为兼容保留空数组，不再承载词级跳转
 - 前端真实接口默认走 `/api/v1`
 - `VITE_USE_MOCK=true` 时才切换到 mock 适配器
+- 学习页评分按钮前端使用 `1|2|3|4`，后端统一映射为 `again/hard/good/easy`
+- 仅在 subagent 输出会实质影响当前任务时才创建；创建后必须等待并消费结果，不再需要时显式关闭
 
 ## Gemini Prompt 开发
 
@@ -201,7 +211,7 @@ uv run python scripts/run_single_feedback_eval.py \
 
 1. 启动后端服务。
 2. 启动前端服务。
-3. 在学习页验证原音频播放、录音、上传、轮询与反馈展示。
+3. 在学习页验证 `/api/v1/study/session` 选卡、原音频播放、录音、上传、轮询、评分与反馈展示。
 4. 修改后端适配器、服务或路由时同步补单测。
 5. 修改行为、流程或约束时同步检查 `README.md`、`PRD.md`、`PRD_BASELINE.md` 是否需要更新。
 6. 修改 `PRD.md` 后，使用 `python3 scripts/prd_version_manager.py sync` 刷新镜像；需要归档命名版本时再执行 `snapshot`。

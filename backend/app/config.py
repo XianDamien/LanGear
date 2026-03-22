@@ -40,7 +40,9 @@ class Settings(BaseSettings):
     oss_access_key_secret: str
     oss_endpoint: str
     oss_bucket_name: str
-    oss_public_base_url: str
+    # Optional legacy base URL for public-read objects. The app now defaults to
+    # STS upload + signed URL access, so this is no longer required.
+    oss_public_base_url: str | None = None
     # NOTE:
     # - STS client region id usually looks like: "cn-shanghai"
     # - OSS bucket region usually looks like: "oss-cn-shanghai"
@@ -48,7 +50,7 @@ class Settings(BaseSettings):
     oss_region: str | None = "cn-shanghai"
 
     # Alibaba Cloud STS (for temporary credentials)
-    aliyun_role_arn: str  # RAM role ARN for AssumeRole
+    aliyun_role_arn: str | None = None  # RAM role ARN for AssumeRole
 
     # Alibaba Cloud ASR (DashScope)
     dashscope_api_key: str

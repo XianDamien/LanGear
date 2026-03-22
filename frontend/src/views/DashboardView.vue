@@ -12,8 +12,8 @@ import Leaderboard from '@/components/dashboard/Leaderboard.vue'
 const router = useRouter()
 const dashboardStore = useDashboardStore()
 const deckStore = useDeckStore()
-const { stats, weeklyTrend, loading } = storeToRefs(dashboardStore)
-const { deckTree } = storeToRefs(deckStore)
+const { stats, weeklyTrend, loading, error } = storeToRefs(dashboardStore)
+const { deckTree, loading: deckLoading } = storeToRefs(deckStore)
 
 onMounted(() => {
   dashboardStore.load()
@@ -46,6 +46,9 @@ function handlePlayDeck(deckId: string) {
 <template>
   <div class="space-y-6 animate-fadeIn">
     <div v-if="loading" class="text-center text-slate-500 py-20">加载中...</div>
+    <div v-else-if="error" class="rounded border border-red-200 bg-red-50 p-6 text-center text-red-700">
+      首页数据加载失败：{{ error }}
+    </div>
     <template v-else-if="stats">
       <StatsCards :stats="stats" />
       <ActivityChart :data="weeklyTrend" />
@@ -54,5 +57,9 @@ function handlePlayDeck(deckId: string) {
         <Leaderboard />
       </div>
     </template>
+    <div v-else-if="deckLoading" class="text-center text-slate-500 py-20">加载中...</div>
+    <div v-else class="rounded border border-slate-200 bg-brand-panel/90 p-6 text-center text-slate-600">
+      暂无首页数据
+    </div>
   </div>
 </template>

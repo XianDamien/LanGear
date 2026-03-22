@@ -24,3 +24,7 @@ logs/
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# Playwright
+playwright-report/
+test-results/

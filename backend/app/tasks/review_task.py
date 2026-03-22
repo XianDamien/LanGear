@@ -291,6 +291,13 @@ def process_review_task(
 
         transcription_text = feedback.pop("transcription_text")
 
+        review_log = review_log_repo.get_by_id(submission_id)
+        study_session_meta: dict[str, Any] | None = None
+        if review_log and isinstance(review_log.ai_feedback_json, dict):
+            metadata = review_log.ai_feedback_json.get("study_session")
+            if isinstance(metadata, dict):
+                study_session_meta = metadata
+
         # Step 5: Update review_log with completed status
         logger.info(f"Finalizing submission {submission_id}")
         ai_feedback_json: dict[str, Any] = {
@@ -303,6 +310,8 @@ def process_review_task(
             "realtime_session_id": realtime_session_id,
             "reference_audio_path": reference_audio_path,
         }
+        if study_session_meta is not None:
+            ai_feedback_json["study_session"] = study_session_meta
 
         review_log_repo.update_status(
             log_id=submission_id,

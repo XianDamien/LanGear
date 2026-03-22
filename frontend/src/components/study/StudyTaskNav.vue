@@ -47,7 +47,10 @@ function getStatusDetail(task: StudyTaskEntry | undefined): string | undefined {
 </script>
 
 <template>
-  <div class="mb-4 rounded border border-slate-200 bg-brand-panel/90 p-3 shadow-mech-sm">
+  <div
+    class="mb-4 rounded border border-slate-200 bg-brand-panel/90 p-3 shadow-mech-sm"
+    data-testid="study-task-nav"
+  >
     <div class="mb-2 flex items-center justify-between gap-3">
       <div class="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">句子任务导航</div>
       <div class="text-xs text-slate-500">切卡不影响已提交任务状态</div>
@@ -64,6 +67,7 @@ function getStatusDetail(task: StudyTaskEntry | undefined): string | undefined {
             : 'border-slate-200 bg-white/70 hover:border-brand-accent/60',
         ]"
         :title="getStatusDetail(getTask(card.id))"
+        :data-testid="`task-nav-item-${index + 1}`"
         @click="emit('select', index)"
       >
         <div class="mb-2 flex items-center justify-between gap-2">
@@ -78,7 +82,7 @@ function getStatusDetail(task: StudyTaskEntry | undefined): string | undefined {
         <div class="truncate text-sm text-slate-700">
           {{ card.backText || card.frontText || `句子 ${index + 1}` }}
         </div>
-        <div class="mt-1 text-xs text-slate-500">
+        <div class="mt-1 text-xs text-slate-500" :data-testid="`task-nav-status-${index + 1}`">
           {{ getStatusLabel(getTask(card.id)) }}
         </div>
       </button>

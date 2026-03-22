@@ -171,12 +171,14 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 ### 4.3 API 能力要求
 
 1. Study 必须提供提交、结果查询与历史查询能力，支持完整状态流转；提交请求最小集需包含 `lesson_id`、`card_id`、`oss_audio_path`、`realtime_session_id`。历史查询接口为 `GET /api/v1/study/submissions?lesson_id=...&card_id=...`，返回最近 submission 列表，至少包含 `submission_id`、`card_id`、`lesson_id`、`status`、`error_code`、`error_message`、`created_at`、`oss_audio_path`、`transcription`、`feedback`。
+1.1 Study 还必须提供 `GET /api/v1/study/session` 以返回当前 session 的 `scope`、`quota`、`summary` 与 `cards[]`，并按 `learning/relearning -> review -> new` 顺序出卡。
 2. Summary 必须提供课级汇总接口：`/api/v1/decks/{deck_id}/summary`。
 3. Dashboard 与 Settings 的字段命名和类型必须与前端模型一致。
 4. 失败结果必须返回可消费的 `error_code` 与 `error_message`；至少覆盖 `REALTIME_SESSION_NOT_FOUND`、`REALTIME_TRANSCRIPT_NOT_READY`、`REALTIME_SESSION_FAILED`、`REFERENCE_AUDIO_NOT_FOUND`、`USER_AUDIO_ACCESS_FAILED`、`AI_FEEDBACK_FAILED`。
 5. `Queue/Tasks` 需要支持批量查询任务状态（按 `deck_id` 获取 submissions 列表及其 `upload_status`/`review_status`），用于跨卡片状态列表展示。历史查询结果必须覆盖 `processing` / `failed` / `completed` 三类状态，且以 `review_log` 为真源，不依赖卡片接口里的聚合字段推断。
 6. 音频访问需要 STS（或等价的临时授权/签名方案）发放能力（接口形式不限）；后台在 AI 处理阶段需能将用户录音与参考原音频解析为可访问 URL。
 7. Deck/卡片读取接口需要返回 `card_state`（`new`/`learning`/`review`/`relearning`），并可选返回 `due_at`（如存在复习调度）。
+7.1 评分提交接口需接受前端 FSRS 数值评分 `1|2|3|4` 或兼容标签 `again/hard/good/easy`，并统一返回可直接渲染的 FSRS 结果（至少含 `card_state/state` 与 `due_at`）。
 8. 反馈结果查询接口在 `completed` 时需至少返回：`transcription.text`、`transcription.timestamps`、`feedback.pronunciation`、`feedback.completeness`、`feedback.fluency`、`feedback.suggestions[]`、`feedback.issues[]`、`oss_audio_path`；其中 `transcription.timestamps` 仅为兼容保留空数组，前端有效跳转时间戳来自 `feedback.suggestions[]` 与 `feedback.issues[]`。
 
 ### 4.4 AI 模块划分（独立、可替换）
@@ -244,6 +246,7 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 - [ ] 翻面后若实时转写会话未 ready / 已 failed：阻断 `submission` 创建并提供明确错误提示。
 - [ ] 若前置校验失败导致未创建 `submission`，当前卡背面仍能直接展示真实 `error_code/error_message`，不退回统一失败文案。
 - [ ] 音频访问通过 STS（或等价临时授权/签名方案），避免前端长期暴露静态凭证。
+- [ ] 评分成功后返回 FSRS 结果（兼容前端 `1|2|3|4` 评分提交口径），并允许用户进入下一张卡片或完成本课流程。
 
 ### 5.4 `wt-queue-tasks`（学习模式 `Queue/Tasks` 跨卡片任务列表）
 

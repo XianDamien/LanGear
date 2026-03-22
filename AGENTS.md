@@ -68,6 +68,9 @@ backend/app/
 - Do not mix unrelated dirty files into a commit
 - Add or update tests when behavior changes
 - Prefer reading existing code before changing architecture
+- Only create a subagent when its output will materially affect the current task
+- After creating a subagent, wait for and evaluate its result before ending the task
+- If a subagent is no longer needed, explicitly cancel or close it to avoid wasting tokens
 - `CLAUDE.md` is a symlink to `AGENTS.md`; treat `AGENTS.md` as the single source of truth
 - Do not edit `CLAUDE.md` and `AGENTS.md` as if they were separate documents
 - After meaningful code, workflow, or constraint changes, update `README.md` in the same task

@@ -11,6 +11,7 @@ import type {
   SubmitRatingResponse,
   SubmitReviewRequestV1,
   SubmitReviewResponse,
+  StudySessionResponse,
   StudySubmissionListItem,
   StudySubmissionListParams,
 } from '@/types/api'
@@ -48,6 +49,15 @@ export function submitReviewAsync(
     payload,
     silentErrorRequestConfig,
   )
+}
+
+export function fetchStudySession(params?: { sourceScope?: number[]; lessonId?: number }) {
+  return http.get<StudySessionResponse>('/study/session', {
+    params: {
+      ...(params?.sourceScope?.length ? { source_scope: params.sourceScope.join(',') } : {}),
+      ...(params?.lessonId ? { lesson_id: params.lessonId } : {}),
+    },
+  })
 }
 
 export function submitRating(submissionId: number, payload: SubmitRatingRequest) {

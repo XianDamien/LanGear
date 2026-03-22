@@ -2,7 +2,7 @@
 import RetroButton from '@/components/ui/RetroButton.vue'
 import HighlightedText from './HighlightedText.vue'
 import GradeButtons from './GradeButtons.vue'
-import type { Card, Rating } from '@/types/domain'
+import type { Card, FsrsRating } from '@/types/domain'
 import type {
   SubmitReviewResponse,
   PollingResponseCompleted,
@@ -31,7 +31,7 @@ const emit = defineEmits<{
   playOriginal: []
   showTranslation: []
   wordClick: [word: string]
-  grade: [rating: Rating]
+  grade: [rating: FsrsRating]
   'update:notes': [value: string]
   timestampJump: [timestamp: number]
 }>()
@@ -50,7 +50,7 @@ function handleIssueClick(issue: FeedbackIssue) {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 w-full flex-col text-left animate-fadeIn">
+  <div class="flex h-full min-h-0 w-full flex-col text-left animate-fadeIn" data-testid="card-back">
     <div class="flex-1 min-h-0 space-y-6 overflow-y-auto pr-1 sm:pr-2">
 
       <!-- ROW 1: Audio Comparison Section -->
@@ -111,7 +111,7 @@ function handleIssueClick(issue: FeedbackIssue) {
         </div>
 
         <!-- RIGHT: Display transcription -->
-        <div class="rounded border border-slate-200 bg-white p-4">
+        <div class="rounded border border-slate-200 bg-white p-4" data-testid="transcription-result">
           <div class="mb-2 text-xs font-bold uppercase text-slate-500">你的转写结果</div>
 
           <div class="text-lg leading-relaxed text-brand-accent">
@@ -125,11 +125,15 @@ function handleIssueClick(issue: FeedbackIssue) {
       </div>
 
       <!-- ROW 3: AI Feedback (centered) -->
-      <div class="rounded border border-slate-200 bg-white p-5">
+      <div class="rounded border border-slate-200 bg-white p-5" data-testid="feedback-panel">
         <h3 class="mb-3 text-xs font-bold uppercase text-slate-500">AI 评测反馈</h3>
 
         <!-- Processing state -->
-        <div v-if="asyncSubmitState === 'processing'" class="animate-pulse space-y-2">
+        <div
+          v-if="asyncSubmitState === 'processing'"
+          class="animate-pulse space-y-2"
+          data-testid="feedback-processing"
+        >
           <div class="h-4 w-3/4 rounded bg-slate-200"></div>
           <div class="h-4 w-1/2 rounded bg-slate-200"></div>
           <span class="text-xs text-slate-500">AI 分析中...</span>

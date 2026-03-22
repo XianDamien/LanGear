@@ -3,7 +3,7 @@
   "version": "v2.2",
   "description": "LanGear PRD version tracking",
   "owner": "pm@lan",
-  "updated_at": "2026-03-20T23:45:57+08:00",
+  "updated_at": "2026-03-22T11:46:03+01:00",
   "tags": [
     "prd",
     "version-tracking"
@@ -15,8 +15,8 @@
     "archived_dir": "docs/prd_versions/archived"
   },
   "current_state": {
-    "source_sha256": "785dcdbc776f6c8586ff92db9061772f70983e9bd3a8a97c5104f3c2e0f0e261",
-    "current_sha256": "785dcdbc776f6c8586ff92db9061772f70983e9bd3a8a97c5104f3c2e0f0e261",
+    "source_sha256": "32bbd9f18cef9dc11bffabc2fe0315ce8c104246c41980ff815f315925be05fc",
+    "current_sha256": "32bbd9f18cef9dc11bffabc2fe0315ce8c104246c41980ff815f315925be05fc",
     "in_sync": true
   },
   "current_snapshot": {

@@ -30,3 +30,6 @@ docs/*
 # Local prompt eval datasets and run artifacts
 backend/datasets/*
 !backend/datasets/README.md
+
+# Local pnpm store
+.pnpm-store/
