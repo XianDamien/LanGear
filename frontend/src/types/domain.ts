@@ -22,8 +22,10 @@ export interface Card {
   notes?: string
   difficulty: number
   ossAudioPath?: string | null
-  cardState?: CardState
+  cardState?: FsrsState
   dueAt?: string | null
+  isNewCard?: boolean
+  lastReviewAt?: string | null
   grammarInfo?: {
     nouns: string[]
     verbs: string[]
@@ -33,7 +35,7 @@ export interface Card {
 export type FsrsRating = 1 | 2 | 3 | 4
 export type RatingLabel = 'again' | 'hard' | 'good' | 'easy'
 export type Rating = RatingLabel
-export type CardState = 'new' | 'learning' | 'review' | 'relearning'
+export type FsrsState = 'learning' | 'review' | 'relearning'
 
 export interface DailyStats {
   date: string

@@ -7,7 +7,7 @@ import {
   getOSSSignedUrl,
 } from '@/services/api/study'
 import { extractApiError } from '@/services/http'
-import type { Card, CardState, FsrsRating } from '@/types/domain'
+import type { Card, FsrsRating, FsrsState } from '@/types/domain'
 import type {
   SubmitReviewResponse,
   PollingResponseCompleted,
@@ -26,6 +26,19 @@ export type SubmitState = 'idle' | 'submitting' | 'success' | 'failed'
 export type AsyncSubmitState = 'idle' | 'submitting' | 'processing' | 'completed' | 'failed'
 export type UploadState = 'idle' | 'uploading' | 'uploaded' | 'failed'
 
+function resolveDueAt(payload: { due_at?: string | null; due?: string | null }): string | null {
+  return payload.due_at ?? payload.due ?? null
+}
+
+function deriveIsNewCard(payload: {
+  is_new_card?: boolean
+  card_state?: FsrsState
+  last_review_at?: string | null
+}): boolean {
+  if (payload.is_new_card != null) return payload.is_new_card
+  return payload.last_review_at === null
+}
+
 function mapStudySessionCardToDomain(raw: StudySessionCardResponse): Card {
   return {
     id: String(raw.id),
@@ -38,7 +51,9 @@ function mapStudySessionCardToDomain(raw: StudySessionCardResponse): Card {
     difficulty: 0,
     ossAudioPath: raw.oss_audio_path ?? null,
     cardState: raw.card_state,
-    dueAt: raw.due_at ?? null,
+    dueAt: resolveDueAt(raw),
+    isNewCard: deriveIsNewCard(raw),
+    lastReviewAt: raw.last_review_at ?? null,
   }
 }
 
@@ -195,8 +210,11 @@ export const useStudyStore = defineStore('study', () => {
         const nextCards = [...cards.value]
         nextCards[currentIndex.value] = {
           ...currentCard.value,
-          cardState: data.srs.state as CardState,
-          dueAt: data.srs.due_at ?? data.srs.due ?? null,
+          cardState: data.srs.state,
+          dueAt: resolveDueAt(data.srs),
+          isNewCard: data.srs.is_new_card ?? false,
+          lastReviewAt:
+            data.srs.last_review_at ?? currentCard.value.lastReviewAt ?? new Date().toISOString(),
         }
         cards.value = nextCards
       }

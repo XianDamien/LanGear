@@ -217,6 +217,8 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
         stability: 5.0,
         due: new Date(Date.now() + 86400000 * 3).toISOString(),
         due_at: new Date(Date.now() + 86400000 * 3).toISOString(),
+        is_new_card: false,
+        last_review_at: new Date().toISOString(),
       },
     }
 
