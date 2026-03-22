@@ -137,6 +137,10 @@ def submit_rating(
 
     Rating is decoupled from AI feedback generation. Submissions can be created
     without rating to start ASR+LLM evaluation immediately.
+
+    Response contract:
+    - data.srs.state only returns native FSRS states:
+      learning | review | relearning
     """
     request_id = str(uuid.uuid4())
 
@@ -217,6 +221,8 @@ def get_submission_result(
             - submission_id: Submission ID
             - status: "processing" | "completed" | "failed"
             - [if completed]: transcription, feedback, srs
+            - [if completed and srs present]: srs.state only returns
+              learning | review | relearning
             - [if failed]: error_code, error_message
 
     Raises:

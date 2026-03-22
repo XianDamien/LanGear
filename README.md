@@ -2,7 +2,7 @@
 
 LanGear 是一个 AI 英语复述训练平台，核心链路是“原音频播放 -> 用户录音 -> 实时 ASR -> OSS 上传 -> 后端异步生成 AI 反馈 -> 前端轮询展示结果 -> 用户评分触发 FSRS 更新”。
 
-当前 Study 页顶部提供句子任务导航栏：任务状态（待练、上传中、评测中、完成、失败）独立于当前卡片展示与切换，切卡不会中断已提交任务的前端跟踪。学习页卡片列表由 `/api/v1/study/session` 提供，优先返回 `learning/relearning` 与 `review` 卡，再按 quota 补充 FSRS 初始卡桶；接口里的 `card_state` 只表达原生三态，是否为“新卡”通过 `is_new_card` / `last_review_at` 派生。进入 lesson 时，前端会先调用 `GET /api/v1/study/submissions?lesson_id=...`，用后端 `review_log` 历史回填最近的 `processing` / `failed` / `completed` submission，刷新后不再只依赖前端内存态。
+当前 Study 页顶部提供句子任务导航栏：任务状态（待练、上传中、评测中、完成、失败）独立于当前卡片展示与切换，切卡不会中断已提交任务的前端跟踪。学习页卡片列表由 `/api/v1/study/session` 提供，优先返回 `learning/relearning` 与 `review` 卡，再按 quota 补充 FSRS 初始卡桶；每张卡返回 `card_state`、`is_new_card`、`due_at`、`last_review_at`，其中 `card_state` 只表达原生三态。课程树接口 `/api/v1/decks/tree` 的 lesson 节点返回 `total_cards` / `completed_cards` / `due_cards` / `new_cards`；`/api/v1/decks/{lesson_id}/cards` 返回 `card_state`、`is_new_card`、`due_at`、`last_review_at`。进入 lesson 时，前端会先调用 `GET /api/v1/study/submissions?lesson_id=...`，用后端 `review_log` 历史回填最近的 `processing` / `failed` / `completed` submission，刷新后不再只依赖前端内存态。
 
 FSRS 底层契约按原生 `py-fsrs` 对齐：`user_card_srs.state` 只持久化 `learning/review/relearning`，`new cards` 由 FSRS 初始卡条件推导，主判定口径是 `last_review IS NULL`；原生评分历史单独写入 `fsrs_review_log`。
 
@@ -119,6 +119,7 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - 前端真实接口默认走 `/api/v1`
 - `VITE_USE_MOCK=true` 时才切换到 mock 适配器
 - 学习页评分按钮前端使用 `1|2|3|4`，后端统一映射为 `again/hard/good/easy`
+- `POST /api/v1/study/submissions/{id}/rating` 与 `GET /api/v1/study/submissions/{id}` 若返回 `srs.state`，仅暴露原生三态：`learning` / `review` / `relearning`
 - 仅在 subagent 输出会实质影响当前任务时才创建；创建后必须等待并消费结果，不再需要时显式关闭
 
 ## Gemini Prompt 开发

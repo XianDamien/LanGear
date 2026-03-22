@@ -7,13 +7,15 @@ Tests:
 """
 
 import base64
+from datetime import datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.services.realtime_session_service import get_realtime_session_store
 from app.models.review_log import ReviewLog
+from app.models.user_card_srs import UserCardSRS
+from app.services.realtime_session_service import get_realtime_session_store
 
 
 def _make_ready_realtime_session(lesson_id: int, card_id: int) -> str:
@@ -208,6 +210,60 @@ class TestStudyRouter:
         assert review_log.result_type == "single"
         assert review_log.deck_id == lesson_id
         assert review_log.card_id == card_id
+        assert review_log.ai_feedback_json["study_session"]["quota_bucket"] == "new"
+        assert review_log.ai_feedback_json["study_session"]["scheduled_state"] == "learning"
+
+    def test_submit_submission_uses_review_bucket_for_reviewed_card(
+        self,
+        client: TestClient,
+        test_db: Session,
+        sample_deck_tree,
+        all_adapters_mocked,
+        monkeypatch,
+    ):
+        """POST /study/submissions should derive review bucket from native SRS."""
+
+        class _FakeThread:
+            def __init__(self, target=None, args=(), daemon=None):
+                self.target = target
+                self.args = args
+                self.daemon = daemon
+
+            def start(self):
+                return None
+
+        monkeypatch.setattr("app.services.review_service.threading.Thread", _FakeThread)
+
+        store = get_realtime_session_store()
+        store.clear()
+
+        lesson_id = sample_deck_tree["lesson"].id
+        card_id = sample_deck_tree["cards"][0].id
+        srs = test_db.query(UserCardSRS).filter(UserCardSRS.card_id == card_id).one()
+        srs.state = "review"
+        srs.step = None
+        srs.stability = 3.0
+        srs.difficulty = 4.0
+        srs.due = datetime.utcnow() - timedelta(hours=1)
+        srs.last_review = datetime.utcnow() - timedelta(days=1)
+        test_db.commit()
+
+        realtime_session_id = _make_ready_realtime_session(lesson_id, card_id)
+        resp = client.post(
+            "/api/v1/study/submissions",
+            json={
+                "lesson_id": lesson_id,
+                "card_id": card_id,
+                "oss_audio_path": "recordings/20260209/test.webm",
+                "realtime_session_id": realtime_session_id,
+            },
+        )
+
+        assert resp.status_code == 200
+        submission_id = resp.json()["data"]["submission_id"]
+        review_log = test_db.query(ReviewLog).filter(ReviewLog.id == submission_id).one()
+        assert review_log.ai_feedback_json["study_session"]["quota_bucket"] == "review"
+        assert review_log.ai_feedback_json["study_session"]["scheduled_state"] == "review"
 
     def test_submit_rating_updates_srs(
         self,
@@ -258,8 +314,11 @@ class TestStudyRouter:
         data = rate_resp.json()["data"]
         assert data["submission_id"] == submission_id
         assert data["rating"] == "good"
+        assert data["srs"]["state"] in {"learning", "review", "relearning"}
+        assert data["srs"]["state"] != "new"
         assert "srs" in data
         assert "due" in data["srs"]
+        assert data["srs"]["due_at"] == data["srs"]["due"]
 
     def test_submit_numeric_rating_updates_srs(
         self,
@@ -311,6 +370,7 @@ class TestStudyRouter:
         assert data["rating"] == "good"
         assert data["rating_label"] == "good"
         assert "srs" in data
+        assert data["srs"]["state"] in {"learning", "review", "relearning"}
         assert data["srs"]["due_at"] == data["srs"]["due"]
 
     def test_get_submission_completed_includes_issues(
@@ -356,6 +416,46 @@ class TestStudyRouter:
         assert data["status"] == "completed"
         assert "issues" in data["feedback"]
         assert data["feedback"]["issues"][0]["timestamp"] == 0.9
+
+    def test_get_submission_completed_returns_native_srs_state(
+        self,
+        client: TestClient,
+        test_db: Session,
+        sample_deck_tree,
+    ):
+        """GET /study/submissions/{id} should never expose derived new as srs.state."""
+        lesson_id = sample_deck_tree["lesson"].id
+        card_id = sample_deck_tree["cards"][0].id
+
+        srs = test_db.query(UserCardSRS).filter(UserCardSRS.card_id == card_id).one()
+        srs.state = "review"
+        srs.step = None
+        srs.stability = 4.0
+        srs.difficulty = 3.5
+        srs.due = datetime.utcnow() + timedelta(days=2)
+        srs.last_review = datetime.utcnow() - timedelta(hours=6)
+
+        review_log = ReviewLog(
+            card_id=card_id,
+            deck_id=lesson_id,
+            rating="good",
+            result_type="single",
+            status="completed",
+            ai_feedback_json={
+                "transcription": {"text": "done", "timestamps": []},
+                "feedback": {"issues": [], "suggestions": []},
+                "oss_path": "recordings/20260319/test.webm",
+            },
+        )
+        test_db.add(review_log)
+        test_db.commit()
+        test_db.refresh(review_log)
+
+        resp = client.get(f"/api/v1/study/submissions/{review_log.id}")
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["srs"]["state"] in {"learning", "review", "relearning"}
+        assert data["srs"]["state"] != "new"
 
     def test_list_submissions_returns_processing_failed_and_completed(
         self,
