@@ -2,35 +2,28 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { fetchDeckTree } from '@/services/api/decks'
 import type { Deck } from '@/types/domain'
+import type { DeckTreeLessonNode, DeckTreeSourceNode, DeckTreeUnitNode } from '@/types/api'
 
-interface BackendLesson {
-  id: number
-  title: string
-  total_cards: number
-  completed_cards: number
-  due_cards: number
+function getLessonNewCards(lesson: DeckTreeLessonNode): number {
+  return lesson.new_cards ?? Math.max(lesson.total_cards - lesson.completed_cards, 0)
 }
 
-interface BackendUnit {
-  id: number
-  title: string
-  lessons: BackendLesson[]
+function getUnitNewCards(unit: DeckTreeUnitNode): number {
+  return unit.lessons.reduce((sum, lesson) => sum + getLessonNewCards(lesson), 0)
 }
 
-interface BackendSource {
-  id: number
-  title: string
-  units: BackendUnit[]
+function getSourceNewCards(source: DeckTreeSourceNode): number {
+  return source.units.reduce((sum, unit) => sum + getUnitNewCards(unit), 0)
 }
 
-function transformSources(sources: BackendSource[]): Deck[] {
+function transformSources(sources: DeckTreeSourceNode[]): Deck[] {
   return sources.map((source) => ({
     id: String(source.id),
     name: source.title,
     description: '',
     type: 'source' as const,
     totalCards: source.units.reduce((sum, u) => sum + u.lessons.reduce((s, l) => s + l.total_cards, 0), 0),
-    newCards: source.units.reduce((sum, u) => sum + u.lessons.reduce((s, l) => s + (l.total_cards - l.completed_cards), 0), 0),
+    newCards: getSourceNewCards(source),
     reviewCards: source.units.reduce((sum, u) => sum + u.lessons.reduce((s, l) => s + l.due_cards, 0), 0),
     completedCards: source.units.reduce((sum, u) => sum + u.lessons.reduce((s, l) => s + l.completed_cards, 0), 0),
     children: source.units.map((unit) => ({
@@ -40,7 +33,7 @@ function transformSources(sources: BackendSource[]): Deck[] {
       type: 'unit' as const,
       parentId: String(source.id),
       totalCards: unit.lessons.reduce((s, l) => s + l.total_cards, 0),
-      newCards: unit.lessons.reduce((s, l) => s + (l.total_cards - l.completed_cards), 0),
+      newCards: getUnitNewCards(unit),
       reviewCards: unit.lessons.reduce((s, l) => s + l.due_cards, 0),
       completedCards: unit.lessons.reduce((s, l) => s + l.completed_cards, 0),
       children: unit.lessons.map((lesson) => ({
@@ -50,7 +43,7 @@ function transformSources(sources: BackendSource[]): Deck[] {
         type: 'lesson' as const,
         parentId: String(unit.id),
         totalCards: lesson.total_cards,
-        newCards: lesson.total_cards - lesson.completed_cards,
+        newCards: getLessonNewCards(lesson),
         reviewCards: lesson.due_cards,
         completedCards: lesson.completed_cards,
       })),

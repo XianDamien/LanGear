@@ -2,7 +2,8 @@ import type {
   FsrsRating,
   Rating,
   RatingLabel,
-  CardState,
+  CardBucketState,
+  FsrsState,
   DailyStats,
   Deck,
   Card,
@@ -54,6 +55,16 @@ export interface FeedbackIssue {
   timestamp?: number | null
 }
 
+export interface SrsSnapshot {
+  state: FsrsState
+  difficulty: number
+  stability: number
+  due?: string
+  due_at?: string
+  is_new_card?: boolean
+  last_review_at?: string | null
+}
+
 export interface SubmitReviewRequest {
   lesson_id: number
   card_id: number
@@ -87,13 +98,7 @@ export interface PollingResponseCompleted {
     suggestions: FeedbackSuggestion[]
     issues: FeedbackIssue[]
   }
-  srs?: {
-    state: CardState | string
-    difficulty: number
-    stability: number
-    due?: string
-    due_at?: string
-  }
+  srs?: SrsSnapshot
   oss_audio_path?: string | null
 }
 
@@ -105,13 +110,7 @@ export interface SubmitRatingResponse {
   submission_id: number
   rating: FsrsRating | RatingLabel
   rating_label?: RatingLabel
-  srs: {
-    state: CardState | string
-    difficulty: number
-    stability: number
-    due?: string
-    due_at?: string
-  }
+  srs: SrsSnapshot
 }
 
 export interface PollingResponseFailed {
@@ -169,12 +168,7 @@ export interface SubmitReviewResponse {
     suggestions: string[]
     overallScore: number
   }
-  srs: {
-    state: CardState | string
-    difficulty: number
-    stability: number
-    due: string
-  }
+  srs: SrsSnapshot
 }
 
 export interface StudySessionScope {
@@ -197,6 +191,7 @@ export interface StudySessionSummary {
   new_remaining: number
   review_remaining: number
   due_count: number
+  new_cards?: number
 }
 
 export interface StudySessionCardResponse {
@@ -207,8 +202,10 @@ export interface StudySessionCardResponse {
   back_text: string
   audio_path?: string
   oss_audio_path?: string | null
-  card_state: CardState
+  card_state: CardBucketState
   due_at?: string | null
+  is_new_card?: boolean
+  last_review_at?: string | null
 }
 
 export interface StudySessionResponse {
@@ -256,23 +253,30 @@ export interface SettingsData {
   defaultSourceScope: string
 }
 
+export interface DeckTreeLessonNode {
+  id: number
+  title: string
+  total_cards: number
+  completed_cards: number
+  due_cards: number
+  new_cards?: number
+}
+
+export interface DeckTreeUnitNode {
+  id: number
+  title: string
+  lessons: DeckTreeLessonNode[]
+}
+
+export interface DeckTreeSourceNode {
+  id: number
+  title: string
+  units: DeckTreeUnitNode[]
+}
+
 export interface DeckTreeResponse {
   tree?: Deck[]
-  sources?: Array<{
-    id: number
-    title: string
-    units: Array<{
-      id: number
-      title: string
-      lessons: Array<{
-        id: number
-        title: string
-        total_cards: number
-        completed_cards: number
-        due_cards: number
-      }>
-    }>
-  }>
+  sources?: DeckTreeSourceNode[]
 }
 
 export interface LessonCardsResponse {
