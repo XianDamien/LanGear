@@ -106,8 +106,10 @@ class SRSRepository:
         return srs is None or srs.last_review is None
 
     def derive_card_state(self, srs: UserCardSRS | None) -> str:
-        """Map native SRS storage to API-facing card_state."""
-        return "new" if self.is_new_bucket(srs) else srs.state
+        """Return the API-facing native FSRS state without overloading `new`."""
+        if srs is None or srs.last_review is None:
+            return "learning"
+        return srs.state
 
     def count_due_by_lesson(self, lesson_id: int) -> int:
         """Count cards due for review in a lesson.

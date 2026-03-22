@@ -31,11 +31,11 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 
 - `deck`：课程/课包单位（本期统一使用 `deck_id`）。
 - `card`：卡片单位（本期统一使用 `card_id`）。
-- `card_state`：卡片学习状态（用于选卡、展示与调度）：
-  - `new`：业务筛卡桶，对应 FSRS 初始卡；主判定口径为 `last_review IS NULL`，不持久化为 `user_card_srs.state`
-  - `learning`：FSRS 原生状态，处于学习步骤
+- `card_state`：卡片对外学习状态字段，仅表达 FSRS 原生状态：
+  - `learning`：FSRS 原生状态，处于学习步骤；`last_review IS NULL` 的初始卡也以该状态持久化
   - `review`：FSRS 原生状态，进入间隔复习阶段
   - `relearning`：FSRS 原生状态，遗忘后进入再学习阶段
+- `new card`：业务筛卡桶，不是 `card_state/state` 枚举值；主判定口径为 `last_review IS NULL`
 - `realtime_session`：一次学习录音对应的实时转写会话（提交评测时统一使用 `realtime_session_id`）。
   - 只有当 `realtime_session` 已完成且存在最终转写文本时，才允许创建 `submission`。
 - `submission`：一次“翻面触发上传”所产生的提交记录（本期统一使用 `submission_id`）。
@@ -45,12 +45,12 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 
 状态字段建议在接口/模型中以如下枚举表示（字段名可实现调整，但语义与枚举值需保持一致）：
 
-- 卡片状态 `card_state`：`new` / `learning` / `review` / `relearning`（其中 `new` 为派生态，后三者与 FSRS 原生 `state` 一致）
+- 卡片状态 `card_state`：`learning` / `review` / `relearning`
 - 上传状态 `upload_status`：`uploading` / `succeeded` / `failed`
 - AI 处理状态 `review_status`：`processing` / `completed` / `failed`
 
 约束：
-- 对外 `card_state` 保留 `new/learning/review/relearning` 四值；其中数据库持久化 `user_card_srs.state` 只允许 `learning/review/relearning`。
+- 对外 `card_state` 与数据库 `user_card_srs.state` 一致，只允许 `learning/review/relearning`；“新卡”通过 `is_new_card`、`new_cards`、`last_review_at` 等派生字段表达。
 - UI 文案层可将 `review`/`relearning` 统一展示为“复习中”，但接口与存储保持 FSRS 原始枚举。
 - `upload_status != succeeded` 时，该卡片不得进入评测/反馈结果阶段；但不应阻塞用户继续切卡练习。
 - `upload_status == succeeded` 且 `realtime_session` 已 ready 后，才允许创建 `submission` 并进入 `review_status` 状态流转。
@@ -150,7 +150,7 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 6. 反馈结果必须包含可读文本与时间戳，支持按时间点回听；展示用转录文本来自 Gemini，跳转时间戳仅来自 `feedback.suggestions[]` / `feedback.issues[]`。
 7. 系统应支持生成课级总结（P1），最小输出结构为 `overall`、`patterns[]`、`prioritized_actions[]`。
 8. OSS 上的音频资源访问需使用 STS（或等价的临时授权/签名方案），避免前端长期暴露静态凭证。
-9. 每张卡片必须具备 `card_state`（`new`/`learning`/`review`/`relearning`），用于选卡、展示与学习调度；其中 `new` 由 FSRS 初始卡条件派生，主判定口径为 `last_review IS NULL`。
+9. 每张卡片必须具备 `card_state`（`learning`/`review`/`relearning`），并通过 `is_new_card` / `last_review_at` 表达是否属于 FSRS 初始卡桶；“新卡”主判定口径为 `last_review IS NULL`。
 10. 卡片反馈模块需支持可替换 provider；当前基线默认 `AI_FEEDBACK_PROVIDER=gemini`，并通过 `GEMINI_MODEL_ID` 与 `GEMINI_PROMPT_VERSION` 控制模型与 prompt 版本。
 11. Prompt 迭代需支持独立于生产提交流程的离线评测模式：可将已完成单句反馈样本导出到本地 dataset 目录，保存样本元数据、固定输入、历史输出与音频归档；不同 prompt 变体的 run 结果需单独落盘，禁止回写业务 `review_log`。
 12. 结构化评测结果与 FSRS 状态的真源必须是 `DATABASE_URL` 指向数据库中的 `review_log` / `user_card_srs` / `fsrs_review_log`；OSS 只存原音频与用户录音，`backend/datasets/` 只允许作为离线导出快照。
@@ -171,14 +171,14 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 ### 4.3 API 能力要求
 
 1. Study 必须提供提交、结果查询与历史查询能力，支持完整状态流转；提交请求最小集需包含 `lesson_id`、`card_id`、`oss_audio_path`、`realtime_session_id`。历史查询接口为 `GET /api/v1/study/submissions?lesson_id=...&card_id=...`，返回最近 submission 列表，至少包含 `submission_id`、`card_id`、`lesson_id`、`status`、`error_code`、`error_message`、`created_at`、`oss_audio_path`、`transcription`、`feedback`。
-1.1 Study 还必须提供 `GET /api/v1/study/session` 以返回当前 session 的 `scope`、`quota`、`summary` 与 `cards[]`，并按 `learning/relearning -> review -> new` 顺序出卡。
+1.1 Study 还必须提供 `GET /api/v1/study/session` 以返回当前 session 的 `scope`、`quota`、`summary` 与 `cards[]`，并优先返回 `learning/relearning`、`review` 卡，再补充 FSRS 初始卡桶。每张卡至少返回 `card_state`、`is_new_card`、`due_at`、`last_review_at`。
 2. Summary 必须提供课级汇总接口：`/api/v1/decks/{deck_id}/summary`。
 3. Dashboard 与 Settings 的字段命名和类型必须与前端模型一致。
 4. 失败结果必须返回可消费的 `error_code` 与 `error_message`；至少覆盖 `REALTIME_SESSION_NOT_FOUND`、`REALTIME_TRANSCRIPT_NOT_READY`、`REALTIME_SESSION_FAILED`、`REFERENCE_AUDIO_NOT_FOUND`、`USER_AUDIO_ACCESS_FAILED`、`AI_FEEDBACK_FAILED`。
 5. `Queue/Tasks` 需要支持批量查询任务状态（按 `deck_id` 获取 submissions 列表及其 `upload_status`/`review_status`），用于跨卡片状态列表展示。历史查询结果必须覆盖 `processing` / `failed` / `completed` 三类状态，且以 `review_log` 为真源，不依赖卡片接口里的聚合字段推断。
 6. 音频访问需要 STS（或等价的临时授权/签名方案）发放能力（接口形式不限）；后台在 AI 处理阶段需能将用户录音与参考原音频解析为可访问 URL。
-7. Deck/卡片读取接口需要返回 `card_state`（`new`/`learning`/`review`/`relearning`），并可选返回 `due_at`（如存在复习调度）。
-7.1 评分提交接口需接受前端 FSRS 数值评分 `1|2|3|4` 或兼容标签 `again/hard/good/easy`，并统一返回可直接渲染的 FSRS 结果（至少含 `card_state/state` 与 `due_at`）。
+7. Deck/卡片读取接口需要返回 `card_state`（`learning`/`review`/`relearning`）、`is_new_card`、`last_review_at`，并可选返回 `due_at`（如存在复习调度）。
+7.1 评分提交接口需接受前端 FSRS 数值评分 `1|2|3|4` 或兼容标签 `again/hard/good/easy`，并统一返回可直接渲染的 FSRS 结果（至少含 `state` 与 `due_at`）。
 8. 反馈结果查询接口在 `completed` 时需至少返回：`transcription.text`、`transcription.timestamps`、`feedback.pronunciation`、`feedback.completeness`、`feedback.fluency`、`feedback.suggestions[]`、`feedback.issues[]`、`oss_audio_path`；其中 `transcription.timestamps` 仅为兼容保留空数组，前端有效跳转时间戳来自 `feedback.suggestions[]` 与 `feedback.issues[]`。
 
 ### 4.4 AI 模块划分（独立、可替换）
@@ -230,12 +230,12 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 - [ ] 全链路核心标识统一：`deck_id`、`card_id`、`submission_id`（接口与埋点口径一致）。
 - [ ] 评测提交契约统一：创建 `submission` 时必须传递 `realtime_session_id`，且该会话已 ready。
 - [ ] 状态字段与枚举统一：`upload_status`（`uploading/succeeded/failed`）、`review_status`（`processing/completed/failed`）。
-- [ ] 卡片学习状态字段统一：`card_state`（`new/learning/review/relearning`，其中 `new` 为派生态），并可选 `due_at`。
+- [ ] 卡片学习状态字段统一：`card_state` 仅允许 `learning/review/relearning`；“新卡”通过 `is_new_card` / `last_review_at` 派生，并可选返回 `due_at`。
 - [ ] 失败结果返回可消费的 `error_code` 与 `error_message`。
 
-### 5.2 `wt-fsrs-scheduler`（学习调度 + `card_state`）
+### 5.2 `wt-fsrs-scheduler`（学习调度 + 派生新卡桶）
 
-- [ ] Deck/卡片读取接口返回 `card_state`（`new/learning/review/relearning`），其中 `new` 由 FSRS 初始卡条件推导，并在前后端口径一致。
+- [ ] Deck/卡片读取接口返回原生 `card_state`（`learning/review/relearning`），并额外返回 `is_new_card`；FSRS 初始卡桶由 `last_review IS NULL` 推导，并在前后端口径一致。
 - [ ] 若存在复习调度，接口可返回 `due_at`，用于看板/筛选/复习入口展示。
 
 ### 5.3 `wt-submission-pipeline`（提交与状态机：upload + review）

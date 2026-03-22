@@ -172,7 +172,7 @@ class StudySessionService:
     ) -> dict[str, Any]:
         """Serialize a card row for the study session response."""
         card_state = self.srs_repo.derive_card_state(srs)
-        due_at = server_time if card_state == "new" else to_shanghai(srs.due)
+        due_at = server_time if self.srs_repo.is_new_bucket(srs) else to_shanghai(srs.due)
 
         return {
             "id": card.id,

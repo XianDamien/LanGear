@@ -108,7 +108,7 @@ class TestStudySessionRouter:
         assert response.status_code == 200
         data = response.json()["data"]
         assert data["summary"]["due_count"] == 2
-        assert [card["card_state"] for card in data["cards"]] == ["learning", "review", "new", "new"]
+        assert [card["card_state"] for card in data["cards"]] == ["learning", "review", "learning", "learning"]
         assert data["cards"][0]["oss_audio_path"] == "recordings/20260321/example.webm"
         assert datetime.fromisoformat(data["server_time"]).utcoffset() == timedelta(hours=8)
         assert all(

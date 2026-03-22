@@ -66,7 +66,8 @@ class TestSRSRepository:
         assert result.state == "learning"
         assert result.step == 0
         assert result.last_review is None
-        assert repo.derive_card_state(result) == "new"
+        assert repo.derive_card_state(result) == "learning"
+        assert repo.is_new_bucket(result) is True
 
     def test_upsert_insert_initial_snapshot(self, test_db: Session):
         repo = SRSRepository(test_db)
@@ -88,7 +89,8 @@ class TestSRSRepository:
         assert srs.stability is None
         assert srs.difficulty is None
         assert srs.last_review is None
-        assert repo.derive_card_state(srs) == "new"
+        assert repo.derive_card_state(srs) == "learning"
+        assert repo.is_new_bucket(srs) is True
 
     def test_upsert_update_existing_snapshot(self, test_db: Session):
         repo = SRSRepository(test_db)
@@ -114,6 +116,7 @@ class TestSRSRepository:
         assert updated.difficulty == 4.0
         assert updated.last_review == review_time
         assert repo.derive_card_state(updated) == "review"
+        assert repo.is_new_bucket(updated) is False
 
     def test_upsert_rejects_invalid_persisted_state(self, test_db: Session):
         repo = SRSRepository(test_db)
