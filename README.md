@@ -2,7 +2,7 @@
 
 LanGear 是一个 AI 英语复述训练平台，核心链路是“原音频播放 -> 用户录音 -> 实时 ASR -> OSS 上传 -> 后端异步生成 AI 反馈 -> 前端轮询展示结果”。
 
-当前 Study 页顶部提供句子任务导航栏：任务状态（待练、上传中、评测中、完成、失败）独立于当前卡片展示与切换，切卡不会中断已提交任务的前端跟踪。
+当前 Study 页顶部提供句子任务导航栏：任务状态（待练、上传中、评测中、完成、失败）独立于当前卡片展示与切换，切卡不会中断已提交任务的前端跟踪。进入 lesson 时，前端会先调用 `GET /api/v1/study/submissions?lesson_id=...`，用后端 `review_log` 历史回填最近的 `processing` / `failed` / `completed` submission，刷新后不再只依赖前端内存态。
 
 ## 技术栈
 
@@ -77,6 +77,21 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - 后端运行时不要依赖仓库根目录 `.env`
 - 可从 `backend/.env.example` 复制一份作为后端配置起点
 - 想确认当前后端实际会连接哪个数据库，可在 `backend/` 目录执行 `uv run python scripts/show_runtime_config.py`；该脚本只依赖 `DATABASE_URL`，不要求先配齐完整 Gemini/OSS 密钥
+
+## 评测链路排查
+
+- Study 页当前依赖两个接口恢复任务状态：
+  - `GET /api/v1/study/submissions?lesson_id=...&card_id=...`
+  - `GET /api/v1/study/submissions/{submission_id}`
+- 历史状态真源是 `review_log`，不是卡片接口里的“最新 completed oss path”弱口径。
+- `POST /api/v1/study/submissions` 的前置校验失败会直接返回明确 `error_code` / `error_message`，例如 `REALTIME_SESSION_NOT_FOUND`、`REALTIME_TRANSCRIPT_NOT_READY`、`REALTIME_SESSION_FAILED`、`INVALID_OSS_PATH`；这类失败不会创建 `review_log`。
+- 前端开发态只会代理到当前配置的 `127.0.0.1:8000`。如果本地同时运行多个 worktree 或多个 backend 端口，先确认浏览器命中的实例，再判断“评测结果没保存”。
+- 排查多 worktree / 多后端实例时，先在目标后端目录执行 `uv run python scripts/show_runtime_config.py`，确认：
+  - 当前进程监听端口
+  - 当前 `DATABASE_URL`
+  - 实际命中的 SQLite 文件
+  - 最近 `review_log` 写入记录
+- 如果前端显示“任务历史加载失败，请确认后端实例和数据库是否正确”，优先检查前端代理目标是否仍指向你预期的 `127.0.0.1:8000`，以及该实例是否连接到你预期的 SQLite。
 
 ## 当前关键约束
 

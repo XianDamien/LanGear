@@ -1,8 +1,9 @@
 """Study router for training submissions and results."""
 
+import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,7 @@ from app.database import get_db
 from app.services.review_service import ReviewService
 
 router = APIRouter(prefix="/api/v1/study", tags=["Study"])
+logger = logging.getLogger(__name__)
 
 
 class SubmissionRequest(BaseModel):
@@ -62,6 +64,7 @@ def submit_review(
             card_id=request.card_id,
             oss_audio_path=request.oss_audio_path,
             realtime_session_id=request.realtime_session_id,
+            request_id=request_id,
         )
 
         return {
@@ -143,6 +146,29 @@ def submit_rating(
                 },
             },
         )
+
+
+@router.get("/submissions")
+def get_submission_history(
+    lesson_id: int = Query(...),
+    card_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """List recent submissions for a lesson/card."""
+    request_id = str(uuid.uuid4())
+    review_service = ReviewService(db)
+    result = review_service.list_submissions(lesson_id=lesson_id, card_id=card_id)
+    logger.info(
+        "Listed %s submissions for lesson=%s card=%s request_id=%s",
+        len(result),
+        lesson_id,
+        card_id,
+        request_id,
+    )
+    return {
+        "request_id": request_id,
+        "data": result,
+    }
 
 
 @router.get("/submissions/{submission_id}")

@@ -12,6 +12,7 @@ from app.database import SessionLocal
 from app.exceptions import AIFeedbackError
 from app.repositories.card_repo import CardRepository
 from app.repositories.review_log_repo import ReviewLogRepository
+from app.services.submission_trace import log_submission_trace
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ def process_review_task(
     oss_audio_path: str,
     realtime_session_id: str,
     realtime_final_text: str,
+    request_id: str | None = None,
 ) -> None:
     """Process a single review submission asynchronously.
 
@@ -69,7 +71,17 @@ def process_review_task(
     db: Session = SessionLocal()
 
     try:
-        logger.info(f"Processing review submission {submission_id}")
+        log_submission_trace(
+            logger,
+            "task_started",
+            request_id=request_id,
+            submission_id=submission_id,
+            lesson_id=lesson_id,
+            card_id=card_id,
+            realtime_session_id=realtime_session_id,
+            oss_audio_path=oss_audio_path,
+            status="processing",
+        )
 
         # Initialize adapters and repositories
         oss_adapter = OSSAdapter()
@@ -93,7 +105,33 @@ def process_review_task(
                 error_message=str(e),
             )
             db.commit()
+            log_submission_trace(
+                logger,
+                "task_failed",
+                level="warning",
+                request_id=request_id,
+                submission_id=submission_id,
+                lesson_id=lesson_id,
+                card_id=card_id,
+                realtime_session_id=realtime_session_id,
+                oss_audio_path=oss_audio_path,
+                status="failed",
+                error_code="USER_AUDIO_ACCESS_FAILED",
+                error_message=str(e),
+            )
             return
+
+        log_submission_trace(
+            logger,
+            "user_audio_resolved",
+            request_id=request_id,
+            submission_id=submission_id,
+            lesson_id=lesson_id,
+            card_id=card_id,
+            realtime_session_id=realtime_session_id,
+            oss_audio_path=oss_audio_path,
+            status="processing",
+        )
 
         # Step 2: Get card and resolve reference audio URL
         card = card_repo.get_by_id(card_id)
@@ -106,6 +144,20 @@ def process_review_task(
                 error_message=f"Card {card_id} not found",
             )
             db.commit()
+            log_submission_trace(
+                logger,
+                "task_failed",
+                level="warning",
+                request_id=request_id,
+                submission_id=submission_id,
+                lesson_id=lesson_id,
+                card_id=card_id,
+                realtime_session_id=realtime_session_id,
+                oss_audio_path=oss_audio_path,
+                status="failed",
+                error_code="CARD_NOT_FOUND",
+                error_message=f"Card {card_id} not found",
+            )
             return
 
         reference_audio_path = card.audio_path
@@ -118,6 +170,20 @@ def process_review_task(
                 error_message=f"Card {card_id} has no reference audio path",
             )
             db.commit()
+            log_submission_trace(
+                logger,
+                "task_failed",
+                level="warning",
+                request_id=request_id,
+                submission_id=submission_id,
+                lesson_id=lesson_id,
+                card_id=card_id,
+                realtime_session_id=realtime_session_id,
+                oss_audio_path=oss_audio_path,
+                status="failed",
+                error_code="REFERENCE_AUDIO_NOT_FOUND",
+                error_message=f"Card {card_id} has no reference audio path",
+            )
             return
 
         try:
@@ -135,7 +201,33 @@ def process_review_task(
                 error_message=str(e),
             )
             db.commit()
+            log_submission_trace(
+                logger,
+                "task_failed",
+                level="warning",
+                request_id=request_id,
+                submission_id=submission_id,
+                lesson_id=lesson_id,
+                card_id=card_id,
+                realtime_session_id=realtime_session_id,
+                oss_audio_path=oss_audio_path,
+                status="failed",
+                error_code="REFERENCE_AUDIO_NOT_FOUND",
+                error_message=str(e),
+            )
             return
+
+        log_submission_trace(
+            logger,
+            "reference_audio_resolved",
+            request_id=request_id,
+            submission_id=submission_id,
+            lesson_id=lesson_id,
+            card_id=card_id,
+            realtime_session_id=realtime_session_id,
+            oss_audio_path=oss_audio_path,
+            status="processing",
+        )
 
         # Step 3: Realtime transcript remains a submission safeguard, but the
         # displayed transcription now comes from Gemini.
@@ -147,6 +239,20 @@ def process_review_task(
                 error_message="Realtime final transcript is empty",
             )
             db.commit()
+            log_submission_trace(
+                logger,
+                "task_failed",
+                level="warning",
+                request_id=request_id,
+                submission_id=submission_id,
+                lesson_id=lesson_id,
+                card_id=card_id,
+                realtime_session_id=realtime_session_id,
+                oss_audio_path=oss_audio_path,
+                status="failed",
+                error_code="REALTIME_TRANSCRIPT_NOT_READY",
+                error_message="Realtime final transcript is empty",
+            )
             return
 
         # Step 4: AI feedback with dual-audio input
@@ -167,6 +273,20 @@ def process_review_task(
                 error_message=str(e),
             )
             db.commit()
+            log_submission_trace(
+                logger,
+                "task_failed",
+                level="warning",
+                request_id=request_id,
+                submission_id=submission_id,
+                lesson_id=lesson_id,
+                card_id=card_id,
+                realtime_session_id=realtime_session_id,
+                oss_audio_path=oss_audio_path,
+                status="failed",
+                error_code="AI_FEEDBACK_FAILED",
+                error_message=str(e),
+            )
             return
 
         transcription_text = feedback.pop("transcription_text")
@@ -192,7 +312,17 @@ def process_review_task(
 
         # Commit all changes
         db.commit()
-        logger.info(f"Successfully completed submission {submission_id}")
+        log_submission_trace(
+            logger,
+            "task_completed",
+            request_id=request_id,
+            submission_id=submission_id,
+            lesson_id=lesson_id,
+            card_id=card_id,
+            realtime_session_id=realtime_session_id,
+            oss_audio_path=oss_audio_path,
+            status="completed",
+        )
 
     except Exception as e:
         # Catch-all for unexpected errors
@@ -206,6 +336,20 @@ def process_review_task(
                 error_message=str(e),
             )
             db.commit()
+            log_submission_trace(
+                logger,
+                "task_failed",
+                level="error",
+                request_id=request_id,
+                submission_id=submission_id,
+                lesson_id=lesson_id,
+                card_id=card_id,
+                realtime_session_id=realtime_session_id,
+                oss_audio_path=oss_audio_path,
+                status="failed",
+                error_code="UNEXPECTED_ERROR",
+                error_message=str(e),
+            )
         except Exception as commit_error:
             logger.error(f"Failed to update error status: {str(commit_error)}")
             db.rollback()

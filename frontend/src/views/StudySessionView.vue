@@ -16,6 +16,7 @@ import StudyTaskNav from '@/components/study/StudyTaskNav.vue'
 import WordExplanation from '@/components/study/WordExplanation.vue'
 import SummaryModal from '@/components/summary/SummaryModal.vue'
 import type { Rating } from '@/types/domain'
+import type { SubmissionDisplayError } from '@/types/api'
 import { parseNumericIdOrThrow } from '@/utils/ids'
 
 const route = useRoute()
@@ -56,6 +57,32 @@ const isSummaryLoading = ref(false)
 const isFeedbackLoading = ref(false)
 const isTranslationLoading = ref(false)
 
+function toSubmissionDisplayError(error: unknown): SubmissionDisplayError {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'errorMessage' in error &&
+    typeof error.errorMessage === 'string'
+  ) {
+    return {
+      errorCode:
+        'errorCode' in error && typeof error.errorCode === 'string'
+          ? error.errorCode
+          : null,
+      errorMessage: error.errorMessage,
+      requestId:
+        'requestId' in error && typeof error.requestId === 'string'
+          ? error.requestId
+          : null,
+    }
+  }
+
+  return {
+    errorCode: null,
+    errorMessage: error instanceof Error ? error.message : '提交失败，请重试',
+  }
+}
+
 const studyCardClass = computed(() =>
   isFlipped.value
     ? 'flex h-full min-h-0 flex-col overflow-hidden p-4 sm:p-6 lg:p-8'
@@ -63,6 +90,19 @@ const studyCardClass = computed(() =>
 )
 
 const currentTask = computed(() => studyTasksStore.getTask(currentCard.value?.id))
+
+function shouldKeepCardBackVisible() {
+  const task = currentTask.value
+  if (!task) return false
+
+  return (
+    task.reviewStatus === 'submitting' ||
+    task.reviewStatus === 'processing' ||
+    task.reviewStatus === 'completed' ||
+    task.reviewStatus === 'failed' ||
+    Boolean(task.submissionId)
+  )
+}
 
 async function waitForRecordingBlob(timeoutMs = 2500): Promise<boolean> {
   const start = Date.now()
@@ -107,6 +147,12 @@ watch(
     clearCardSession()
     await studyStore.loadLessonCards(lessonId)
     studyTasksStore.initializeLesson(lessonId, cards.value)
+    try {
+      await studyTasksStore.restoreLessonHistory(lessonId, cards.value)
+    } catch (error) {
+      console.error('Failed to restore study submission history:', error)
+      ElMessage.warning('任务历史加载失败，请确认后端实例和数据库是否正确')
+    }
   },
   { immediate: true },
 )
@@ -131,7 +177,7 @@ watch(
 
 watch(
   currentTask,
-  (task) => {
+  async (task) => {
     studyStore.submissionId = task?.submissionId ?? null
     studyStore.uploadState = task?.uploadState ?? 'idle'
     studyStore.asyncSubmitState =
@@ -142,7 +188,7 @@ watch(
         ? task.reviewStatus
         : 'idle'
     studyStore.lastFeedbackV2 = task?.result ?? null
-    studyStore.isFlipped = Boolean(task?.submissionId)
+    studyStore.isFlipped = shouldKeepCardBackVisible()
 
     if (task?.result?.transcription.text) {
       studyStore.userTranscript = task.result.transcription.text
@@ -151,6 +197,14 @@ watch(
 
     if (task?.signedAudioUrl) {
       studyStore.userAudioUrl = task.signedAudioUrl
+    } else if (task?.result?.oss_audio_path && currentCard.value) {
+      const signedAudioUrl = await studyTasksStore.ensureSignedAudioUrl(
+        currentCard.value.id,
+        currentIndex.value,
+      )
+      if (signedAudioUrl) {
+        studyStore.userAudioUrl = signedAudioUrl
+      }
     }
   },
   { immediate: true },
@@ -324,7 +378,7 @@ async function handleFlip() {
 
       if (!ossPath || studyStore.uploadState !== 'uploaded') {
         studyStore.asyncSubmitState = 'failed'
-        studyTasksStore.setSubmissionFailed(activeCard.id, activeCardIndex, '上传失败')
+        studyTasksStore.setSubmissionFailed(activeCard.id, activeCardIndex, null, '上传失败')
         return
       }
 
@@ -336,11 +390,21 @@ async function handleFlip() {
       )
       studyTasksStore.registerSubmission(activeCard.id, activeCardIndex, submissionId)
       ElMessage.info('AI 评测中，请稍候...')
-    } catch {
+    } catch (error) {
+      const submissionError = toSubmissionDisplayError(error)
       studyStore.uploadState = 'failed'
       studyStore.asyncSubmitState = 'failed'
-      studyTasksStore.setSubmissionFailed(activeCard.id, activeCardIndex, '提交失败，请重试')
-      ElMessage.error('提交失败，请重试')
+      studyTasksStore.setSubmissionFailed(
+        activeCard.id,
+        activeCardIndex,
+        submissionError.errorCode,
+        submissionError.errorMessage,
+      )
+      ElMessage.error(
+        submissionError.errorCode
+          ? `${submissionError.errorCode}: ${submissionError.errorMessage}`
+          : submissionError.errorMessage,
+      )
     }
   })()
 }
@@ -469,6 +533,8 @@ function exitStudy() {
           :submit-state="submitState"
           :async-submit-state="asyncSubmitState"
           :feedback-v2="lastFeedbackV2"
+          :error-code="currentTask?.errorCode"
+          :error-message="currentTask?.errorMessage"
           @play-original="playCurrentAudio"
           @show-translation="handleShowTranslation"
           @word-click="handleWordClick"

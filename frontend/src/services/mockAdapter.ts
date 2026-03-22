@@ -5,6 +5,8 @@ import { mockLessonSummary } from './mock/summary'
 import { mockSettings } from './mock/settings'
 import type { SettingsData } from '@/types/api'
 
+const SUBMISSION_STORAGE_PREFIX = 'submission_'
+
 function delay(ms = 400): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -26,6 +28,18 @@ function mockError(code: string, message: string, status = 404): MockResponse {
 
 function parseBody(config: InternalAxiosRequestConfig): unknown {
   return typeof config.data === 'string' ? JSON.parse(config.data) : config.data
+}
+
+function readStoredSubmissions() {
+  const records: Array<Record<string, unknown>> = []
+  for (let index = 0; index < sessionStorage.length; index += 1) {
+    const key = sessionStorage.key(index)
+    if (!key?.startsWith(SUBMISSION_STORAGE_PREFIX)) continue
+    const rawValue = sessionStorage.getItem(key)
+    if (!rawValue) continue
+    records.push(JSON.parse(rawValue) as Record<string, unknown>)
+  }
+  return records
 }
 
 async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockResponse | null> {
@@ -66,6 +80,9 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
   if (method === 'post' && url === '/study/submissions') {
     await delay(200)
     const body = parseBody(config) as {
+      lesson_id?: number
+      card_id?: number
+      oss_audio_path?: string
       realtime_session_id?: string
       transcription_text?: string
     }
@@ -77,8 +94,13 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
     sessionStorage.setItem(
       `submission_${submissionId}`,
       JSON.stringify({
+        submission_id: submissionId,
+        lesson_id: body.lesson_id ?? null,
+        card_id: body.card_id ?? null,
         status: 'processing',
         timestamp: Date.now(),
+        created_at: new Date().toISOString(),
+        oss_audio_path: typeof body.oss_audio_path === 'string' ? body.oss_audio_path : null,
         realtime_session_id: body.realtime_session_id,
         transcription_text:
           typeof body.transcription_text === 'string' ? body.transcription_text.trim() : '',
@@ -88,6 +110,32 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
       submission_id: submissionId,
       status: 'processing'
     })
+  }
+
+  if (method === 'get' && url === '/study/submissions') {
+    await delay(150)
+    const lessonId = Number(config.params?.lesson_id)
+    const cardId =
+      config.params?.card_id != null ? Number(config.params.card_id) : null
+
+    const items = readStoredSubmissions()
+      .filter((item) => Number(item.lesson_id) === lessonId)
+      .filter((item) => (cardId == null ? true : Number(item.card_id) === cardId))
+      .sort((left, right) => String(right.created_at).localeCompare(String(left.created_at)))
+      .map((item) => ({
+        submission_id: Number(item.submission_id),
+        card_id: item.card_id != null ? Number(item.card_id) : null,
+        lesson_id: Number(item.lesson_id),
+        status: String(item.status),
+        error_code: item.error_code ?? null,
+        error_message: item.error_message ?? null,
+        created_at: String(item.created_at),
+        oss_audio_path: item.oss_audio_path ?? null,
+        transcription: (item.transcription as Record<string, unknown> | undefined) ?? null,
+        feedback: (item.feedback as Record<string, unknown> | undefined) ?? null,
+      }))
+
+    return mockResolve(items)
   }
 
   // v2.0: GET /study/submissions/{id}
@@ -115,12 +163,12 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
       const transcriptText =
         typeof data.transcription_text === 'string' ? data.transcription_text.trim() : ''
 
-      sessionStorage.removeItem(`submission_${submissionId}`)
-      return mockResolve({
+      const completedResponse = {
         submission_id: Number(submissionId),
         status: 'completed',
         result_type: 'single',
         realtime_session_id: data.realtime_session_id,
+        oss_audio_path: data.oss_audio_path ?? null,
         transcription: {
           text: transcriptText,
           timestamps: []
@@ -138,7 +186,8 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
             {
               text: '尝试更自然的语调起伏'
             }
-          ]
+          ],
+          issues: []
         },
         srs: {
           state: 'review',
@@ -146,7 +195,15 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
           stability: 5.0,
           due: new Date(Date.now() + 86400000 * 3).toISOString()
         }
-      })
+      }
+      sessionStorage.setItem(
+        `submission_${submissionId}`,
+        JSON.stringify({
+          ...data,
+          ...completedResponse,
+        })
+      )
+      return mockResolve(completedResponse)
     }
   }
 

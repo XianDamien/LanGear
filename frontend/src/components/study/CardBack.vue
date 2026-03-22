@@ -23,6 +23,8 @@ defineProps<{
   submitState: string
   asyncSubmitState?: AsyncSubmitState
   feedbackV2?: PollingResponseCompleted | null
+  errorCode?: string | null
+  errorMessage?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -131,6 +133,18 @@ function handleIssueClick(issue: FeedbackIssue) {
           <div class="h-4 w-3/4 rounded bg-slate-200"></div>
           <div class="h-4 w-1/2 rounded bg-slate-200"></div>
           <span class="text-xs text-slate-500">AI 分析中...</span>
+        </div>
+
+        <div
+          v-else-if="asyncSubmitState === 'failed'"
+          class="rounded border-l-4 border-rose-400 bg-rose-50 p-4 text-sm"
+        >
+          <p class="font-semibold text-rose-900">
+            {{ errorCode || 'SUBMISSION_FAILED' }}
+          </p>
+          <p class="mt-2 text-rose-800">
+            {{ errorMessage || '提交失败，请重试' }}
+          </p>
         </div>
 
         <!-- v2.0 completed state -->

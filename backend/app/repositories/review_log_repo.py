@@ -155,6 +155,21 @@ class ReviewLogRepository:
         """
         return self.db.query(ReviewLog).filter(ReviewLog.id == log_id).first()
 
+    def list_single_submissions(
+        self,
+        lesson_id: int,
+        card_id: int | None = None,
+    ) -> list[ReviewLog]:
+        """List single-card submissions for a lesson, newest first."""
+        query = self.db.query(ReviewLog).filter(
+            ReviewLog.deck_id == lesson_id,
+            ReviewLog.result_type == "single",
+        )
+        if card_id is not None:
+            query = query.filter(ReviewLog.card_id == card_id)
+
+        return query.order_by(ReviewLog.created_at.desc(), ReviewLog.id.desc()).all()
+
     def update_status(
         self,
         log_id: int,
