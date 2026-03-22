@@ -5,11 +5,22 @@ Provides test database setup, FastAPI TestClient, and mock fixtures
 for all external services (OSS, ASR, Gemini, FSRS).
 """
 
-import pytest
+import os
 from typing import Generator
+
+import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from fastapi.testclient import TestClient
+
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("GEMINI_API_KEY", "test-gemini-key")
+os.environ.setdefault("GEMINI_MODEL_ID", "gemini-test-model")
+os.environ.setdefault("OSS_ACCESS_KEY_ID", "test-oss-key")
+os.environ.setdefault("OSS_ACCESS_KEY_SECRET", "test-oss-secret")
+os.environ.setdefault("OSS_ENDPOINT", "oss-cn-test.aliyuncs.com")
+os.environ.setdefault("OSS_BUCKET_NAME", "test-bucket")
+os.environ.setdefault("DASHSCOPE_API_KEY", "test-dashscope-key")
 
 from app.database import Base, get_db
 from app.main import app
@@ -171,22 +182,34 @@ def mock_gemini_adapter(monkeypatch):
 @pytest.fixture
 def mock_fsrs_adapter(monkeypatch):
     """Mock FSRSAdapter for deterministic SRS calculations."""
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     RATING_PARAMS = {
-        "again": (0, 1.3),
-        "hard":  (1, 1.5),
-        "good":  (3, 2.0),
-        "easy":  (7, 2.5),
+        "again": ("learning", 0, 0, 1.3),
+        "hard": ("review", None, 1, 1.5),
+        "good": ("review", None, 3, 2.0),
+        "easy": ("review", None, 7, 2.5),
     }
 
-    def mock_schedule_card(self, current_srs, rating_str: str) -> dict:
-        interval_days, ease_factor = RATING_PARAMS.get(rating_str, (1, 1.5))
+    def mock_schedule_card(self, current_srs, rating_str: str, **kwargs) -> dict:
+        state, step, interval_days, ease_factor = RATING_PARAMS.get(
+            rating_str,
+            ("review", None, 1, 1.5),
+        )
+        now = datetime.now(timezone.utc)
         return {
-            "state": "review",
-            "due": datetime.utcnow() + timedelta(days=interval_days),
-            "stability": interval_days * 1.5,
+            "state": state,
+            "step": step,
+            "due": now + timedelta(days=interval_days),
+            "last_review": now,
+            "stability": None if interval_days == 0 else interval_days * 1.5,
             "difficulty": max(1, min(10, 5 - (ease_factor - 1.5) * 2)),
+            "review_log": {
+                "card_id": kwargs.get("card_id") or getattr(current_srs, "card_id", 0) or 0,
+                "rating": {"again": 1, "hard": 2, "good": 3, "easy": 4}[rating_str],
+                "review_datetime": now,
+                "review_duration": None,
+            },
         }
 
     monkeypatch.setattr(
@@ -213,16 +236,16 @@ def sample_deck_tree(test_db: Session):
 
 @pytest.fixture
 def sample_card_with_srs(test_db: Session):
-    """Provide a single card with new SRS state."""
+    """Provide a single card in the business new-card bucket."""
     from tests.test_data.seed_data import create_test_card_with_srs
-    return create_test_card_with_srs(test_db, state="new")
+    return create_test_card_with_srs(test_db)
 
 
 @pytest.fixture
 def sample_card_due_for_review(test_db: Session):
     """Provide a card that's due for review."""
     from tests.test_data.seed_data import create_test_card_with_srs
-    return create_test_card_with_srs(test_db, state="review")
+    return create_test_card_with_srs(test_db, bucket="review")
 
 
 @pytest.fixture

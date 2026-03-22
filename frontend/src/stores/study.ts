@@ -1,19 +1,23 @@
 import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { fetchLessonCards } from '@/services/api/decks'
 import {
-  submitReview,
+  fetchStudySession,
   submitReviewAsync,
   submitRating,
   getOSSSignedUrl,
 } from '@/services/api/study'
 import { extractApiError } from '@/services/http'
-import type { Card, Rating } from '@/types/domain'
+import type { Card, FsrsRating, FsrsState } from '@/types/domain'
 import type {
   SubmitReviewResponse,
   PollingResponseCompleted,
   SubmissionDisplayError,
   SubmitReviewResponseAsync,
+  StudySessionCardResponse,
+  StudySessionQuota,
+  StudySessionScope,
+  StudySessionSummary,
+  SubmitRatingResponse,
 } from '@/types/api'
 import { parseNumericIdOrThrow } from '@/utils/ids'
 
@@ -22,35 +26,34 @@ export type SubmitState = 'idle' | 'submitting' | 'success' | 'failed'
 export type AsyncSubmitState = 'idle' | 'submitting' | 'processing' | 'completed' | 'failed'
 export type UploadState = 'idle' | 'uploading' | 'uploaded' | 'failed'
 
-interface BackendLessonCard {
-  id: string | number
-  front_text?: string
-  frontText?: string
-  back_text?: string
-  backTranslation?: string
-  audio_path?: string
-  frontAudio?: string
-  difficulty?: number
-  oss_audio_path?: string | null
-  grammarInfo?: Card['grammarInfo']
+function resolveDueAt(payload: { due_at?: string | null; due?: string | null }): string | null {
+  return payload.due_at ?? payload.due ?? null
 }
 
-interface BackendLessonCardsData {
-  cards?: BackendLessonCard[]
-  lessonName?: string
-  lesson_name?: string
+function deriveIsNewCard(payload: {
+  is_new_card?: boolean
+  card_state?: FsrsState
+  last_review_at?: string | null
+}): boolean {
+  if (payload.is_new_card != null) return payload.is_new_card
+  return payload.last_review_at === null
 }
 
-function mapBackendCardToDomain(raw: BackendLessonCard): Card {
+function mapStudySessionCardToDomain(raw: StudySessionCardResponse): Card {
   return {
     id: String(raw.id),
-    frontText: raw.front_text ?? raw.frontText ?? '',
-    backText: raw.front_text ?? raw.frontText ?? '',
-    backTranslation: raw.back_text ?? raw.backTranslation ?? '',
-    frontAudio: raw.audio_path ?? raw.frontAudio ?? '',
-    difficulty: raw.difficulty ?? 0,
+    lessonId: String(raw.lesson_id),
+    cardIndex: raw.card_index,
+    frontText: raw.front_text,
+    backText: raw.front_text,
+    backTranslation: raw.back_text,
+    frontAudio: raw.audio_path ?? '',
+    difficulty: 0,
     ossAudioPath: raw.oss_audio_path ?? null,
-    grammarInfo: raw.grammarInfo ?? undefined,
+    cardState: raw.card_state,
+    dueAt: resolveDueAt(raw),
+    isNewCard: deriveIsNewCard(raw),
+    lastReviewAt: raw.last_review_at ?? null,
   }
 }
 
@@ -79,6 +82,12 @@ export const useStudyStore = defineStore('study', () => {
   const submissionId = ref<number | null>(null)
   const currentAudioElement = ref<HTMLAudioElement | null>(null)
   const lastFeedbackV2 = ref<PollingResponseCompleted | null>(null)
+  const lastRatingResponse = ref<SubmitRatingResponse | null>(null)
+  const sessionServerTime = ref('')
+  const sessionDate = ref('')
+  const sessionScope = ref<StudySessionScope>({})
+  const sessionQuota = ref<StudySessionQuota>({})
+  const sessionSummary = ref<StudySessionSummary | null>(null)
 
   const currentCard = computed(() => cards.value[currentIndex.value])
   const isLastCard = computed(() => currentIndex.value >= cards.value.length - 1)
@@ -93,14 +102,19 @@ export const useStudyStore = defineStore('study', () => {
     currentAudioElement.value = null
   }
 
-  async function loadLessonCards(id: string) {
+  async function loadStudySession(id: string) {
     loading.value = true
     lessonId.value = id
     try {
-      const { data } = await fetchLessonCards(id)
-      const payload = data as BackendLessonCardsData
-      cards.value = (payload.cards ?? []).map(mapBackendCardToDomain)
-      lessonName.value = payload.lessonName ?? payload.lesson_name ?? ''
+      const parsedLessonId = parseNumericIdOrThrow(id, '课程 ID')
+      const { data } = await fetchStudySession({ lessonId: parsedLessonId })
+      cards.value = data.cards.map(mapStudySessionCardToDomain)
+      lessonName.value = data.lesson_name ?? data.lessonName ?? '学习任务'
+      sessionServerTime.value = data.server_time
+      sessionDate.value = data.session_date
+      sessionScope.value = data.scope
+      sessionQuota.value = data.quota
+      sessionSummary.value = data.summary
       currentIndex.value = 0
       resetCardState()
     } finally {
@@ -133,37 +147,14 @@ export const useStudyStore = defineStore('study', () => {
     asyncSubmitState.value = 'idle'
     submissionId.value = null
     lastFeedbackV2.value = null
+    lastRatingResponse.value = null
     resetTimestampAudio()
   }
 
   /** @deprecated Use createFeedbackSubmission + submitCardRating instead */
-  async function submitCardReview(rating: Rating): Promise<'next' | 'summary'> {
+  async function submitCardReview(_rating: FsrsRating): Promise<'next' | 'summary'> {
     if (!lessonId.value || !currentCard.value) throw new Error('No active lesson')
-
-    const parsedLessonId = parseNumericIdOrThrow(lessonId.value, '课程 ID')
-    const parsedCardId = parseNumericIdOrThrow(currentCard.value.id, '卡片 ID')
-
-    submitState.value = 'submitting'
-    try {
-      const { data } = await submitReview({
-        lessonId: parsedLessonId,
-        cardId: parsedCardId,
-        rating,
-        userAudio: userAudioBase64.value || '',
-        audioFormat: 'wav',
-      })
-      lastFeedback.value = data
-      submitState.value = 'success'
-
-      if (isLastCard.value) {
-        return 'summary'
-      }
-
-      return 'next'
-    } catch {
-      submitState.value = 'failed'
-      throw new Error('提交失败，请重试')
-    }
+    throw new Error('旧版同步评分提交流程已停用')
   }
 
   async function createFeedbackSubmission(
@@ -205,14 +196,29 @@ export const useStudyStore = defineStore('study', () => {
     }
   }
 
-  async function submitCardRating(rating: Rating): Promise<'next' | 'summary'> {
+  async function submitCardRating(rating: FsrsRating): Promise<'next' | 'summary'> {
     if (!submissionId.value) {
       throw new Error('No active submission')
     }
 
     submitState.value = 'submitting'
     try {
-      await submitRating(submissionId.value, { rating })
+      const { data } = await submitRating(submissionId.value, { rating })
+      lastRatingResponse.value = data
+
+      if (currentCard.value) {
+        const nextCards = [...cards.value]
+        nextCards[currentIndex.value] = {
+          ...currentCard.value,
+          cardState: data.srs.state,
+          dueAt: resolveDueAt(data.srs),
+          isNewCard: data.srs.is_new_card ?? false,
+          lastReviewAt:
+            data.srs.last_review_at ?? currentCard.value.lastReviewAt ?? new Date().toISOString(),
+        }
+        cards.value = nextCards
+      }
+
       submitState.value = 'success'
       if (isLastCard.value) {
         return 'summary'
@@ -268,10 +274,17 @@ export const useStudyStore = defineStore('study', () => {
     }
   })
 
+  const loadLessonCards = loadStudySession
+
   return {
     lessonId,
     lessonName,
     cards,
+    sessionServerTime,
+    sessionDate,
+    sessionScope,
+    sessionQuota,
+    sessionSummary,
     currentIndex,
     isFlipped,
     recordingState,
@@ -300,9 +313,11 @@ export const useStudyStore = defineStore('study', () => {
     asyncSubmitState,
     submissionId,
     lastFeedbackV2,
+    lastRatingResponse,
     createFeedbackSubmission,
     submitCardRating,
     jumpToTimestamp,
     resetTimestampAudio,
+    loadStudySession,
   }
 })

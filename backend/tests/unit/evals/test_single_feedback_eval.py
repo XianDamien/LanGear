@@ -41,7 +41,7 @@ def test_export_single_feedback_dataset_creates_local_sample_archive(
     Base.metadata.create_all(bind=engine)
 
     with SessionLocal() as session:
-        sample_card_with_srs = create_test_card_with_srs(session, state="new")
+        sample_card_with_srs = create_test_card_with_srs(session)
         card = sample_card_with_srs["card"]
         lesson = sample_card_with_srs["lesson"]
         review_log = create_test_review_log(
@@ -110,7 +110,7 @@ def test_export_single_feedback_dataset_from_cards_creates_reference_only_sample
     Base.metadata.create_all(bind=engine)
 
     with SessionLocal() as session:
-        sample_card_with_srs = create_test_card_with_srs(session, state="new")
+        sample_card_with_srs = create_test_card_with_srs(session)
         card = sample_card_with_srs["card"]
         lesson = sample_card_with_srs["lesson"]
         card.audio_path = "lessons/ref-audio.mp3"

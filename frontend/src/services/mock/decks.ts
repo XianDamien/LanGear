@@ -3,7 +3,7 @@ import type { DeckTreeResponse, LessonCardsResponse } from '@/types/api'
 
 const mockTree: Deck[] = [
   {
-    id: 's1',
+    id: '1',
     name: '新概念英语 2',
     description: '经典教材',
     totalCards: 96,
@@ -13,7 +13,7 @@ const mockTree: Deck[] = [
     type: 'source',
     children: [
       {
-        id: 'u1',
+        id: '101',
         name: 'Unit 1 - 基础篇',
         description: '',
         totalCards: 48,
@@ -21,10 +21,10 @@ const mockTree: Deck[] = [
         reviewCards: 8,
         completedCards: 37,
         type: 'unit',
-        parentId: 's1',
+        parentId: '1',
         children: [
           {
-            id: 'l1',
+            id: '1001',
             name: 'Lesson 1 - A private conversation',
             description: '',
             totalCards: 6,
@@ -32,10 +32,10 @@ const mockTree: Deck[] = [
             reviewCards: 3,
             completedCards: 1,
             type: 'lesson',
-            parentId: 'u1',
+            parentId: '101',
           },
           {
-            id: 'l2',
+            id: '1002',
             name: 'Lesson 2 - Breakfast or lunch?',
             description: '',
             totalCards: 5,
@@ -43,12 +43,12 @@ const mockTree: Deck[] = [
             reviewCards: 2,
             completedCards: 2,
             type: 'lesson',
-            parentId: 'u1',
+            parentId: '101',
           },
         ],
       },
       {
-        id: 'u2',
+        id: '102',
         name: 'Unit 2 - 进阶篇',
         description: '',
         totalCards: 48,
@@ -56,10 +56,10 @@ const mockTree: Deck[] = [
         reviewCards: 4,
         completedCards: 42,
         type: 'unit',
-        parentId: 's1',
+        parentId: '1',
         children: [
           {
-            id: 'l3',
+            id: '1003',
             name: 'Lesson 3 - Please send me a card',
             description: '',
             totalCards: 4,
@@ -67,14 +67,14 @@ const mockTree: Deck[] = [
             reviewCards: 2,
             completedCards: 2,
             type: 'lesson',
-            parentId: 'u2',
+            parentId: '102',
           },
         ],
       },
     ],
   },
   {
-    id: 's2',
+    id: '2',
     name: '雅思听力 第1章',
     description: '剑桥雅思',
     totalCards: 40,
@@ -84,7 +84,7 @@ const mockTree: Deck[] = [
     type: 'source',
     children: [
       {
-        id: 'u3',
+        id: '201',
         name: 'Section 1',
         description: '',
         totalCards: 20,
@@ -92,10 +92,10 @@ const mockTree: Deck[] = [
         reviewCards: 0,
         completedCards: 15,
         type: 'unit',
-        parentId: 's2',
+        parentId: '2',
         children: [
           {
-            id: 'l4',
+            id: '2001',
             name: 'Test 1 - Part 1',
             description: '',
             totalCards: 10,
@@ -103,7 +103,7 @@ const mockTree: Deck[] = [
             reviewCards: 0,
             completedCards: 7,
             type: 'lesson',
-            parentId: 'u3',
+            parentId: '201',
           },
         ],
       },
@@ -114,24 +114,32 @@ const mockTree: Deck[] = [
 export const mockDeckTree: DeckTreeResponse = { tree: mockTree }
 
 export const mockLessonCards: Record<string, LessonCardsResponse> = {
-  l1: {
-    lessonId: 'l1',
+  '1001': {
+    lessonId: '1001',
     lessonName: 'Lesson 1 - A private conversation',
     cards: [
       {
-        id: 'c1',
+        id: '2001',
         frontAudio: '',
         backText: 'The quick brown fox jumps over the lazy dog.',
         backTranslation: '这只敏捷的棕色狐狸跳过了懒惰的狗。',
         difficulty: 1,
+        cardState: 'learning',
+        isNewCard: true,
+        lastReviewAt: null,
+        dueAt: null,
         grammarInfo: { nouns: ['fox', 'dog'], verbs: ['jumps'] },
       },
       {
-        id: 'c2',
+        id: '2002',
         frontAudio: '',
         backText: 'Learning a language requires patience and practice.',
         backTranslation: '学习语言需要耐心和练习。',
         difficulty: 2,
+        cardState: 'review',
+        isNewCard: false,
+        lastReviewAt: '2026-03-21T10:00:00+08:00',
+        dueAt: '2026-03-23T09:00:00+08:00',
         grammarInfo: {
           nouns: ['language', 'patience', 'practice'],
           verbs: ['requires', 'learning'],
@@ -139,52 +147,68 @@ export const mockLessonCards: Record<string, LessonCardsResponse> = {
       },
     ],
   },
-  l2: {
-    lessonId: 'l2',
+  '1002': {
+    lessonId: '1002',
     lessonName: 'Lesson 2 - Breakfast or lunch?',
     cards: [
       {
-        id: 'c3',
+        id: '2003',
         frontAudio: '',
         backText: 'It was Sunday and I never get up early on Sundays.',
         backTranslation: '那是星期天，我星期天从不早起。',
         difficulty: 1,
+        cardState: 'learning',
+        isNewCard: false,
+        lastReviewAt: '2026-03-22T07:30:00+08:00',
+        dueAt: '2026-03-22T12:30:00+08:00',
         grammarInfo: { nouns: ['sunday', 'sundays'], verbs: ['get'] },
       },
       {
-        id: 'c4',
+        id: '2004',
         frontAudio: '',
         backText: 'I sometimes stay in bed until lunchtime.',
         backTranslation: '有时候我会在床上待到午饭时间。',
         difficulty: 1,
+        cardState: 'relearning',
+        isNewCard: false,
+        lastReviewAt: '2026-03-22T08:15:00+08:00',
+        dueAt: '2026-03-22T10:15:00+08:00',
         grammarInfo: { nouns: ['bed', 'lunchtime'], verbs: ['stay'] },
       },
     ],
   },
-  l3: {
-    lessonId: 'l3',
+  '1003': {
+    lessonId: '1003',
     lessonName: 'Lesson 3 - Please send me a card',
     cards: [
       {
-        id: 'c5',
+        id: '2005',
         frontAudio: '',
         backText: 'Postcards always spoil my holidays.',
         backTranslation: '明信片总是破坏我的假期。',
         difficulty: 2,
+        cardState: 'review',
+        isNewCard: false,
+        lastReviewAt: '2026-03-20T16:00:00+08:00',
+        dueAt: '2026-03-24T09:00:00+08:00',
         grammarInfo: { nouns: ['postcards', 'holidays'], verbs: ['spoil'] },
       },
     ],
   },
-  l4: {
-    lessonId: 'l4',
+  '2001': {
+    lessonId: '2001',
     lessonName: 'Test 1 - Part 1',
     cards: [
       {
-        id: 'c6',
+        id: '3001',
         frontAudio: '',
         backText: 'Good morning, I would like to book a room please.',
         backTranslation: '早上好，我想预订一个房间。',
         difficulty: 1,
+        cardState: 'learning',
+        isNewCard: true,
+        lastReviewAt: null,
+        dueAt: null,
         grammarInfo: { nouns: ['morning', 'room'], verbs: ['book'] },
       },
     ],

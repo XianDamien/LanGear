@@ -26,7 +26,33 @@ class SubmissionRequest(BaseModel):
 class RatingRequest(BaseModel):
     """Request model for submitting a rating for an existing submission."""
 
-    rating: str  # again/hard/good/easy
+    rating: int | str
+
+
+RATING_LABEL_MAP = {
+    1: "again",
+    2: "hard",
+    3: "good",
+    4: "easy",
+}
+
+
+def _normalize_rating(rating: int | str) -> str:
+    """Normalize legacy string and FSRS numeric ratings to labels."""
+    if isinstance(rating, int):
+        normalized = RATING_LABEL_MAP.get(rating)
+        if normalized is None:
+            raise ValueError("Invalid rating. Must be one of: 1, 2, 3, 4")
+        return normalized
+
+    normalized = rating.strip().lower()
+    if normalized in RATING_LABEL_MAP.values():
+        return normalized
+
+    if normalized.isdigit():
+        return _normalize_rating(int(normalized))
+
+    raise ValueError("Invalid rating. Must be one of: again, hard, good, easy")
 
 
 @router.post("/submissions")
@@ -111,6 +137,10 @@ def submit_rating(
 
     Rating is decoupled from AI feedback generation. Submissions can be created
     without rating to start ASR+LLM evaluation immediately.
+
+    Response contract:
+    - data.srs.state only returns native FSRS states:
+      learning | review | relearning
     """
     request_id = str(uuid.uuid4())
 
@@ -118,7 +148,7 @@ def submit_rating(
         review_service = ReviewService(db)
         result = review_service.submit_submission_rating(
             submission_id=submission_id,
-            rating=request.rating,
+            rating=_normalize_rating(request.rating),
         )
         return {
             "request_id": request_id,
@@ -191,6 +221,8 @@ def get_submission_result(
             - submission_id: Submission ID
             - status: "processing" | "completed" | "failed"
             - [if completed]: transcription, feedback, srs
+            - [if completed and srs present]: srs.state only returns
+              learning | review | relearning
             - [if failed]: error_code, error_message
 
     Raises:

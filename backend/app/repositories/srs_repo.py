@@ -4,7 +4,11 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.models.fsrs_review_log import FSRSReviewLog
 from app.models.user_card_srs import UserCardSRS
+from app.utils.timezone import to_storage_utc, utc_now_naive
+
+VALID_SRS_STATES = {"learning", "review", "relearning"}
 
 
 class SRSRepository:
@@ -33,45 +37,79 @@ class SRSRepository:
         self,
         card_id: int,
         state: str,
-        stability: float,
-        difficulty: float,
+        step: int | None,
+        stability: float | None,
+        difficulty: float | None,
         due: datetime,
+        last_review: datetime | None,
     ) -> UserCardSRS:
-        """Create or update SRS state for a card.
+        """Create or update a native FSRS card snapshot."""
+        if state not in VALID_SRS_STATES:
+            raise ValueError(f"Unsupported native FSRS state: {state}")
 
-        Args:
-            card_id: Card ID
-            state: FSRS state (new/learning/review/relearning)
-            stability: FSRS stability parameter
-            difficulty: FSRS difficulty parameter
-            due: Next review due time
+        normalized_step = None if state == "review" else (0 if step is None else step)
+        storage_due = to_storage_utc(due)
+        storage_last_review = (
+            to_storage_utc(last_review)
+            if last_review is not None
+            else None
+        )
 
-        Returns:
-            UserCardSRS object
-        """
         srs = self.get_by_card_id(card_id)
 
         if srs is None:
-            # Create new SRS state
             srs = UserCardSRS(
                 card_id=card_id,
                 state=state,
+                step=normalized_step,
                 stability=stability,
                 difficulty=difficulty,
-                due=due,
-                last_review=datetime.utcnow(),
+                due=storage_due,
+                last_review=storage_last_review,
             )
             self.db.add(srs)
         else:
-            # Update existing SRS state
             srs.state = state
+            srs.step = normalized_step
             srs.stability = stability
             srs.difficulty = difficulty
-            srs.due = due
-            srs.last_review = datetime.utcnow()
+            srs.due = storage_due
+            srs.last_review = storage_last_review
 
         self.db.flush()
         return srs
+
+    def create_review_log(
+        self,
+        card_id: int,
+        rating: int,
+        review_datetime: datetime,
+        review_duration: int | None = None,
+    ) -> FSRSReviewLog:
+        """Persist a native FSRS review-log row."""
+        if rating not in {1, 2, 3, 4}:
+            raise ValueError(f"Unsupported native FSRS rating: {rating}")
+
+        review_log = FSRSReviewLog(
+            card_id=card_id,
+            rating=rating,
+            review_datetime=to_storage_utc(review_datetime),
+            review_duration=review_duration,
+        )
+        self.db.add(review_log)
+        self.db.flush()
+        return review_log
+
+    @staticmethod
+    def is_new_bucket(srs: UserCardSRS | None) -> bool:
+        """Whether a card still belongs to the business new-card bucket."""
+        return srs is None or srs.last_review is None
+
+    def derive_card_state(self, srs: UserCardSRS | None) -> str:
+        """Return the API-facing native FSRS state without overloading `new`."""
+        if srs is None or srs.last_review is None:
+            return "learning"
+        return srs.state
 
     def count_due_by_lesson(self, lesson_id: int) -> int:
         """Count cards due for review in a lesson.
@@ -82,15 +120,74 @@ class SRSRepository:
         Returns:
             Number of cards due for review
         """
+        return self.count_due_cards(lesson_ids=[lesson_id])
+
+    def get_due_cards(
+        self,
+        lesson_ids: list[int] | None = None,
+        states: list[str] | None = None,
+        limit: int | None = None,
+        as_of=None,
+    ) -> list[tuple["Card", UserCardSRS]]:
+        """Get due non-new cards joined with their card records."""
         from app.models.card import Card
 
-        now = datetime.utcnow()
-        return (
+        now = as_of if as_of is not None else utc_now_naive()
+        query = (
+            self.db.query(Card, UserCardSRS)
+            .join(UserCardSRS, UserCardSRS.card_id == Card.id)
+            .filter(
+                UserCardSRS.due <= now,
+                UserCardSRS.last_review.isnot(None),
+            )
+            .order_by(UserCardSRS.due, Card.deck_id, Card.card_index, Card.id)
+        )
+
+        if lesson_ids is not None:
+            if not lesson_ids:
+                return []
+            query = query.filter(Card.deck_id.in_(lesson_ids))
+
+        if states is not None:
+            if not states:
+                return []
+            query = query.filter(UserCardSRS.state.in_(states))
+
+        if limit is not None:
+            query = query.limit(limit)
+
+        return query.all()
+
+    def count_due_cards(
+        self,
+        lesson_ids: list[int] | None = None,
+        states: list[str] | None = None,
+        as_of=None,
+    ) -> int:
+        """Count due cards while excluding pure-new states."""
+        from app.models.card import Card
+
+        now = as_of if as_of is not None else utc_now_naive()
+        query = (
             self.db.query(UserCardSRS)
             .join(Card, Card.id == UserCardSRS.card_id)
-            .filter(Card.deck_id == lesson_id, UserCardSRS.due <= now)
-            .count()
+            .filter(
+                UserCardSRS.due <= now,
+                UserCardSRS.last_review.isnot(None),
+            )
         )
+
+        if lesson_ids is not None:
+            if not lesson_ids:
+                return 0
+            query = query.filter(Card.deck_id.in_(lesson_ids))
+
+        if states is not None:
+            if not states:
+                return 0
+            query = query.filter(UserCardSRS.state.in_(states))
+
+        return query.count()
 
     def count_completed_by_lesson(self, lesson_id: int) -> int:
         """Count cards that have been reviewed at least once.
@@ -106,6 +203,9 @@ class SRSRepository:
         return (
             self.db.query(UserCardSRS)
             .join(Card, Card.id == UserCardSRS.card_id)
-            .filter(Card.deck_id == lesson_id)
+            .filter(
+                Card.deck_id == lesson_id,
+                UserCardSRS.last_review.isnot(None),
+            )
             .count()
         )

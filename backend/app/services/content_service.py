@@ -9,6 +9,7 @@ from app.repositories.card_repo import CardRepository
 from app.repositories.deck_repo import DeckRepository
 from app.repositories.review_log_repo import ReviewLogRepository
 from app.repositories.srs_repo import SRSRepository
+from app.utils.timezone import shanghai_now, to_shanghai
 
 
 class ContentService:
@@ -27,6 +28,7 @@ class ContentService:
         total_cards = self.card_repo.count_by_lesson(lesson_id)
         completed_cards = self.srs_repo.count_completed_by_lesson(lesson_id)
         due_cards = self.srs_repo.count_due_by_lesson(lesson_id)
+        new_cards = max(0, total_cards - completed_cards)
 
         return {
             "id": lesson_id,
@@ -34,6 +36,7 @@ class ContentService:
             "total_cards": total_cards,
             "completed_cards": completed_cards,
             "due_cards": due_cards,
+            "new_cards": new_cards,
         }
 
     def _build_unit_node(self, unit_id: int, unit_title: str) -> dict[str, Any]:
@@ -58,13 +61,26 @@ class ContentService:
         except Exception:
             return None
 
+    def _get_lesson_srs_map(self, lesson_id: int) -> dict[int, Any]:
+        """Get lesson SRS rows keyed by card_id."""
+        from app.models.card import Card
+        from app.models.user_card_srs import UserCardSRS
+
+        rows = (
+            self.db.query(UserCardSRS)
+            .join(Card, Card.id == UserCardSRS.card_id)
+            .filter(Card.deck_id == lesson_id)
+            .all()
+        )
+        return {row.card_id: row for row in rows}
+
     def get_deck_tree(self) -> dict[str, Any]:
         """Get the complete deck tree: sources -> units -> lessons.
 
         Returns:
             Dictionary with:
             - sources: List of source decks with nested units and lessons
-                Each lesson includes: total_cards, completed_cards, due_cards
+                Each lesson includes: total_cards, completed_cards, due_cards, new_cards
 
         Example:
             {
@@ -82,7 +98,8 @@ class ContentService:
                                         "title": "Lesson 1",
                                         "total_cards": 24,
                                         "completed_cards": 8,
-                                        "due_cards": 5
+                                        "due_cards": 5,
+                                        "new_cards": 16
                                     }
                                 ]
                             }
@@ -132,12 +149,19 @@ class ContentService:
 
         # Get all cards ordered by card_index
         cards = self.card_repo.get_by_lesson(lesson_id)
+        srs_map = self._get_lesson_srs_map(lesson_id)
+        server_time = shanghai_now()
 
         # Get latest user recording OSS paths per card
         oss_paths = self.review_log_repo.get_latest_oss_paths_by_lesson(lesson_id)
 
         result_cards = []
         for card in cards:
+            srs = srs_map.get(card.id)
+            card_state = self.srs_repo.derive_card_state(srs)
+            is_new_card = self.srs_repo.is_new_bucket(srs)
+            due_at = server_time if is_new_card else to_shanghai(srs.due)
+            last_review_at = None if srs is None or srs.last_review is None else to_shanghai(srs.last_review)
             result_cards.append(
                 {
                     "id": card.id,
@@ -146,6 +170,10 @@ class ContentService:
                     "back_text": card.back_text,
                     "audio_path": self._safe_signed_audio_url(card.audio_path),
                     "oss_audio_path": oss_paths.get(card.id),
+                    "card_state": card_state,
+                    "is_new_card": is_new_card,
+                    "due_at": due_at.isoformat(),
+                    "last_review_at": None if last_review_at is None else last_review_at.isoformat(),
                 }
             )
 

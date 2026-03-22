@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import OSS from 'ali-oss'
 import { getSTSToken } from '@/services/api/study'
 import { normalizeOssRegion } from '@/services/ossRegion'
+import { buildE2EOssAudioPath, isE2EMode } from '@/utils/e2e'
 
 export function useRecorder() {
   const isRecording = ref(false)
@@ -23,6 +24,24 @@ export function useRecorder() {
   let muteGainNode: GainNode | null = null
 
   async function startRecording(onRealtimePcmChunk?: (pcmBase64: string) => void): Promise<boolean> {
+    if (isE2EMode) {
+      const blob = new Blob(['langear-e2e-audio'], { type: 'audio/webm' })
+      recordingBlob.value = blob
+      if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
+      audioUrl.value = URL.createObjectURL(blob)
+      isRecording.value = true
+      uploadState.value = 'idle'
+      uploadProgress.value = 0
+
+      if (onRealtimePcmChunk) {
+        window.setTimeout(() => {
+          if (isRecording.value) onRealtimePcmChunk('ZTItdGVzdC1wY20=')
+        }, 50)
+      }
+
+      return true
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       mediaStream = stream
@@ -60,6 +79,11 @@ export function useRecorder() {
   }
 
   function stopRecording() {
+    if (isE2EMode) {
+      isRecording.value = false
+      return
+    }
+
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
       mediaRecorder.stop()
       isRecording.value = false
@@ -174,6 +198,15 @@ export function useRecorder() {
     if (!blobToUpload) {
       ElMessage.error('没有录音数据')
       return null
+    }
+
+    if (isE2EMode) {
+      uploadState.value = 'uploading'
+      uploadProgress.value = 100
+      const path = buildE2EOssAudioPath(cardId)
+      ossAudioPath.value = path
+      uploadState.value = 'uploaded'
+      return path
     }
 
     uploadState.value = 'uploading'

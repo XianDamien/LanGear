@@ -16,8 +16,8 @@ export function mockLessonSummary(lessonId: string): LessonSummary {
       '练习长句的换气节奏',
     ],
     cardResults: [
-      { cardId: 'c1', score: 85, feedback: '发音清晰，语速适中' },
-      { cardId: 'c2', score: 78, feedback: '注意 "requires" 的重音位置' },
+      { cardId: '2001', score: 85, feedback: '发音清晰，语速适中' },
+      { cardId: '2002', score: 78, feedback: '注意 "requires" 的重音位置' },
     ],
   }
 }

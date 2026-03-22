@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { buildE2ERealtimeSessionId, E2E_TRANSCRIPT, isE2EMode } from '@/utils/e2e'
 
 export type RealtimeAsrStatus =
   | 'idle'
@@ -168,6 +169,12 @@ export function useRealtimeAsr() {
     seq = 0
     startTs = Date.now()
 
+    if (isE2EMode) {
+      realtimeSessionId.value = buildE2ERealtimeSessionId(lessonId, cardId)
+      status.value = 'streaming'
+      return true
+    }
+
     return await new Promise((resolve) => {
       const wsUrl = buildRealtimeWsUrl(lessonId, cardId)
       const ws = new WebSocket(wsUrl)
@@ -217,6 +224,11 @@ export function useRealtimeAsr() {
   }
 
   function appendAudioChunk(chunkBase64: string) {
+    if (isE2EMode) {
+      partialTranscript.value = E2E_TRANSCRIPT
+      status.value = 'streaming'
+      return
+    }
     if (!socket || socket.readyState !== WebSocket.OPEN) return
     if (status.value === 'failed') return
 
@@ -235,6 +247,13 @@ export function useRealtimeAsr() {
   }
 
   async function commit(): Promise<boolean> {
+    if (isE2EMode) {
+      finalTranscript.value = E2E_TRANSCRIPT
+      partialTranscript.value = E2E_TRANSCRIPT
+      status.value = 'ready'
+      return true
+    }
+
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       handleError({
         code: 'REALTIME_SESSION_FAILED',
@@ -264,6 +283,11 @@ export function useRealtimeAsr() {
   }
 
   function endSession() {
+    if (isE2EMode) {
+      if (status.value !== 'failed') status.value = 'idle'
+      return
+    }
+
     endingSession = true
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'session.end' }))
