@@ -264,7 +264,7 @@ class TestDecksRouter:
             or "audio%2Fnce2%2Funit1%2Flesson1%2F0.wav" in audio_path
         )
         assert card["card_index"] == 0
-        assert card["card_state"] == "new"
+        assert card["card_state"] == "learning"
         assert card["is_new_card"] is True
         assert card["last_review_at"] is None
         assert datetime.fromisoformat(card["due_at"]).utcoffset() == timedelta(hours=8)

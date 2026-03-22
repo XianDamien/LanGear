@@ -114,17 +114,56 @@ class TestStudySessionRouter:
         assert response.status_code == 200
         data = response.json()["data"]
         assert data["summary"]["due_count"] == 2
-        assert [card["card_state"] for card in data["cards"]] == ["learning", "review", "new", "new"]
+        assert [card["card_state"] for card in data["cards"]] == ["learning", "review", "learning", "learning"]
         assert [card["is_new_card"] for card in data["cards"]] == [False, False, True, True]
-        assert all(card["is_new_card"] == (card["card_state"] == "new") for card in data["cards"])
+        assert data["cards"][0]["last_review_at"] is not None
+        assert data["cards"][1]["last_review_at"] is not None
+        assert data["cards"][2]["last_review_at"] is None
+        assert data["cards"][3]["last_review_at"] is None
         assert data["cards"][2]["id"] == cards[3].id
-        assert data["cards"][2]["card_state"] == "new"
+        assert data["cards"][2]["card_state"] == "learning"
         assert data["cards"][0]["oss_audio_path"] == "recordings/20260321/example.webm"
         assert datetime.fromisoformat(data["server_time"]).utcoffset() == timedelta(hours=8)
         assert all(
             datetime.fromisoformat(card["due_at"]).utcoffset() == timedelta(hours=8)
             for card in data["cards"]
         )
+        assert all(
+            card["last_review_at"] is None
+            or datetime.fromisoformat(card["last_review_at"]).utcoffset() == timedelta(hours=8)
+            for card in data["cards"]
+        )
+
+    def test_get_study_session_does_not_schedule_cards_missing_srs_snapshot(
+        self,
+        client: TestClient,
+        test_db: Session,
+        sample_deck_tree,
+    ):
+        """Cards without an SRS row must not be treated as new cards."""
+        from app.models import UserCardSRS
+
+        lesson = sample_deck_tree["lesson"]
+        cards = sample_deck_tree["cards"]
+
+        test_db.add_all(
+            [
+                Setting(key="daily_new_limit", value=10),
+                Setting(key="daily_review_limit", value=0),
+            ]
+        )
+
+        missing_srs = test_db.query(UserCardSRS).filter(UserCardSRS.card_id == cards[0].id).one()
+        test_db.delete(missing_srs)
+        test_db.commit()
+
+        response = client.get(f"/api/v1/study/session?lesson_id={lesson.id}")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        returned_ids = [card["id"] for card in data["cards"]]
+        assert cards[0].id not in returned_ids
+        assert len(returned_ids) == 4
 
     def test_get_study_session_source_scope_overrides_settings(
         self,

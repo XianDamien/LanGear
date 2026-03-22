@@ -137,7 +137,7 @@ class ReviewService:
 
         current_srs = self.srs_repo.get_by_card_id(card_id)
         card_state = self.srs_repo.derive_card_state(current_srs)
-        quota_bucket = "new" if card_state == "new" else "review"
+        quota_bucket = "new" if self.srs_repo.is_new_bucket(current_srs) else "review"
 
         # Create review_log with status='processing'
         log_submission_trace(

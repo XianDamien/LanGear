@@ -34,12 +34,13 @@ def get_study_session(
 ):
     """Return the scheduled study session for the current Beijing business day.
 
-    Response cards keep public card_state values:
-    new | learning | review | relearning
+    Response cards keep public native FSRS card_state values:
+    learning | review | relearning
 
     Each card also includes:
-    - is_new_card: whether the derived card_state is new
+    - is_new_card: whether the card still belongs to the derived initial-card bucket
     - due_at: server_time for new cards, native SRS due for others
+    - last_review_at: null for new cards, last completed review time otherwise
     """
     request_id = str(uuid.uuid4())
 

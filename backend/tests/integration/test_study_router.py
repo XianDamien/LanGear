@@ -211,7 +211,7 @@ class TestStudyRouter:
         assert review_log.deck_id == lesson_id
         assert review_log.card_id == card_id
         assert review_log.ai_feedback_json["study_session"]["quota_bucket"] == "new"
-        assert review_log.ai_feedback_json["study_session"]["scheduled_state"] == "new"
+        assert review_log.ai_feedback_json["study_session"]["scheduled_state"] == "learning"
 
     def test_submit_submission_uses_review_bucket_for_reviewed_card(
         self,

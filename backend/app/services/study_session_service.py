@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.adapters.oss_adapter import OSSAdapter
+from app.repositories.card_repo import CardRepository
 from app.repositories.deck_repo import DeckRepository
 from app.repositories.review_log_repo import ReviewLogRepository
 from app.repositories.settings_repo import SettingsRepository
@@ -18,6 +19,7 @@ class StudySessionService:
     def __init__(self, db: Session):
         """Initialize service dependencies."""
         self.db = db
+        self.card_repo = CardRepository(db)
         self.deck_repo = DeckRepository(db)
         self.review_log_repo = ReviewLogRepository(db)
         self.settings_repo = SettingsRepository(db)
@@ -167,28 +169,13 @@ class StudySessionService:
         limit: int,
     ) -> list[tuple[Any, Any]]:
         """Get cards that remain in the derived new bucket."""
-        from app.models.card import Card
-        from app.models.user_card_srs import UserCardSRS
-
         if not lesson_ids or limit <= 0:
             return []
 
-        rows = (
-            self.db.query(Card, UserCardSRS)
-            .outerjoin(UserCardSRS, UserCardSRS.card_id == Card.id)
-            .filter(Card.deck_id.in_(lesson_ids))
-            .order_by(Card.deck_id, Card.card_index, Card.id)
-            .all()
+        return self.card_repo.get_new_cards(
+            lesson_ids=lesson_ids,
+            limit=limit,
         )
-
-        new_cards: list[tuple[Any, Any]] = []
-        for card, srs in rows:
-            if self.srs_repo.is_new_bucket(srs):
-                new_cards.append((card, srs))
-                if len(new_cards) >= limit:
-                    break
-
-        return new_cards
 
     def _serialize_card(
         self,
@@ -199,8 +186,9 @@ class StudySessionService:
     ) -> dict[str, Any]:
         """Serialize a card row for the study session response."""
         card_state = self.srs_repo.derive_card_state(srs)
-        is_new_card = card_state == "new"
+        is_new_card = self.srs_repo.is_new_bucket(srs)
         due_at = server_time if is_new_card else to_shanghai(srs.due)
+        last_review_at = None if srs is None or srs.last_review is None else to_shanghai(srs.last_review)
 
         return {
             "id": card.id,
@@ -213,4 +201,5 @@ class StudySessionService:
             "card_state": card_state,
             "is_new_card": is_new_card,
             "due_at": due_at.isoformat(),
+            "last_review_at": None if last_review_at is None else last_review_at.isoformat(),
         }

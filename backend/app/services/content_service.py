@@ -159,7 +159,7 @@ class ContentService:
         for card in cards:
             srs = srs_map.get(card.id)
             card_state = self.srs_repo.derive_card_state(srs)
-            is_new_card = card_state == "new"
+            is_new_card = self.srs_repo.is_new_bucket(srs)
             due_at = server_time if is_new_card else to_shanghai(srs.due)
             last_review_at = None if srs is None or srs.last_review is None else to_shanghai(srs.last_review)
             result_cards.append(
