@@ -9,7 +9,8 @@ import type {
   SubmitRatingRequest,
   SubmitRatingResponse,
   SubmitReviewRequestV1,
-  SubmitReviewResponse
+  SubmitReviewResponse,
+  StudySessionResponse,
 } from '@/types/api'
 
 export function getSTSToken() {
@@ -35,6 +36,17 @@ export async function getOSSSignedUrl(ossPath: string): Promise<string> {
 
 export function submitReviewAsync(payload: SubmitReviewRequest) {
   return http.post<SubmitReviewResponseAsync>('/study/submissions', payload)
+}
+
+export function fetchStudySession(params?: { sourceScope?: number[]; lessonId?: number }) {
+  return http.get<StudySessionResponse>('/study/session', {
+    params: {
+      ...(params?.sourceScope?.length
+        ? { source_scope: params.sourceScope.join(',') }
+        : {}),
+      ...(params?.lessonId ? { lesson_id: params.lessonId } : {}),
+    },
+  })
 }
 
 export function submitRating(submissionId: number, payload: SubmitRatingRequest) {

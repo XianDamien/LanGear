@@ -90,13 +90,21 @@ class ReviewService:
                 "REALTIME_TRANSCRIPT_NOT_READY: realtime final transcript is not ready"
             )
 
+        current_srs = self.srs_repo.get_by_card_id(card_id)
+        quota_bucket = "new" if current_srs is None or current_srs.state == "new" else "review"
+
         # Create review_log with status='processing'
         review_log = self.review_log_repo.create(
             card_id=card_id,
             deck_id=lesson_id,
             rating=None,
             result_type="single",
-            ai_feedback_json={},  # Empty initially, will be filled by background task
+            ai_feedback_json={
+                "study_session": {
+                    "quota_bucket": quota_bucket,
+                    "scheduled_state": current_srs.state if current_srs else "new",
+                }
+            },
         )
 
         # Commit to get the log ID
@@ -177,11 +185,13 @@ class ReviewService:
         return {
             "submission_id": submission_id,
             "rating": rating,
+            "rating_label": rating,
             "srs": {
                 "state": srs.state,
                 "difficulty": srs.difficulty,
                 "stability": srs.stability,
                 "due": srs.due.isoformat(),
+                "due_at": srs.due.isoformat(),
             },
         }
 

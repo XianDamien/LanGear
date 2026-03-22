@@ -6,7 +6,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import dashboard, decks, health, oss, realtime, settings as settings_router, study
+from app.routers import (
+    dashboard,
+    decks,
+    health,
+    oss,
+    realtime,
+    settings as settings_router,
+    study,
+    study_session,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -38,6 +47,7 @@ app.include_router(oss.router)
 app.include_router(decks.router)
 app.include_router(realtime.router)
 app.include_router(study.router)
+app.include_router(study_session.router)
 app.include_router(dashboard.router)
 app.include_router(settings_router.router)
 

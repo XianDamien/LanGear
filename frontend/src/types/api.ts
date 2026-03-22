@@ -1,4 +1,12 @@
-import type { Rating, DailyStats, Deck, Card } from './domain'
+import type {
+  FsrsRating,
+  Rating,
+  RatingLabel,
+  CardState,
+  DailyStats,
+  Deck,
+  Card,
+} from './domain'
 
 export interface ApiError {
   code: string
@@ -74,26 +82,29 @@ export interface PollingResponseCompleted {
     issues: FeedbackIssue[]
   }
   srs?: {
-    state: string
+    state: CardState | string
     difficulty: number
     stability: number
-    due: string
+    due?: string
+    due_at?: string
   }
   oss_audio_path?: string | null
 }
 
 export interface SubmitRatingRequest {
-  rating: Rating
+  rating: FsrsRating | RatingLabel
 }
 
 export interface SubmitRatingResponse {
   submission_id: number
-  rating: Rating
+  rating: FsrsRating | RatingLabel
+  rating_label?: RatingLabel
   srs: {
-    state: string
+    state: CardState | string
     difficulty: number
     stability: number
-    due: string
+    due?: string
+    due_at?: string
   }
 }
 
@@ -135,11 +146,56 @@ export interface SubmitReviewResponse {
     overallScore: number
   }
   srs: {
-    state: string
+    state: CardState | string
     difficulty: number
     stability: number
     due: string
   }
+}
+
+export interface StudySessionScope {
+  source_ids?: number[]
+  source_scope?: number[]
+  lesson_id?: number | null
+}
+
+export interface StudySessionQuota {
+  daily_new_limit?: number
+  daily_review_limit?: number
+  new_remaining?: number
+  review_remaining?: number
+  new_used?: number
+  review_used?: number
+  [key: string]: number | null | undefined
+}
+
+export interface StudySessionSummary {
+  new_remaining: number
+  review_remaining: number
+  due_count: number
+}
+
+export interface StudySessionCardResponse {
+  id: string | number
+  lesson_id: string | number
+  card_index: number
+  front_text: string
+  back_text: string
+  audio_path?: string
+  oss_audio_path?: string | null
+  card_state: CardState
+  due_at?: string | null
+}
+
+export interface StudySessionResponse {
+  server_time: string
+  session_date: string
+  scope: StudySessionScope
+  quota: StudySessionQuota
+  summary: StudySessionSummary
+  cards: StudySessionCardResponse[]
+  lesson_name?: string
+  lessonName?: string
 }
 
 export interface DashboardData {

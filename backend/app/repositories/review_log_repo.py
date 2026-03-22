@@ -1,11 +1,12 @@
 """Review log repository for database operations."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.models.review_log import ReviewLog
+from app.utils.timezone import shanghai_day_window, utc_now_naive
 
 
 class ReviewLogRepository:
@@ -41,6 +42,7 @@ class ReviewLogRepository:
             rating=rating,
             result_type=result_type,
             ai_feedback_json=ai_feedback_json,
+            created_at=utc_now_naive(),
         )
         self.db.add(log)
         self.db.flush()
@@ -83,7 +85,7 @@ class ReviewLogRepository:
             .first()
         )
 
-    def count_reviews_by_date(self, date: datetime) -> int:
+    def count_reviews_by_date(self, date: date | datetime) -> int:
         """Count reviews on a specific date.
 
         Args:
@@ -92,18 +94,46 @@ class ReviewLogRepository:
         Returns:
             Number of reviews
         """
-        start = date.replace(hour=0, minute=0, second=0, microsecond=0)
-        end = start.replace(hour=23, minute=59, second=59, microsecond=999999)
+        start, end = shanghai_day_window(date)
 
         return (
             self.db.query(ReviewLog)
             .filter(
                 ReviewLog.result_type == "single",
                 ReviewLog.created_at >= start,
-                ReviewLog.created_at <= end,
+                ReviewLog.created_at < end,
             )
             .count()
         )
+
+    def count_quota_usage_by_date(self, value: date | datetime) -> dict[str, int]:
+        """Count new and review quota usage for a Shanghai business day."""
+        start, end = shanghai_day_window(value)
+        logs = (
+            self.db.query(ReviewLog)
+            .filter(
+                ReviewLog.result_type == "single",
+                ReviewLog.status != "failed",
+                ReviewLog.created_at >= start,
+                ReviewLog.created_at < end,
+            )
+            .all()
+        )
+
+        usage = {"new": 0, "review": 0}
+        for log in logs:
+            bucket = None
+            if isinstance(log.ai_feedback_json, dict):
+                study_session = log.ai_feedback_json.get("study_session")
+                if isinstance(study_session, dict):
+                    bucket = study_session.get("quota_bucket")
+
+            if bucket == "new":
+                usage["new"] += 1
+            else:
+                usage["review"] += 1
+
+        return usage
 
     def get_latest_oss_paths_by_lesson(self, lesson_id: int) -> dict[int, str]:
         """Get the latest oss_audio_path for each card in a lesson.
@@ -114,16 +144,22 @@ class ReviewLogRepository:
         Returns:
             Dictionary mapping card_id to oss_path string
         """
+        return self.get_latest_oss_paths_by_lesson_ids([lesson_id])
+
+    def get_latest_oss_paths_by_lesson_ids(self, lesson_ids: list[int]) -> dict[int, str]:
+        """Get the latest completed oss_audio_path for each card across lessons."""
         from sqlalchemy import func
 
-        # Subquery: latest completed review_log id per card
+        if not lesson_ids:
+            return {}
+
         subq = (
             self.db.query(
                 ReviewLog.card_id,
                 func.max(ReviewLog.id).label("max_id"),
             )
             .filter(
-                ReviewLog.deck_id == lesson_id,
+                ReviewLog.deck_id.in_(lesson_ids),
                 ReviewLog.result_type == "single",
                 ReviewLog.status == "completed",
                 ReviewLog.card_id.isnot(None),

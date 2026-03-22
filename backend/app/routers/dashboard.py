@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"])
 
 
 @router.get("")
-def get_dashboard():
+def get_dashboard(db: Session = Depends(get_db)):
     """Get dashboard statistics.
 
     Returns:
@@ -39,18 +39,10 @@ def get_dashboard():
     """
     request_id = str(uuid.uuid4())
 
-    # Note: Dashboard doesn't need db session for current implementation
-    # But we might add it later for more complex queries
-    from app.database import SessionLocal
+    dashboard_service = DashboardService(db)
+    stats = dashboard_service.get_dashboard_stats()
 
-    db = SessionLocal()
-    try:
-        dashboard_service = DashboardService(db)
-        stats = dashboard_service.get_dashboard_stats()
-
-        return {
-            "request_id": request_id,
-            "data": stats,
-        }
-    finally:
-        db.close()
+    return {
+        "request_id": request_id,
+        "data": stats,
+    }

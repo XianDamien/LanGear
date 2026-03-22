@@ -1,20 +1,26 @@
 <script setup lang="ts">
 import RetroButton from '@/components/ui/RetroButton.vue'
-import type { Rating } from '@/types/domain'
+import type { FsrsRating } from '@/types/domain'
 
 defineProps<{
   disabled?: boolean
 }>()
 
 const emit = defineEmits<{
-  grade: [rating: Rating]
+  grade: [rating: FsrsRating]
 }>()
 
-const buttons: { rating: Rating; label: string; interval: string; variant: 'danger' | 'secondary' | 'primary' | 'ghost'; extraClass?: string }[] = [
-  { rating: 'again', label: '再来', interval: '1m', variant: 'danger' },
-  { rating: 'hard', label: '困难', interval: '6m', variant: 'secondary' },
-  { rating: 'good', label: '良好', interval: '10m', variant: 'primary' },
-  { rating: 'easy', label: '轻松', interval: '4d', variant: 'ghost', extraClass: 'bg-blue-600 text-white hover:bg-blue-500' },
+const buttons: {
+  rating: FsrsRating
+  label: string
+  interval: string
+  variant: 'danger' | 'secondary' | 'primary' | 'ghost'
+  extraClass?: string
+}[] = [
+  { rating: 1, label: '再来', interval: '1m', variant: 'danger' },
+  { rating: 2, label: '困难', interval: '6m', variant: 'secondary' },
+  { rating: 3, label: '良好', interval: '10m', variant: 'primary' },
+  { rating: 4, label: '轻松', interval: '4d', variant: 'ghost', extraClass: 'bg-blue-600 text-white hover:bg-blue-500' },
 ]
 </script>
 

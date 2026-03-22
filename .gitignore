@@ -26,3 +26,6 @@ docs/*
 
 # Old output directories
 2_processed_output.old/
+
+# Local pnpm store
+.pnpm-store/
