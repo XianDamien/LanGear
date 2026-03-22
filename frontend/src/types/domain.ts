@@ -22,7 +22,7 @@ export interface Card {
   notes?: string
   difficulty: number
   ossAudioPath?: string | null
-  cardState?: CardBucketState
+  cardState?: FsrsState
   dueAt?: string | null
   isNewCard?: boolean
   lastReviewAt?: string | null
@@ -36,7 +36,6 @@ export type FsrsRating = 1 | 2 | 3 | 4
 export type RatingLabel = 'again' | 'hard' | 'good' | 'easy'
 export type Rating = RatingLabel
 export type FsrsState = 'learning' | 'review' | 'relearning'
-export type CardBucketState = 'new' | FsrsState
 
 export interface DailyStats {
   date: string

@@ -2,7 +2,6 @@ import type {
   FsrsRating,
   Rating,
   RatingLabel,
-  CardBucketState,
   FsrsState,
   DailyStats,
   Deck,
@@ -202,7 +201,7 @@ export interface StudySessionCardResponse {
   back_text: string
   audio_path?: string
   oss_audio_path?: string | null
-  card_state: CardBucketState
+  card_state: FsrsState
   due_at?: string | null
   is_new_card?: boolean
   last_review_at?: string | null

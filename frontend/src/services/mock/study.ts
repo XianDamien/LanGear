@@ -1,4 +1,4 @@
-import type { CardBucketState, FsrsRating, FsrsState, RatingLabel } from '@/types/domain'
+import type { FsrsRating, FsrsState, RatingLabel } from '@/types/domain'
 import type {
   StudySessionCardResponse,
   StudySessionResponse,
@@ -30,7 +30,7 @@ function formatHoursAgoIso(hours: number): string {
 }
 
 function buildMockCardMeta(index: number): {
-  cardState: CardBucketState
+  cardState: FsrsState
   isNewCard: boolean
   lastReviewAt: string | null
   dueAt: string | null
@@ -38,10 +38,10 @@ function buildMockCardMeta(index: number): {
   switch (index % 4) {
     case 0:
       return {
-        cardState: 'new',
+        cardState: 'learning',
         isNewCard: true,
         lastReviewAt: null,
-        dueAt: null,
+        dueAt: formatShanghaiIso(new Date()),
       }
     case 1:
       return {
@@ -69,11 +69,9 @@ function buildMockCardMeta(index: number): {
 
 function isNewCard(card: {
   is_new_card?: boolean
-  card_state?: CardBucketState
   last_review_at?: string | null
 }): boolean {
   if (card.is_new_card != null) return card.is_new_card
-  if (card.card_state === 'new') return true
   return card.last_review_at === null
 }
 

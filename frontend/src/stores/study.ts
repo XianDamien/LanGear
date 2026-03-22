@@ -7,7 +7,7 @@ import {
   getOSSSignedUrl,
 } from '@/services/api/study'
 import { extractApiError } from '@/services/http'
-import type { Card, CardBucketState, FsrsRating } from '@/types/domain'
+import type { Card, FsrsRating, FsrsState } from '@/types/domain'
 import type {
   SubmitReviewResponse,
   PollingResponseCompleted,
@@ -32,11 +32,10 @@ function resolveDueAt(payload: { due_at?: string | null; due?: string | null }):
 
 function deriveIsNewCard(payload: {
   is_new_card?: boolean
-  card_state?: CardBucketState
+  card_state?: FsrsState
   last_review_at?: string | null
 }): boolean {
   if (payload.is_new_card != null) return payload.is_new_card
-  if (payload.card_state === 'new') return true
   return payload.last_review_at === null
 }
 
