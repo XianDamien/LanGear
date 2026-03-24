@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.vue",
+    "src/env.d.ts",
+    "tests/**/*.ts",
+    "e2e/helpers/**/*.ts",
+    "playwright.config.ts",
+    "vite.config.ts"
+  ],
+  "vueCompilerOptions": {
+    "fallthroughAttributes": true,
+    "dataAttributes": ["data-*"]
+  }
+}

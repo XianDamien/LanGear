@@ -1,43 +1,71 @@
 import { ref } from 'vue'
+import {
+  cancelSpeechPlayback,
+  createAudioPlayback,
+  createSpeechPlayback,
+  type AudioPlaybackHandle,
+} from '@/adapters/browser/audioPlayback'
 
 export function useAudioPlayer() {
   const isPlaying = ref(false)
-  let currentAudio: HTMLAudioElement | null = null
+  let currentPlayback: AudioPlaybackHandle | null = null
+  let playbackToken = 0
+
+  function createPlaybackCallbacks(token: number) {
+    return {
+      onStart: () => {
+        if (token === playbackToken) {
+          isPlaying.value = true
+        }
+      },
+      onEnd: () => {
+        if (token === playbackToken) {
+          isPlaying.value = false
+        }
+      },
+      onError: () => {
+        if (token === playbackToken) {
+          isPlaying.value = false
+        }
+      },
+    }
+  }
 
   function play(src: string) {
     stop()
 
-    if (src) {
-      currentAudio = new Audio(src)
-      currentAudio.onplay = () => (isPlaying.value = true)
-      currentAudio.onended = () => (isPlaying.value = false)
-      currentAudio.onerror = () => (isPlaying.value = false)
-      currentAudio.play().catch(() => {
-        // Fallback to SpeechSynthesis if audio URL fails
+    if (!src) return
+
+    const token = ++playbackToken
+    currentPlayback = createAudioPlayback(src, createPlaybackCallbacks(token))
+    void currentPlayback.play().catch(() => {
+      if (token === playbackToken) {
         isPlaying.value = false
-      })
-    }
+      }
+    })
   }
 
   function speakText(text: string, lang = 'en-US') {
     stop()
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = lang
-    utterance.rate = 0.9
-    utterance.onstart = () => (isPlaying.value = true)
-    utterance.onend = () => (isPlaying.value = false)
-    utterance.onerror = () => (isPlaying.value = false)
-    window.speechSynthesis.speak(utterance)
+
+    const token = ++playbackToken
+    currentPlayback = createSpeechPlayback(text, {
+      lang,
+      rate: 0.9,
+      ...createPlaybackCallbacks(token),
+    })
+    void currentPlayback.play().catch(() => {
+      if (token === playbackToken) {
+        isPlaying.value = false
+      }
+    })
   }
 
   function stop() {
-    if (currentAudio) {
-      currentAudio.pause()
-      currentAudio.currentTime = 0
-      currentAudio = null
-    }
-    window.speechSynthesis.cancel()
+    playbackToken += 1
+    currentPlayback?.stop()
+    currentPlayback = null
+    cancelSpeechPlayback()
     isPlaying.value = false
   }
 

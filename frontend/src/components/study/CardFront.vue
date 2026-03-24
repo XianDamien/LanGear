@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Mic, Play, Volume2, Square, Upload } from 'lucide-vue-next'
 import { ElMessage } from 'element-plus'
 import RetroButton from '@/components/ui/RetroButton.vue'
@@ -28,14 +29,7 @@ function handleFlipClick() {
   emit('flip')
 }
 
-function handleToggleRecordingClick() {
-  if (props.audioPlaying && !props.isRecording) {
-    ElMessage.warning('建议完整听完原音频之后再录音')
-    return
-  }
-
-  emit('toggleRecording')
-}
+const recordingDisabled = computed(() => props.audioPlaying && !props.isRecording)
 </script>
 
 <template>
@@ -74,14 +68,22 @@ function handleToggleRecordingClick() {
       <RetroButton
         :variant="isRecording ? 'danger' : 'secondary'"
         class="w-full"
+        :disabled="recordingDisabled"
         data-testid="record-toggle"
-        @click="handleToggleRecordingClick"
+        @click="emit('toggleRecording')"
       >
         <Square v-if="isRecording" class="mr-2 animate-pulse" />
         <Mic v-else class="mr-2" />
         {{ isRecording ? '停止' : '录音' }}
       </RetroButton>
     </div>
+    <p
+      v-if="recordingDisabled"
+      class="text-center text-sm text-brand-alert"
+      data-testid="record-hint"
+    >
+      建议完整听完原音频之后再录音
+    </p>
 
     <!-- v2.0: 上传进度指示器 -->
     <div

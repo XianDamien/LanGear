@@ -154,6 +154,7 @@ export const useStudyStore = defineStore('study', () => {
 
   /** @deprecated Use createFeedbackSubmission + submitCardRating instead */
   async function submitCardReview(_rating: FsrsRating): Promise<'next' | 'summary'> {
+    void _rating
     if (!lessonId.value || !currentCard.value) throw new Error('No active lesson')
     throw new Error('旧版同步评分提交流程已停用')
   }
