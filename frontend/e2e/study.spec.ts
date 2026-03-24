@@ -51,3 +51,39 @@ test('已完成任务在切卡后仍然保留状态与反馈内容', async ({ pa
   await expect(page.getByTestId('feedback-panel')).toContainText('发音整体清晰')
   await expect(page.getByTestId('transcription-result')).toContainText(transcript)
 })
+
+test('任务侧栏支持桌面折叠和小屏抽屉展开', async ({ page }) => {
+  await page.goto('/study/l1')
+
+  const sidebar = page.getByTestId('study-shell-sidebar')
+  const toggle = page.getByTestId('study-shell-nav-toggle')
+
+  await expect(sidebar).toHaveAttribute('data-mode', 'desktop')
+  await expect(sidebar).toHaveAttribute('data-state', 'open')
+  await expect(page.getByTestId('study-task-nav')).toHaveAttribute('data-collapsed', 'false')
+
+  const expandedBox = await sidebar.boundingBox()
+  if (!expandedBox) throw new Error('Expected expanded sidebar box')
+
+  await toggle.click()
+  await expect(sidebar).toHaveAttribute('data-state', 'collapsed')
+  await expect(page.getByTestId('study-task-nav')).toHaveAttribute('data-collapsed', 'true')
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+    .toBeLessThan(expandedBox.width)
+
+  await page.getByTestId('task-nav-item-2').click()
+  await expect(page.getByTestId('study-lesson-title')).toContainText('2')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(sidebar).toHaveAttribute('data-mode', 'mobile')
+  await expect(sidebar).toHaveAttribute('data-state', 'collapsed')
+
+  await toggle.click()
+  await expect(sidebar).toHaveAttribute('data-state', 'open')
+  await expect(page.getByTestId('study-shell-nav-overlay')).toBeVisible()
+
+  await page.getByTestId('task-nav-item-1').click()
+  await expect(sidebar).toHaveAttribute('data-state', 'collapsed')
+  await expect(page.getByTestId('study-lesson-title')).toContainText('1')
+})

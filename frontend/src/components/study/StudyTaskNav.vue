@@ -6,6 +6,7 @@ const props = defineProps<{
   cards: Card[]
   currentIndex: number
   taskMap: Record<string, StudyTaskEntry>
+  collapsed?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -44,34 +45,84 @@ function getStatusDetail(task: StudyTaskEntry | undefined): string | undefined {
   }
   return undefined
 }
+
+function getCardLabel(card: Card, index: number): string {
+  return card.backText || card.frontText || `句子 ${index + 1}`
+}
 </script>
 
 <template>
   <div
-    class="mb-4 rounded border border-slate-200 bg-brand-panel/90 p-3 shadow-mech-sm"
+    :class="[
+      'flex h-full min-h-0 flex-col rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.92))] p-3 shadow-mech',
+      collapsed ? 'items-center px-2.5 py-3' : 'px-3 py-3.5',
+    ]"
+    :data-collapsed="collapsed ? 'true' : 'false'"
     data-testid="study-task-nav"
   >
-    <div class="mb-2 flex items-center justify-between gap-3">
-      <div class="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">句子任务导航</div>
-      <div class="text-xs text-slate-500">切卡不影响已提交任务状态</div>
+    <div
+      :class="[
+        'flex w-full items-center border-b border-slate-200/80 pb-3',
+        collapsed ? 'justify-center' : 'justify-between gap-3',
+      ]"
+    >
+      <div :class="['min-w-0', collapsed ? 'text-center' : 'space-y-1']">
+        <div class="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-500">
+          {{ collapsed ? '任务' : '句子任务导航' }}
+        </div>
+        <div v-if="!collapsed" class="text-xs text-slate-500">
+          切卡不影响已提交任务状态
+        </div>
+      </div>
+
+      <div
+        v-if="!collapsed"
+        class="inline-flex items-center rounded-full border border-slate-200 bg-white/80 px-2.5 py-1 font-pixel text-xs text-slate-600"
+      >
+        {{ cards.length }}
+      </div>
     </div>
 
-    <div class="flex gap-2 overflow-x-auto pb-1">
+    <div :class="['mt-3 flex-1 overflow-y-auto', collapsed ? 'w-full' : 'pr-1']">
       <button
         v-for="(card, index) in cards"
         :key="card.id"
         :class="[
-          'group min-w-[7.5rem] rounded border px-3 py-2 text-left transition-colors',
+          'group relative w-full rounded-[22px] border text-left transition-all duration-200 ease-out',
           index === currentIndex
-            ? 'border-brand-accent bg-white shadow-mech-sm'
-            : 'border-slate-200 bg-white/70 hover:border-brand-accent/60',
+            ? 'border-brand-accent bg-white shadow-mech-sm ring-1 ring-brand-accent/15'
+            : 'border-slate-200/90 bg-white/65 hover:border-brand-accent/50 hover:bg-white',
+          collapsed ? 'mb-2 px-2 py-3 text-center last:mb-0' : 'mb-2 px-3 py-3.5 last:mb-0',
         ]"
-        :title="getStatusDetail(getTask(card.id))"
+        :title="[getCardLabel(card, index), getStatusLabel(getTask(card.id)), getStatusDetail(getTask(card.id))].filter(Boolean).join(' | ')"
         :data-testid="`task-nav-item-${index + 1}`"
         @click="emit('select', index)"
       >
-        <div class="mb-2 flex items-center justify-between gap-2">
-          <span class="font-pixel text-sm text-brand-accent">{{ index + 1 }}</span>
+        <div
+          :class="[
+            'flex items-center',
+            collapsed ? 'justify-center gap-1.5' : 'justify-between gap-3',
+          ]"
+        >
+          <div :class="['flex items-center', collapsed ? 'flex-col gap-1.5' : 'gap-2.5']">
+            <span
+              :class="[
+                'inline-flex items-center justify-center rounded-full border font-pixel text-brand-accent',
+                collapsed
+                  ? 'h-9 w-9 text-sm'
+                  : 'h-8 min-w-8 border-brand-accent/20 bg-brand-accent/5 px-2 text-sm',
+              ]"
+            >
+              {{ index + 1 }}
+            </span>
+            <span
+              v-if="!collapsed"
+              class="max-w-[9.75rem] truncate text-xs uppercase tracking-[0.24em] text-slate-400"
+            >
+              Sentence
+            </span>
+          </div>
+
           <span
             :class="[
               'inline-flex h-2.5 w-2.5 rounded-full',
@@ -79,12 +130,35 @@ function getStatusDetail(task: StudyTaskEntry | undefined): string | undefined {
             ]"
           />
         </div>
-        <div class="truncate text-sm text-slate-700">
-          {{ card.backText || card.frontText || `句子 ${index + 1}` }}
+
+        <div
+          v-if="!collapsed"
+          class="mt-3 truncate text-sm font-semibold text-slate-700"
+        >
+          {{ getCardLabel(card, index) }}
         </div>
-        <div class="mt-1 text-xs text-slate-500" :data-testid="`task-nav-status-${index + 1}`">
+
+        <div
+          :class="[
+            collapsed ? 'sr-only' : 'mt-1 text-xs text-slate-500',
+          ]"
+          :data-testid="`task-nav-status-${index + 1}`"
+        >
           {{ getStatusLabel(getTask(card.id)) }}
         </div>
+
+        <div
+          v-if="!collapsed && getStatusDetail(getTask(card.id))"
+          class="mt-2 truncate text-[11px] text-rose-600"
+        >
+          {{ getStatusDetail(getTask(card.id)) }}
+        </div>
+
+        <div
+          v-if="index === currentIndex"
+          class="absolute inset-y-3 left-0 w-1 rounded-r-full bg-brand-accent"
+          aria-hidden="true"
+        />
       </button>
     </div>
   </div>

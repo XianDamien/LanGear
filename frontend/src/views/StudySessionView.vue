@@ -2,7 +2,9 @@
 import { computed, ref, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
+import { useMediaQuery } from '@vueuse/core'
 import { ElMessage } from 'element-plus'
+import { ChevronLeft, ChevronRight, Menu, X } from 'lucide-vue-next'
 import { useStudyStore } from '@/stores/study'
 import { useStudyTasksStore } from '@/stores/studyTasks'
 import { useRecorder } from '@/composables/useRecorder'
@@ -56,6 +58,8 @@ const summaryText = ref<string | null>(null)
 const isSummaryLoading = ref(false)
 const isFeedbackLoading = ref(false)
 const isTranslationLoading = ref(false)
+const isDesktopShell = useMediaQuery('(min-width: 1024px)')
+const isTaskNavOpen = ref(false)
 
 function toSubmissionDisplayError(error: unknown): SubmissionDisplayError {
   if (
@@ -89,8 +93,25 @@ const studyCardClass = computed(() =>
     : 'flex h-full min-h-0 flex-col items-center justify-center p-6 text-center sm:p-8',
 )
 const sessionTitle = computed(() => lessonName.value || '学习任务')
+const hasTaskNav = computed(() => cards.value.length > 0)
+const isTaskNavCollapsed = computed(() => isDesktopShell.value && !isTaskNavOpen.value)
+const isTaskNavOverlayVisible = computed(() => !isDesktopShell.value && isTaskNavOpen.value)
+const taskNavToggleLabel = computed(() => {
+  if (isDesktopShell.value) {
+    return isTaskNavOpen.value ? '收起导航' : '展开导航'
+  }
+  return isTaskNavOpen.value ? '关闭任务列表' : '任务列表'
+})
 
 const currentTask = computed(() => studyTasksStore.getTask(currentCard.value?.id))
+
+watch(
+  isDesktopShell,
+  (isDesktop) => {
+    isTaskNavOpen.value = isDesktop
+  },
+  { immediate: true },
+)
 
 function shouldKeepCardBackVisible() {
   const task = currentTask.value
@@ -410,7 +431,20 @@ async function handleFlip() {
   })()
 }
 
+function toggleTaskNav() {
+  if (!hasTaskNav.value) return
+  isTaskNavOpen.value = !isTaskNavOpen.value
+}
+
+function closeTaskNav() {
+  if (isDesktopShell.value) return
+  isTaskNavOpen.value = false
+}
+
 function handleSelectCard(index: number) {
+  if (!isDesktopShell.value) {
+    closeTaskNav()
+  }
   if (index === currentIndex.value) return
   studyStore.selectCard(index)
 }
@@ -479,93 +513,179 @@ function exitStudy() {
 
 <template>
   <div
-    class="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-4 sm:px-6 sm:py-6"
+    class="relative isolate min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.98),rgba(244,247,251,0.94)_42%,rgba(237,242,247,0.9)_100%)]"
     data-testid="study-session-view"
   >
-    <div class="mb-4 grid grid-cols-[minmax(5rem,1fr)_auto_minmax(5rem,1fr)] items-center gap-3 sm:mb-6">
-      <div class="flex min-w-[5rem]">
-        <RetroButton variant="ghost" size="sm" class="w-[5rem] justify-center" @click="exitStudy">
-          退出
-        </RetroButton>
-      </div>
-      <div
-        class="min-w-0 text-center text-lg font-bold uppercase text-brand-accent sm:text-xl"
-        data-testid="study-lesson-title"
-      >
-        {{ sessionTitle }}
-        <span class="font-pixel">{{ currentIndex + 1 }}</span>
-        /
-        <span class="font-pixel">{{ cards.length }}</span>
-      </div>
-      <div class="min-w-[5rem]" aria-hidden="true" />
-    </div>
-
-    <StudyTaskNav
-      v-if="cards.length > 0"
-      :cards="cards"
-      :current-index="currentIndex"
-      :task-map="taskMap"
-      @select="handleSelectCard"
+    <div
+      class="pointer-events-none absolute inset-0 opacity-60 [background-image:linear-gradient(rgba(148,163,184,0.14)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.14)_1px,transparent_1px)] [background-size:2.75rem_2.75rem]"
+    />
+    <div
+      class="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),transparent_38%,rgba(255,77,45,0.12)_100%)]"
     />
 
-    <div v-if="loading" class="flex-1 flex items-center justify-center text-slate-500" data-testid="study-loading">
-      加载中...
-    </div>
+    <div
+      v-if="isTaskNavOverlayVisible"
+      class="fixed inset-0 z-30 bg-slate-950/40 backdrop-blur-[2px] lg:hidden"
+      data-testid="study-shell-nav-overlay"
+      @click="closeTaskNav"
+    />
 
-    <div v-else-if="currentCard" class="relative flex flex-1 min-h-0 flex-col pb-4" data-testid="study-card">
-      <RetroCard :class="studyCardClass">
-        <CardFront
-          v-if="!isFlipped"
-          :audio-playing="audioPlaying"
-          :is-recording="recorder.isRecording.value"
-          :live-transcript="liveTranscript"
-          :user-transcript="userTranscript"
-          :upload-state="uploadState"
-          :upload-progress="recorder.uploadProgress.value"
-          @play-audio="playCurrentAudio"
-          @toggle-recording="toggleRecording"
-          @flip="handleFlip"
-        />
+    <div class="relative mx-auto flex min-h-screen w-full max-w-[92rem] flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+      <div class="mb-4 grid grid-cols-[auto_1fr_auto] items-center gap-3 sm:mb-6">
+        <div class="flex min-w-[5rem]">
+          <RetroButton variant="ghost" size="sm" class="w-[5rem] justify-center" @click="exitStudy">
+            退出
+          </RetroButton>
+        </div>
 
-        <CardBack
-          v-else
-          :card="currentCard"
-          :user-transcript="userTranscript"
-          :user-audio-url="userAudioUrl"
-          :feedback="lastFeedback"
-          :feedback-loading="isFeedbackLoading"
-          :show-translation="showTranslation"
-          :translation-loading="isTranslationLoading"
-          :notes="notes"
-          :submit-state="submitState"
-          :async-submit-state="asyncSubmitState"
-          :feedback-v2="lastFeedbackV2"
-          :transcription-timestamps="lastFeedbackV2?.transcription.timestamps"
-          :error-code="currentTask?.errorCode"
-          :error-message="currentTask?.errorMessage"
-          @play-original="playCurrentAudio"
-          @show-translation="handleShowTranslation"
-          @word-click="handleWordClick"
-          @grade="handleGrade"
-          @timestamp-jump="studyStore.jumpToTimestamp($event)"
-          @update:notes="studyStore.notes = $event"
-        />
-      </RetroCard>
+        <div class="min-w-0 text-center" data-testid="study-lesson-title">
+          <div class="text-[11px] font-bold uppercase tracking-[0.38em] text-slate-500">
+            Study Sequence
+          </div>
+          <div class="mt-2 truncate text-lg font-bold uppercase tracking-[0.08em] text-brand-accent sm:text-xl">
+            {{ sessionTitle }}
+          </div>
+          <div class="mt-1 text-xs text-slate-500">
+            <span class="font-pixel">{{ currentIndex + 1 }}</span>
+            /
+            <span class="font-pixel">{{ cards.length }}</span>
+          </div>
+        </div>
 
-      <WordExplanation
-        v-if="selectedWord"
-        :word="selectedWord"
-        :explanation="wordExplanation"
-        @close="studyStore.selectedWord = null"
-      />
+        <div class="flex min-w-[5rem] justify-end">
+          <RetroButton
+            v-if="hasTaskNav"
+            variant="secondary"
+            size="sm"
+            class="min-w-[5rem] justify-center px-3"
+            data-testid="study-shell-nav-toggle"
+            @click="toggleTaskNav"
+          >
+            <component
+              :is="!isDesktopShell ? (isTaskNavOpen ? X : Menu) : (isTaskNavOpen ? ChevronLeft : ChevronRight)"
+              :size="16"
+              class="mr-1.5"
+            />
+            <span class="hidden sm:inline">{{ taskNavToggleLabel }}</span>
+            <span class="sm:hidden">{{ isTaskNavOpen ? '关闭' : '任务' }}</span>
+          </RetroButton>
+          <div v-else class="min-w-[5rem]" aria-hidden="true" />
+        </div>
+      </div>
 
-      <SummaryModal
-        v-if="isSummaryOpen"
-        :loading="isSummaryLoading"
-        :summary-text="summaryText"
-        @generate="handleSummary"
-        @exit="exitSummary"
-      />
+      <div class="flex flex-1 min-h-0 gap-4 lg:gap-5">
+        <aside
+          v-if="hasTaskNav"
+          :class="[
+            'min-h-0 flex-shrink-0 transition-[width,transform,opacity] duration-300 ease-out',
+            isDesktopShell
+              ? (isTaskNavOpen ? 'lg:w-[20rem]' : 'lg:w-[5.75rem]')
+              : 'fixed inset-y-4 left-4 z-40 w-[min(22rem,calc(100vw-2rem))] sm:inset-y-6 sm:left-6',
+            !isDesktopShell &&
+              (isTaskNavOpen
+                ? 'translate-x-0 opacity-100'
+                : '-translate-x-[110%] opacity-0 pointer-events-none'),
+          ]"
+          :data-mode="isDesktopShell ? 'desktop' : 'mobile'"
+          :data-state="isTaskNavOpen ? 'open' : 'collapsed'"
+          data-testid="study-shell-sidebar"
+        >
+          <div class="h-full min-h-0 rounded-[30px] border border-white/75 bg-white/82 p-2 shadow-[0_28px_70px_rgba(15,23,42,0.14)] backdrop-blur-md">
+            <StudyTaskNav
+              :cards="cards"
+              :current-index="currentIndex"
+              :task-map="taskMap"
+              :collapsed="isTaskNavCollapsed"
+              @select="handleSelectCard"
+            />
+          </div>
+        </aside>
+
+        <div class="flex min-w-0 flex-1 flex-col rounded-[32px] border border-white/70 bg-white/72 p-3 shadow-[0_28px_70px_rgba(15,23,42,0.14)] backdrop-blur-md sm:p-4 lg:p-5">
+          <div
+            class="mb-3 flex items-center justify-between gap-3 rounded-[24px] border border-slate-200/80 bg-white/80 px-4 py-3"
+          >
+            <div class="min-w-0">
+              <div class="text-[11px] font-bold uppercase tracking-[0.32em] text-slate-400">
+                Focus Lane
+              </div>
+              <div class="mt-1 truncate text-sm font-semibold text-slate-700 sm:text-base">
+                {{ currentCard?.backText || currentCard?.frontText || '准备开始本轮练习' }}
+              </div>
+            </div>
+
+            <div
+              class="hidden rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-pixel text-xs text-slate-600 sm:inline-flex"
+            >
+              {{ currentIndex + 1 }}/{{ cards.length }}
+            </div>
+          </div>
+
+          <div
+            v-if="loading"
+            class="flex flex-1 items-center justify-center text-slate-500"
+            data-testid="study-loading"
+          >
+            加载中...
+          </div>
+
+          <div v-else-if="currentCard" class="relative flex flex-1 min-h-0 flex-col" data-testid="study-card">
+            <RetroCard :class="studyCardClass">
+              <CardFront
+                v-if="!isFlipped"
+                :audio-playing="audioPlaying"
+                :is-recording="recorder.isRecording.value"
+                :live-transcript="liveTranscript"
+                :user-transcript="userTranscript"
+                :upload-state="uploadState"
+                :upload-progress="recorder.uploadProgress.value"
+                @play-audio="playCurrentAudio"
+                @toggle-recording="toggleRecording"
+                @flip="handleFlip"
+              />
+
+              <CardBack
+                v-else
+                :card="currentCard"
+                :user-transcript="userTranscript"
+                :user-audio-url="userAudioUrl"
+                :feedback="lastFeedback"
+                :feedback-loading="isFeedbackLoading"
+                :show-translation="showTranslation"
+                :translation-loading="isTranslationLoading"
+                :notes="notes"
+                :submit-state="submitState"
+                :async-submit-state="asyncSubmitState"
+                :feedback-v2="lastFeedbackV2"
+                :transcription-timestamps="lastFeedbackV2?.transcription.timestamps"
+                :error-code="currentTask?.errorCode"
+                :error-message="currentTask?.errorMessage"
+                @play-original="playCurrentAudio"
+                @show-translation="handleShowTranslation"
+                @word-click="handleWordClick"
+                @grade="handleGrade"
+                @timestamp-jump="studyStore.jumpToTimestamp($event)"
+                @update:notes="studyStore.notes = $event"
+              />
+            </RetroCard>
+
+            <WordExplanation
+              v-if="selectedWord"
+              :word="selectedWord"
+              :explanation="wordExplanation"
+              @close="studyStore.selectedWord = null"
+            />
+
+            <SummaryModal
+              v-if="isSummaryOpen"
+              :loading="isSummaryLoading"
+              :summary-text="summaryText"
+              @generate="handleSummary"
+              @exit="exitSummary"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
