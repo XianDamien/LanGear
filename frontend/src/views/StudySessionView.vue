@@ -85,7 +85,7 @@ function toSubmissionDisplayError(error: unknown): SubmissionDisplayError {
 
 const studyCardClass = computed(() =>
   isFlipped.value
-    ? 'flex h-full min-h-0 flex-col overflow-hidden p-4 sm:p-6 lg:p-8'
+    ? 'flex h-full min-h-0 flex-col overflow-hidden p-3 sm:p-5 lg:p-6'
     : 'flex h-full min-h-0 flex-col items-center justify-center p-6 text-center sm:p-8',
 )
 const sessionTitle = computed(() => lessonName.value || '学习任务')
