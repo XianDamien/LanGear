@@ -114,14 +114,21 @@ class TestStudySessionRouter:
         assert response.status_code == 200
         data = response.json()["data"]
         assert data["summary"]["due_count"] == 2
-        assert [card["card_state"] for card in data["cards"]] == ["learning", "review", "learning", "learning"]
-        assert [card["is_new_card"] for card in data["cards"]] == [False, False, True, True]
+        assert [card["card_state"] for card in data["cards"]] == [
+            "learning",
+            "review",
+            "learning",
+            "learning",
+            "review",
+        ]
+        assert [card["is_new_card"] for card in data["cards"]] == [False, False, True, True, False]
         assert data["cards"][0]["last_review_at"] is not None
         assert data["cards"][1]["last_review_at"] is not None
         assert data["cards"][2]["last_review_at"] is None
         assert data["cards"][3]["last_review_at"] is None
         assert data["cards"][2]["id"] == cards[3].id
         assert data["cards"][2]["card_state"] == "learning"
+        assert data["cards"][4]["id"] == cards[2].id
         assert data["cards"][0]["oss_audio_path"] == "recordings/20260321/example.webm"
         assert datetime.fromisoformat(data["server_time"]).utcoffset() == timedelta(hours=8)
         assert all(
@@ -164,6 +171,71 @@ class TestStudySessionRouter:
         returned_ids = [card["id"] for card in data["cards"]]
         assert cards[0].id not in returned_ids
         assert len(returned_ids) == 4
+
+    def test_get_study_session_lesson_scope_keeps_reviewed_future_cards_visible(
+        self,
+        client: TestClient,
+        test_db: Session,
+        sample_deck_tree,
+    ):
+        """Lesson refresh should keep already-reviewed, not-due cards in the list."""
+        lesson = sample_deck_tree["lesson"]
+        cards = sample_deck_tree["cards"]
+
+        test_db.add_all(
+            [
+                Setting(key="daily_new_limit", value=1),
+                Setting(key="daily_review_limit", value=1),
+            ]
+        )
+
+        srs_rows = test_db.query(UserCardSRS).order_by(UserCardSRS.card_id).all()
+        srs_rows[0].state = "review"
+        srs_rows[0].step = None
+        srs_rows[0].stability = 4.5
+        srs_rows[0].difficulty = 3.8
+        srs_rows[0].due = datetime.utcnow() + timedelta(days=3)
+        srs_rows[0].last_review = datetime.utcnow() - timedelta(hours=1)
+
+        srs_rows[1].state = "review"
+        srs_rows[1].step = None
+        srs_rows[1].stability = 4.0
+        srs_rows[1].difficulty = 4.1
+        srs_rows[1].due = datetime.utcnow() - timedelta(minutes=30)
+        srs_rows[1].last_review = datetime.utcnow() - timedelta(days=1)
+
+        srs_rows[2].state = "review"
+        srs_rows[2].step = None
+        srs_rows[2].stability = 5.0
+        srs_rows[2].difficulty = 3.5
+        srs_rows[2].due = datetime.utcnow() + timedelta(days=5)
+        srs_rows[2].last_review = None
+
+        srs_rows[3].state = "relearning"
+        srs_rows[3].step = 1
+        srs_rows[3].stability = 2.0
+        srs_rows[3].difficulty = 5.5
+        srs_rows[3].due = datetime.utcnow() + timedelta(hours=6)
+        srs_rows[3].last_review = datetime.utcnow() - timedelta(hours=2)
+        test_db.commit()
+
+        response = client.get(f"/api/v1/study/session?lesson_id={lesson.id}")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        returned_ids = [card["id"] for card in data["cards"]]
+        assert returned_ids == [cards[1].id, cards[2].id, cards[3].id, cards[0].id]
+        assert data["cards"][0]["last_review_at"] is not None
+        assert data["cards"][1]["is_new_card"] is True
+        assert data["cards"][2]["card_state"] == "relearning"
+        assert data["cards"][3]["card_state"] == "review"
+        assert data["cards"][3]["last_review_at"] is not None
+
+        scoped_response = client.get("/api/v1/study/session")
+        assert scoped_response.status_code == 200
+        scoped_ids = [card["id"] for card in scoped_response.json()["data"]["cards"]]
+        assert cards[0].id not in scoped_ids
+        assert cards[3].id not in scoped_ids
 
     def test_get_study_session_source_scope_overrides_settings(
         self,

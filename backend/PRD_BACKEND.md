@@ -26,6 +26,7 @@
 - 运行测试：`uv run pytest`
 - 数据库迁移：`uv run alembic upgrade head`
 - 数据种子：`uv run python scripts/seed_data.py`
+- 后端启动前必须保证运行库已迁移到 Alembic head；若 schema version、关键表或关键字段不匹配，服务必须在 startup 阶段拒绝启动并给出迁移命令提示，而不是等到业务接口访问时再返回 500
 
 ### 1.3 环境变量（通过 `.env` 配置，禁止硬编码）
 ```

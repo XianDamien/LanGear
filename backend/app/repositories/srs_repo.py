@@ -209,3 +209,47 @@ class SRSRepository:
             )
             .count()
         )
+
+    def get_reviewed_cards(
+        self,
+        lesson_ids: list[int] | None = None,
+        states: list[str] | None = None,
+        exclude_card_ids: list[int] | None = None,
+        limit: int | None = None,
+        as_of=None,
+    ) -> list[tuple["Card", UserCardSRS]]:
+        """Get reviewed cards that are scheduled in the future.
+
+        These cards are not due yet, but lesson-scoped study pages still need
+        them so a refresh does not make already-reviewed cards disappear.
+        """
+        from app.models.card import Card
+
+        now = as_of if as_of is not None else utc_now_naive()
+        query = (
+            self.db.query(Card, UserCardSRS)
+            .join(UserCardSRS, UserCardSRS.card_id == Card.id)
+            .filter(
+                UserCardSRS.due > now,
+                UserCardSRS.last_review.isnot(None),
+            )
+            .order_by(UserCardSRS.due, Card.deck_id, Card.card_index, Card.id)
+        )
+
+        if lesson_ids is not None:
+            if not lesson_ids:
+                return []
+            query = query.filter(Card.deck_id.in_(lesson_ids))
+
+        if states is not None:
+            if not states:
+                return []
+            query = query.filter(UserCardSRS.state.in_(states))
+
+        if exclude_card_ids:
+            query = query.filter(~Card.id.in_(exclude_card_ids))
+
+        if limit is not None:
+            query = query.limit(limit)
+
+        return query.all()

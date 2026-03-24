@@ -2,7 +2,7 @@
 
 LanGear 是一个 AI 英语复述训练平台，核心链路是“原音频播放 -> 用户录音 -> 实时 ASR -> OSS 上传 -> 后端异步生成 AI 反馈 -> 前端轮询展示结果 -> 用户评分触发 FSRS 更新”。
 
-当前 Study 页顶部提供句子任务导航栏：任务状态（待练、上传中、评测中、完成、失败）独立于当前卡片展示与切换，切卡不会中断已提交任务的前端跟踪。学习页卡片列表由 `/api/v1/study/session` 提供，优先返回 `learning/relearning` 与 `review` 卡，再按 quota 补充 FSRS 初始卡桶；每张卡返回 `card_state`、`is_new_card`、`due_at`、`last_review_at`，其中 `card_state` 只表达原生三态。课程树接口 `/api/v1/decks/tree` 的 lesson 节点返回 `total_cards` / `completed_cards` / `due_cards` / `new_cards`；`/api/v1/decks/{lesson_id}/cards` 返回 `card_state`、`is_new_card`、`due_at`、`last_review_at`。进入 lesson 时，前端会先调用 `GET /api/v1/study/submissions?lesson_id=...`，用后端 `review_log` 历史回填最近的 `processing` / `failed` / `completed` submission，刷新后不再只依赖前端内存态。
+当前 Study 页顶部提供句子任务导航栏：任务状态（待练、上传中、评测中、完成、失败）独立于当前卡片展示与切换，切卡不会中断已提交任务的前端跟踪。学习页卡片列表由 `/api/v1/study/session` 提供，优先返回 `learning/relearning` 与 `review` 卡，再按 quota 补充 FSRS 初始卡桶；当请求显式带 `lesson_id` 时，接口还会在队列后追加“已复习但尚未到期”的卡，避免刷新后把刚复习过的卡从课内视图里移除。每张卡返回 `card_state`、`is_new_card`、`due_at`、`last_review_at`，其中 `card_state` 只表达原生三态。课程树接口 `/api/v1/decks/tree` 的 lesson 节点返回 `total_cards` / `completed_cards` / `due_cards` / `new_cards`；`/api/v1/decks/{lesson_id}/cards` 返回 `card_state`、`is_new_card`、`due_at`、`last_review_at`。进入 lesson 时，前端会先调用 `GET /api/v1/study/submissions?lesson_id=...`，用后端 `review_log` 历史回填最近的 `processing` / `failed` / `completed` submission，刷新后不再只依赖前端内存态。
 
 FSRS 底层契约按原生 `py-fsrs` 对齐：`user_card_srs.state` 只持久化 `learning/review/relearning`，`new cards` 由 FSRS 初始卡条件推导，主判定口径是 `last_review IS NULL`；原生评分历史单独写入 `fsrs_review_log`。
 
@@ -22,6 +22,7 @@ frontend/          前端应用
 backend/           后端服务、适配器、测试与迁移
 docs/              联调与补充文档
 scripts/           仓库级辅助脚本
+docker-compose.yml 单机 Docker Compose 部署入口
 PRD.md             详细产品/实现总纲
 PRD_BASELINE.md    当前联调基线
 AGENTS.md          协作约束与项目运行规则
@@ -45,12 +46,15 @@ pnpm dev
 
 ```bash
 cd backend
+uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 ```
 
 - 默认地址：`http://localhost:8000`
 - OpenAPI：`http://localhost:8000/docs`
 - 默认允许的开发 CORS 来源：`http://localhost:3002`、`http://127.0.0.1:3002`
+- 启动前先执行一次 `uv run alembic upgrade head`，确保本地 SQLite schema 与当前代码一致
+- 如果后端在 startup 阶段直接退出并提示 schema/revision 不匹配，先在 `backend/` 目录执行 `uv run alembic current` 和 `uv run alembic upgrade head`，再重新启动
 - 可用 `uv run python scripts/show_runtime_config.py` 查看当前进程实际使用的 `DATABASE_URL`、解析后的 SQLite 文件路径、当前 CORS 来源列表、`review_log` / `user_card_srs` 条数，以及最近写入的评测记录。
 
 ### 测试
@@ -63,6 +67,74 @@ uv run pytest
 ```bash
 cd frontend
 pnpm test:e2e
+```
+
+## Docker 部署
+
+项目已提供单机 `docker compose` 部署文件，保持当前架构不变：
+
+- `frontend` 使用多阶段构建产出静态文件，并由 Nginx 对外提供 `http://localhost:8080`
+- `backend` 使用 FastAPI 独立容器，对外保留 `http://localhost:8000`
+- `backend-migrate` 在后端启动前自动执行 `alembic upgrade head`
+- SQLite 数据库存放在 Docker named volume `langear_backend_data` 中，避免依赖宿主机 `backend/data/langear.db`
+
+### 准备环境变量
+
+- Docker 部署仍然使用 `backend/.env`
+- 启动前确认 `backend/.env` 已存在，且 Gemini、DashScope、OSS 相关配置齐全
+- 前端镜像只注入非敏感 `VITE_*` 构建变量；敏感密钥不会进入前端镜像
+
+可从示例文件开始：
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+### 构建与启动
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+默认访问地址：
+
+- 前端：`http://localhost:8080`
+- 后端 OpenAPI：`http://localhost:8000/docs`
+- 后端健康检查：`http://localhost:8000/health`
+
+Compose 默认行为：
+
+- 浏览器访问 `http://localhost:8080/api/...` 时，会由前端容器内的 Nginx 反向代理到 `backend:8000`
+- `GET /api/v1/realtime/...` 与 WebSocket `/api/v1/realtime/asr/ws` 也走同一入口，不需要单独改前端 API Base URL
+- `backend` 只有在迁移容器成功执行完 `alembic upgrade head` 后才会启动
+
+### 常用运维命令
+
+查看服务状态与日志：
+
+```bash
+docker compose ps
+docker compose logs -f backend
+docker compose logs -f frontend
+```
+
+停止服务但保留数据库卷：
+
+```bash
+docker compose down
+```
+
+停止服务并删除 SQLite 数据卷：
+
+```bash
+docker compose down -v
+```
+
+如果你只想重新执行迁移，可以单独运行：
+
+```bash
+docker compose run --rm backend-migrate
 ```
 
 ### `uv` 使用说明
@@ -86,6 +158,7 @@ UV_PROJECT_ENVIRONMENT="$HOME/.cache/uv/project-envs/langear-backend" uv run pyt
 - 后端运行时不要依赖仓库根目录 `.env`
 - 并行 worktree 开发时，也要保证各自 worktree 下存在 `backend/.env`；推荐直接在 worktree 内创建指向主工作区 `backend/.env` 的本地 symlink，避免 `uv run alembic ...` / `uv run pytest ...` 因缺少环境变量而失败
 - 可从 `backend/.env.example` 复制一份作为后端配置起点
+- `docker compose` 部署同样通过 `backend/.env` 注入后端运行时配置，不依赖仓库根目录 `.env`
 - 想确认当前后端实际会连接哪个数据库，可在 `backend/` 目录执行 `uv run python scripts/show_runtime_config.py`；该脚本只依赖 `DATABASE_URL`，不要求先配齐完整 Gemini/OSS 密钥
 - 如果你在本地看到了评测/复习记录，但 GitHub 上的代码或别的 worktree 里看不到，优先假设是命中了不同的本地 SQLite，而不是“数据库会跟着仓库自动同步”
 - `OSS_PUBLIC_BASE_URL` 不是后端启动必填项；默认采用 STS 上传 + 预签名 URL 访问 OSS

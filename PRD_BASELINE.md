@@ -171,7 +171,7 @@ LanGear 必须提供“听-说-评-复习”的完整学习闭环，确保用户
 ### 4.3 API 能力要求
 
 1. Study 必须提供提交、结果查询与历史查询能力，支持完整状态流转；提交请求最小集需包含 `lesson_id`、`card_id`、`oss_audio_path`、`realtime_session_id`。历史查询接口为 `GET /api/v1/study/submissions?lesson_id=...&card_id=...`，返回最近 submission 列表，至少包含 `submission_id`、`card_id`、`lesson_id`、`status`、`error_code`、`error_message`、`created_at`、`oss_audio_path`、`transcription`、`feedback`。
-1.1 Study 还必须提供 `GET /api/v1/study/session` 以返回当前 session 的 `scope`、`quota`、`summary` 与 `cards[]`，并优先返回 `learning/relearning`、`review` 卡，再补充 FSRS 初始卡桶。每张卡必须返回 `card_state`、`is_new_card`、`due_at`、`last_review_at`；其中 `card_state` 仅允许 `learning/review/relearning`，初始卡的 `due_at` 使用服务端当前时间，`last_review_at` 为 `null`。
+1.1 Study 还必须提供 `GET /api/v1/study/session` 以返回当前 session 的 `scope`、`quota`、`summary` 与 `cards[]`，并优先返回 `learning/relearning`、`review` 卡，再补充 FSRS 初始卡桶；当请求带 `lesson_id` 时，还必须在队列尾部保留该 lesson 中“已复习但尚未到期”的卡，避免刷新后课内牌组视图丢失刚复习过的卡。每张卡必须返回 `card_state`、`is_new_card`、`due_at`、`last_review_at`；其中 `card_state` 仅允许 `learning/review/relearning`，初始卡的 `due_at` 使用服务端当前时间，`last_review_at` 为 `null`。
 2. Summary 必须提供课级汇总接口：`/api/v1/decks/{deck_id}/summary`。
 3. Dashboard 与 Settings 的字段命名和类型必须与前端模型一致。
 4. 失败结果必须返回可消费的 `error_code` 与 `error_message`；至少覆盖 `REALTIME_SESSION_NOT_FOUND`、`REALTIME_TRANSCRIPT_NOT_READY`、`REALTIME_SESSION_FAILED`、`REFERENCE_AUDIO_NOT_FOUND`、`USER_AUDIO_ACCESS_FAILED`、`AI_FEEDBACK_FAILED`。

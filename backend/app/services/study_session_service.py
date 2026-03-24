@@ -64,6 +64,12 @@ class StudySessionService:
             lesson_ids=lesson_ids,
             limit=new_remaining,
         )
+        reviewed_cards = self._get_reviewed_cards(
+            lesson_id=lesson_id,
+            lesson_ids=lesson_ids,
+            active_cards=[*due_learning, *due_review, *new_cards],
+            as_of=as_of,
+        )
 
         due_count = self.srs_repo.count_due_cards(lesson_ids=lesson_ids, as_of=as_of)
         latest_oss_paths = self.review_log_repo.get_latest_oss_paths_by_lesson_ids(lesson_ids)
@@ -80,6 +86,10 @@ class StudySessionService:
             *[
                 self._serialize_card(card, srs, latest_oss_paths.get(card.id), server_time)
                 for card, srs in new_cards
+            ],
+            *[
+                self._serialize_card(card, srs, latest_oss_paths.get(card.id), server_time)
+                for card, srs in reviewed_cards
             ],
         ]
 
@@ -175,6 +185,29 @@ class StudySessionService:
         return self.card_repo.get_new_cards(
             lesson_ids=lesson_ids,
             limit=limit,
+        )
+
+    def _get_reviewed_cards(
+        self,
+        lesson_id: int | None,
+        lesson_ids: list[int],
+        active_cards: list[tuple[Any, Any]],
+        as_of: Any,
+    ) -> list[tuple[Any, Any]]:
+        """Keep reviewed lesson cards visible after refresh.
+
+        Global study sessions should continue to show only today's queue. The
+        lesson-scoped page is different: users expect the deck view to retain
+        cards they just reviewed even after FSRS schedules them into the future.
+        """
+        if lesson_id is None or not lesson_ids:
+            return []
+
+        active_card_ids = [card.id for card, _ in active_cards]
+        return self.srs_repo.get_reviewed_cards(
+            lesson_ids=lesson_ids,
+            exclude_card_ids=active_card_ids,
+            as_of=as_of,
         )
 
     def _serialize_card(

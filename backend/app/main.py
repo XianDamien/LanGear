@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.schema_guard import validate_runtime_schema
 from app.routers import (
     dashboard,
     decks,
@@ -63,6 +64,8 @@ async def startup_event():
     else:
         logger.info("Database driver: non-sqlite")
     logger.info(f"CORS origins: {settings.cors_origins_list}")
+    validate_runtime_schema()
+    logger.info("Runtime database schema validation passed")
 
 
 @app.on_event("shutdown")

@@ -262,3 +262,49 @@ class TestSRSRepository:
         test_db.commit()
 
         assert repo.count_completed_by_lesson(lesson.id) == 1
+
+    def test_get_reviewed_cards_returns_only_future_reviewed_rows(self, test_db: Session):
+        repo = SRSRepository(test_db)
+        lesson = Deck(title="Lesson 1", type="lesson", level_index=0)
+        test_db.add(lesson)
+        test_db.flush()
+
+        future_review = Card(deck_id=lesson.id, card_index=0, front_text="a", back_text="a")
+        due_review = Card(deck_id=lesson.id, card_index=1, front_text="b", back_text="b")
+        initial_card = Card(deck_id=lesson.id, card_index=2, front_text="c", back_text="c")
+        test_db.add_all([future_review, due_review, initial_card])
+        test_db.flush()
+
+        _create_srs(
+            test_db,
+            future_review.id,
+            state="review",
+            step=None,
+            stability=4.0,
+            difficulty=5.0,
+            due=datetime.utcnow() + timedelta(days=1),
+            last_review=datetime.utcnow() - timedelta(days=1),
+        )
+        _create_srs(
+            test_db,
+            due_review.id,
+            state="review",
+            step=None,
+            stability=4.0,
+            difficulty=5.0,
+            due=datetime.utcnow() - timedelta(hours=1),
+            last_review=datetime.utcnow() - timedelta(days=1),
+        )
+        _create_srs(
+            test_db,
+            initial_card.id,
+            state="learning",
+            step=0,
+            due=datetime.utcnow() + timedelta(days=2),
+            last_review=None,
+        )
+        test_db.commit()
+
+        reviewed_cards = repo.get_reviewed_cards(lesson_ids=[lesson.id])
+
+        assert [card.id for card, _ in reviewed_cards] == [future_review.id]
