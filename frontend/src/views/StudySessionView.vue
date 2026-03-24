@@ -373,6 +373,9 @@ async function handleFlip() {
   studyStore.userTranscript = realtimeAsr.finalTranscript.value
   studyStore.liveTranscript = realtimeAsr.finalTranscript.value
 
+  audioPlayer.stop()
+  studyStore.audioPlaying = false
+
   await studyStore.flip()
   realtimeAsr.endSession()
 
@@ -545,14 +548,11 @@ function exitStudy() {
           :submit-state="submitState"
           :async-submit-state="asyncSubmitState"
           :feedback-v2="lastFeedbackV2"
-          :transcription-timestamps="lastFeedbackV2?.transcription.timestamps"
           :error-code="currentTask?.errorCode"
           :error-message="currentTask?.errorMessage"
-          @play-original="playCurrentAudio"
           @show-translation="handleShowTranslation"
           @word-click="handleWordClick"
           @grade="handleGrade"
-          @timestamp-jump="studyStore.jumpToTimestamp($event)"
           @update:notes="studyStore.notes = $event"
         />
       </RetroCard>

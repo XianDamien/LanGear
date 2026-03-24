@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import RetroButton from '@/components/ui/RetroButton.vue'
-import HighlightedText from './HighlightedText.vue'
+import { ref } from 'vue'
 import GradeButtons from './GradeButtons.vue'
+import StudyAudioPlayer from './StudyAudioPlayer.vue'
+import TranscriptComparisonPanel from './TranscriptComparisonPanel.vue'
 import type { Card, FsrsRating } from '@/types/domain'
 import type {
   SubmitReviewResponse,
@@ -11,7 +12,7 @@ import type {
 } from '@/types/api'
 import type { AsyncSubmitState } from '@/stores/study'
 
-defineProps<{
+const props = defineProps<{
   card: Card
   userTranscript: string
   userAudioUrl: string | null
@@ -28,107 +29,81 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  playOriginal: []
   showTranslation: []
   wordClick: [word: string]
   grade: [rating: FsrsRating]
   'update:notes': [value: string]
-  timestampJump: [timestamp: number]
 }>()
 
-function handleSuggestionClick(suggestion: FeedbackSuggestion) {
-  if (suggestion.timestamp != null) {
-    emit('timestampJump', suggestion.timestamp)
+type AudioPlayerHandle = {
+  pause: () => void
+  jumpTo: (timestamp: number) => Promise<void>
+}
+
+const referencePlayer = ref<AudioPlayerHandle | null>(null)
+const userPlayer = ref<AudioPlayerHandle | null>(null)
+
+function pauseOtherPlayer(target: 'reference' | 'user') {
+  if (target === 'reference') {
+    userPlayer.value?.pause()
+    return
   }
+  referencePlayer.value?.pause()
+}
+
+async function jumpToUserAudio(timestamp?: number | null) {
+  if (timestamp == null || !props.userAudioUrl) return
+  referencePlayer.value?.pause()
+  await userPlayer.value?.jumpTo(timestamp)
+}
+
+function handleSuggestionClick(suggestion: FeedbackSuggestion) {
+  void jumpToUserAudio(suggestion.timestamp)
 }
 
 function handleIssueClick(issue: FeedbackIssue) {
-  if (issue.timestamp != null) {
-    emit('timestampJump', issue.timestamp)
-  }
+  void jumpToUserAudio(issue.timestamp)
 }
 </script>
 
 <template>
   <div class="flex h-full min-h-0 w-full flex-col text-left animate-fadeIn" data-testid="card-back">
-    <div class="flex-1 min-h-0 space-y-6 overflow-y-auto pr-1 sm:pr-2">
-
-      <!-- ROW 1: Audio Comparison Section -->
-      <div class="rounded border border-slate-200 bg-white p-4">
-        <h3 class="mb-3 text-xs font-bold uppercase text-slate-500">音频对比</h3>
-
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <!-- LEFT: Original audio -->
-          <div class="space-y-2">
-            <div class="mb-1 text-xs font-semibold text-slate-600">原音频</div>
-            <RetroButton variant="secondary" size="sm" @click="emit('playOriginal')">
-              播放原音频
-            </RetroButton>
-          </div>
-
-          <!-- RIGHT: User audio -->
-          <div class="space-y-2">
-            <div class="mb-1 text-xs font-semibold text-slate-600">你的录音</div>
-            <audio
-              v-if="userAudioUrl"
-              controls
-              :src="userAudioUrl"
-              class="h-8 w-full"
-            />
-            <span v-else class="text-xs text-slate-500">暂无录音</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- ROW 2: Text Comparison -->
+    <div class="flex-1 min-h-0 space-y-5 overflow-y-auto pr-1 sm:pr-2">
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <StudyAudioPlayer
+          ref="referencePlayer"
+          channel="Left"
+          label="原音频"
+          :src="card.frontAudio || null"
+          hint="用于对照标准读音，不承载时间戳跳转。"
+          @play="pauseOtherPlayer('reference')"
+        />
 
-        <!-- LEFT: Original text + translation -->
-        <div class="rounded border-l-4 border-brand-accent bg-slate-50 p-4">
-          <div class="mb-2 text-xs font-bold uppercase text-slate-500">原文</div>
-          <h2 class="mb-3 text-xl leading-relaxed tracking-wide sm:text-2xl">
-            <HighlightedText
-              :text="card.backText"
-              :nouns="card.grammarInfo?.nouns"
-              :verbs="card.grammarInfo?.verbs"
-              @word-click="emit('wordClick', $event)"
-            />
-          </h2>
-
-          <div class="mt-3 border-t border-slate-200 pt-3">
-            <RetroButton
-              v-if="!showTranslation"
-              variant="secondary"
-              size="sm"
-              @click="emit('showTranslation')"
-            >
-              显示中文翻译
-            </RetroButton>
-            <p v-else class="text-base italic text-slate-600">
-              {{ translationLoading ? 'AI 翻译生成中...' : (card.backTranslation || '暂无翻译') }}
-            </p>
-          </div>
-        </div>
-
-        <!-- RIGHT: Display transcription -->
-        <div class="rounded border border-slate-200 bg-white p-4" data-testid="transcription-result">
-          <div class="mb-2 text-xs font-bold uppercase text-slate-500">你的转写结果</div>
-
-          <div class="text-lg leading-relaxed text-brand-accent">
-            {{ userTranscript || '暂无转写' }}
-          </div>
-
-          <div class="mt-2 text-xs text-slate-500">
-            跳转回听请使用下方问题点或改进建议中的时间定位
-          </div>
-        </div>
+        <StudyAudioPlayer
+          ref="userPlayer"
+          channel="Right"
+          label="用户练习音频"
+          :src="userAudioUrl"
+          hint="问题点和建议里的时间戳只会跳到这条录音。"
+          @play="pauseOtherPlayer('user')"
+        />
       </div>
 
-      <!-- ROW 3: AI Feedback (centered) -->
-      <div class="rounded border border-slate-200 bg-white p-5" data-testid="feedback-panel">
+      <TranscriptComparisonPanel
+        :original-text="card.backText"
+        :transcript-text="userTranscript"
+        :translation-text="card.backTranslation || ''"
+        :show-translation="showTranslation"
+        :translation-loading="translationLoading"
+        :nouns="card.grammarInfo?.nouns"
+        :verbs="card.grammarInfo?.verbs"
+        @word-click="emit('wordClick', $event)"
+        @toggle-translation="emit('showTranslation')"
+      />
+
+      <div class="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-mech" data-testid="feedback-panel">
         <h3 class="mb-3 text-xs font-bold uppercase text-slate-500">AI 评测反馈</h3>
 
-        <!-- Processing state -->
         <div
           v-if="asyncSubmitState === 'processing'"
           class="animate-pulse space-y-2"
@@ -151,10 +126,8 @@ function handleIssueClick(issue: FeedbackIssue) {
           </p>
         </div>
 
-        <!-- v2.0 completed state -->
         <template v-else-if="feedbackV2">
           <div class="mx-auto max-w-2xl space-y-3 text-sm">
-            <!-- Feedback grid -->
             <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
               <div class="rounded bg-slate-50 p-3">
                 <div class="mb-1 text-xs uppercase text-slate-500">发音</div>
@@ -170,7 +143,6 @@ function handleIssueClick(issue: FeedbackIssue) {
               </div>
             </div>
 
-            <!-- Suggestions -->
             <div
               v-if="feedbackV2.feedback.suggestions.length > 0"
               class="rounded border-l-4 border-amber-400 bg-amber-50 p-3"
@@ -218,7 +190,6 @@ function handleIssueClick(issue: FeedbackIssue) {
           </div>
         </template>
 
-        <!-- v1.x compatibility -->
         <template v-else-if="feedbackLoading">
           <span class="block animate-pulse text-center text-slate-500">AI 分析中...</span>
         </template>
@@ -235,8 +206,7 @@ function handleIssueClick(issue: FeedbackIssue) {
         <span v-else class="block text-center text-slate-500">暂无反馈</span>
       </div>
 
-      <!-- ROW 4: Notes -->
-      <div class="rounded border border-slate-200 bg-white p-4">
+      <div class="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-mech-sm">
         <h3 class="mb-2 text-xs font-bold uppercase text-slate-500">学习笔记</h3>
         <textarea
           class="w-full resize-none rounded border border-slate-200 p-3 text-sm text-slate-900 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/20"
@@ -248,7 +218,6 @@ function handleIssueClick(issue: FeedbackIssue) {
       </div>
     </div>
 
-    <!-- ROW 5: Grade Buttons -->
     <div class="mt-4 border-t border-slate-200/80 pt-4">
       <GradeButtons
         :disabled="
