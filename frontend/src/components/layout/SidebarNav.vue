@@ -16,7 +16,10 @@ const route = useRoute()
 </script>
 
 <template>
-  <router-link :to="to" @click="$emit('navigate')">
+  <router-link
+    :to="to"
+    @click="$emit('navigate')"
+  >
     <div
       :class="[
         'group flex items-center gap-3 px-4 py-3 mb-2 transition-all cursor-pointer border-l-4',

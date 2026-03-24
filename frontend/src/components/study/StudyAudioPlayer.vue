@@ -168,7 +168,9 @@ defineExpose({
             {{ stateLabel }}
           </span>
         </div>
-        <h3 class="mt-2 text-base font-semibold text-slate-900">{{ label }}</h3>
+        <h3 class="mt-2 text-base font-semibold text-slate-900">
+          {{ label }}
+        </h3>
         <p class="mt-1 text-sm leading-6 text-slate-500">
           {{ hint || (hasSource ? '可独立播放和拖动进度。' : '当前卡片还没有可播放的音频。') }}
         </p>
@@ -180,9 +182,18 @@ defineExpose({
         :disabled="!hasSource"
         @click="togglePlayback"
       >
-        <Pause v-if="isPlaying" :size="20" />
-        <Play v-else-if="hasSource" :size="20" />
-        <Volume2 v-else :size="20" />
+        <Pause
+          v-if="isPlaying"
+          :size="20"
+        />
+        <Play
+          v-else-if="hasSource"
+          :size="20"
+        />
+        <Volume2
+          v-else
+          :size="20"
+        />
       </button>
     </div>
 

@@ -76,7 +76,10 @@ const option = computed(() => ({
       学习趋势
     </h3>
     <div class="h-48 w-full">
-      <VChart :option="option" autoresize />
+      <VChart
+        :option="option"
+        autoresize
+      />
     </div>
   </div>
 </template>

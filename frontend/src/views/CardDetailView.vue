@@ -22,28 +22,44 @@ const detail = ref({
 <template>
   <div class="animate-fadeIn max-w-2xl mx-auto">
     <div class="flex items-center justify-between mb-6">
-      <h2 class="text-3xl font-bold text-brand-accent uppercase">AI 反馈详情</h2>
-      <RetroButton variant="ghost" size="sm" @click="router.back()">
+      <h2 class="text-3xl font-bold text-brand-accent uppercase">
+        AI 反馈详情
+      </h2>
+      <RetroButton
+        variant="ghost"
+        size="sm"
+        @click="router.back()"
+      >
         返回
       </RetroButton>
     </div>
 
     <div class="space-y-4">
       <RetroCard title="发音准确度">
-        <p class="text-slate-900">{{ detail.pronunciation }}</p>
+        <p class="text-slate-900">
+          {{ detail.pronunciation }}
+        </p>
       </RetroCard>
 
       <RetroCard title="内容完整度">
-        <p class="text-slate-900">{{ detail.completeness }}</p>
+        <p class="text-slate-900">
+          {{ detail.completeness }}
+        </p>
       </RetroCard>
 
       <RetroCard title="流畅度">
-        <p class="text-slate-900">{{ detail.fluency }}</p>
+        <p class="text-slate-900">
+          {{ detail.fluency }}
+        </p>
       </RetroCard>
 
       <RetroCard title="改进建议">
         <ul class="list-disc list-inside space-y-1">
-          <li v-for="(s, i) in detail.suggestions" :key="i" class="text-slate-700">
+          <li
+            v-for="(s, i) in detail.suggestions"
+            :key="i"
+            class="text-slate-700"
+          >
             {{ s }}
           </li>
         </ul>

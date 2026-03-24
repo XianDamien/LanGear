@@ -26,13 +26,30 @@ function retry() {
 
 <template>
   <div class="animate-fadeIn max-w-2xl mx-auto">
-    <h2 class="text-3xl font-bold mb-6 text-brand-accent uppercase">课级总结</h2>
+    <h2 class="text-3xl font-bold mb-6 text-brand-accent uppercase">
+      课级总结
+    </h2>
 
-    <div v-if="loading" class="text-center text-slate-500 py-20">AI 总结生成中...</div>
+    <div
+      v-if="loading"
+      class="text-center text-slate-500 py-20"
+    >
+      AI 总结生成中...
+    </div>
 
-    <div v-else-if="error" class="text-center py-20">
-      <p class="text-brand-alert mb-4">总结加载失败</p>
-      <RetroButton variant="primary" @click="retry">重试生成</RetroButton>
+    <div
+      v-else-if="error"
+      class="text-center py-20"
+    >
+      <p class="text-brand-alert mb-4">
+        总结加载失败
+      </p>
+      <RetroButton
+        variant="primary"
+        @click="retry"
+      >
+        重试生成
+      </RetroButton>
     </div>
 
     <template v-else-if="summaryData">
@@ -42,7 +59,9 @@ function retry() {
             <div class="text-4xl font-bold font-pixel text-brand-accent">
               {{ summaryData.overallScore }}
             </div>
-            <p class="text-slate-700">{{ summaryData.overallComment }}</p>
+            <p class="text-slate-700">
+              {{ summaryData.overallComment }}
+            </p>
           </div>
         </RetroCard>
 
@@ -83,10 +102,16 @@ function retry() {
         </RetroCard>
 
         <div class="flex gap-4 mt-6">
-          <RetroButton variant="secondary" @click="router.push('/library')">
+          <RetroButton
+            variant="secondary"
+            @click="router.push('/library')"
+          >
             返回题库
           </RetroButton>
-          <RetroButton variant="primary" @click="router.push('/dashboard')">
+          <RetroButton
+            variant="primary"
+            @click="router.push('/dashboard')"
+          >
             回到首页
           </RetroButton>
         </div>

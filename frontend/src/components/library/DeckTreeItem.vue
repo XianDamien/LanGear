@@ -35,21 +35,41 @@ function toggle() {
     >
       <div class="flex items-center gap-2">
         <template v-if="deck.children?.length">
-          <ChevronDown v-if="expanded" :size="16" class="text-slate-400" />
-          <ChevronRight v-else :size="16" class="text-slate-400" />
+          <ChevronDown
+            v-if="expanded"
+            :size="16"
+            class="text-slate-400"
+          />
+          <ChevronRight
+            v-else
+            :size="16"
+            class="text-slate-400"
+          />
         </template>
-        <div v-else class="w-4" />
+        <div
+          v-else
+          class="w-4"
+        />
 
         <div>
-          <div class="font-bold" :class="deck.type === 'lesson' ? 'text-base' : 'text-lg'">
+          <div
+            class="font-bold"
+            :class="deck.type === 'lesson' ? 'text-base' : 'text-lg'"
+          >
             {{ deck.name }}
           </div>
-          <div v-if="deck.type === 'lesson'" class="text-sm text-slate-500">
+          <div
+            v-if="deck.type === 'lesson'"
+            class="text-sm text-slate-500"
+          >
             <span class="font-pixel text-brand-accent">{{ deck.newCards }}</span> 新卡 •
             <span class="font-pixel text-brand-accent">{{ deck.reviewCards }}</span> 复习 •
             <span class="font-pixel text-green-600">{{ deck.completedCards }}</span> 已完成
           </div>
-          <div v-else class="text-xs text-slate-500 uppercase">
+          <div
+            v-else
+            class="text-xs text-slate-500 uppercase"
+          >
             {{ deck.totalCards }} 句
           </div>
         </div>

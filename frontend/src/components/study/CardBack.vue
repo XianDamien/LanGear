@@ -67,7 +67,10 @@ function handleIssueClick(issue: FeedbackIssue) {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 w-full flex-col text-left animate-fadeIn" data-testid="card-back">
+  <div
+    class="flex h-full min-h-0 w-full flex-col text-left animate-fadeIn"
+    data-testid="card-back"
+  >
     <div class="flex-1 min-h-0 space-y-5 overflow-y-auto pr-1 sm:pr-2">
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <StudyAudioPlayer
@@ -101,16 +104,21 @@ function handleIssueClick(issue: FeedbackIssue) {
         @toggle-translation="emit('showTranslation')"
       />
 
-      <div class="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-mech" data-testid="feedback-panel">
-        <h3 class="mb-3 text-xs font-bold uppercase text-slate-500">AI 评测反馈</h3>
+      <div
+        class="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-mech"
+        data-testid="feedback-panel"
+      >
+        <h3 class="mb-3 text-xs font-bold uppercase text-slate-500">
+          AI 评测反馈
+        </h3>
 
         <div
           v-if="asyncSubmitState === 'processing'"
           class="animate-pulse space-y-2"
           data-testid="feedback-processing"
         >
-          <div class="h-4 w-3/4 rounded bg-slate-200"></div>
-          <div class="h-4 w-1/2 rounded bg-slate-200"></div>
+          <div class="h-4 w-3/4 rounded bg-slate-200" />
+          <div class="h-4 w-1/2 rounded bg-slate-200" />
           <span class="text-xs text-slate-500">AI 分析中...</span>
         </div>
 
@@ -130,16 +138,28 @@ function handleIssueClick(issue: FeedbackIssue) {
           <div class="mx-auto max-w-2xl space-y-3 text-sm">
             <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
               <div class="rounded bg-slate-50 p-3">
-                <div class="mb-1 text-xs uppercase text-slate-500">发音</div>
-                <p class="text-slate-900">{{ feedbackV2.feedback.pronunciation }}</p>
+                <div class="mb-1 text-xs uppercase text-slate-500">
+                  发音
+                </div>
+                <p class="text-slate-900">
+                  {{ feedbackV2.feedback.pronunciation }}
+                </p>
               </div>
               <div class="rounded bg-slate-50 p-3">
-                <div class="mb-1 text-xs uppercase text-slate-500">完整度</div>
-                <p class="text-slate-900">{{ feedbackV2.feedback.completeness }}</p>
+                <div class="mb-1 text-xs uppercase text-slate-500">
+                  完整度
+                </div>
+                <p class="text-slate-900">
+                  {{ feedbackV2.feedback.completeness }}
+                </p>
               </div>
               <div class="rounded bg-slate-50 p-3">
-                <div class="mb-1 text-xs uppercase text-slate-500">流畅度</div>
-                <p class="text-slate-900">{{ feedbackV2.feedback.fluency }}</p>
+                <div class="mb-1 text-xs uppercase text-slate-500">
+                  流畅度
+                </div>
+                <p class="text-slate-900">
+                  {{ feedbackV2.feedback.fluency }}
+                </p>
               </div>
             </div>
 
@@ -147,7 +167,9 @@ function handleIssueClick(issue: FeedbackIssue) {
               v-if="feedbackV2.feedback.suggestions.length > 0"
               class="rounded border-l-4 border-amber-400 bg-amber-50 p-3"
             >
-              <p class="mb-2 text-sm font-semibold text-amber-900">改进建议:</p>
+              <p class="mb-2 text-sm font-semibold text-amber-900">
+                改进建议:
+              </p>
               <ul class="list-inside list-disc space-y-1">
                 <li
                   v-for="(suggestion, idx) in feedbackV2.feedback.suggestions"
@@ -160,7 +182,10 @@ function handleIssueClick(issue: FeedbackIssue) {
                   @click="handleSuggestionClick(suggestion)"
                 >
                   {{ suggestion.text }}
-                  <span v-if="suggestion.target_word" class="font-semibold text-brand-accent">
+                  <span
+                    v-if="suggestion.target_word"
+                    class="font-semibold text-brand-accent"
+                  >
                     ({{ suggestion.target_word }})
                   </span>
                 </li>
@@ -171,7 +196,9 @@ function handleIssueClick(issue: FeedbackIssue) {
               v-if="feedbackV2.feedback.issues.length > 0"
               class="rounded border-l-4 border-rose-400 bg-rose-50 p-3"
             >
-              <p class="mb-2 text-sm font-semibold text-rose-900">问题点:</p>
+              <p class="mb-2 text-sm font-semibold text-rose-900">
+                问题点:
+              </p>
               <ul class="list-inside list-disc space-y-1">
                 <li
                   v-for="(issue, idx) in feedbackV2.feedback.issues"
@@ -195,7 +222,9 @@ function handleIssueClick(issue: FeedbackIssue) {
         </template>
         <template v-else-if="feedback">
           <div class="mx-auto max-w-2xl">
-            <p class="mb-2 text-slate-900">{{ feedback.feedback.pronunciation }}</p>
+            <p class="mb-2 text-slate-900">
+              {{ feedback.feedback.pronunciation }}
+            </p>
             <p class="text-sm text-slate-600">
               评分: <span class="font-pixel text-lg text-brand-accent">
                 {{ feedback.feedback.overallScore }}
@@ -203,11 +232,16 @@ function handleIssueClick(issue: FeedbackIssue) {
             </p>
           </div>
         </template>
-        <span v-else class="block text-center text-slate-500">暂无反馈</span>
+        <span
+          v-else
+          class="block text-center text-slate-500"
+        >暂无反馈</span>
       </div>
 
       <div class="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-mech-sm">
-        <h3 class="mb-2 text-xs font-bold uppercase text-slate-500">学习笔记</h3>
+        <h3 class="mb-2 text-xs font-bold uppercase text-slate-500">
+          学习笔记
+        </h3>
         <textarea
           class="w-full resize-none rounded border border-slate-200 p-3 text-sm text-slate-900 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/20"
           placeholder="记录易错点或理解要点..."
@@ -222,10 +256,10 @@ function handleIssueClick(issue: FeedbackIssue) {
       <GradeButtons
         :disabled="
           submitState === 'submitting' ||
-          asyncSubmitState === 'processing' ||
-          asyncSubmitState === 'submitting' ||
-          asyncSubmitState === 'failed' ||
-          asyncSubmitState === 'idle'
+            asyncSubmitState === 'processing' ||
+            asyncSubmitState === 'submitting' ||
+            asyncSubmitState === 'failed' ||
+            asyncSubmitState === 'idle'
         "
         @grade="emit('grade', $event)"
       />

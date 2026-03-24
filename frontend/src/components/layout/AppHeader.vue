@@ -18,7 +18,10 @@ const langPair = defineModel<string>('langPair', { default: 'en-zh' })
   <header
     class="h-20 border-b border-slate-200 bg-brand-panel flex items-center justify-between px-6 sticky top-0 z-40 shadow-mech-sm"
   >
-    <button class="md:hidden text-slate-900" @click="emit('toggleMenu')">
+    <button
+      class="md:hidden text-slate-900"
+      @click="emit('toggleMenu')"
+    >
       <component :is="mobileMenuOpen ? X : Menu" />
     </button>
 
@@ -28,7 +31,11 @@ const langPair = defineModel<string>('langPair', { default: 'en-zh' })
 
     <div class="flex items-center gap-4">
       <LanguageSelector v-model="langPair" />
-      <RetroButton variant="secondary" size="sm" :icon="Plus" />
+      <RetroButton
+        variant="secondary"
+        size="sm"
+        :icon="Plus"
+      />
     </div>
   </header>
 </template>

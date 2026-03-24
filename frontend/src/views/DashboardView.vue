@@ -45,20 +45,39 @@ function handlePlayDeck(deckId: string) {
 
 <template>
   <div class="space-y-6 animate-fadeIn">
-    <div v-if="loading" class="text-center text-slate-500 py-20">加载中...</div>
-    <div v-else-if="error" class="rounded border border-red-200 bg-red-50 p-6 text-center text-red-700">
+    <div
+      v-if="loading"
+      class="text-center text-slate-500 py-20"
+    >
+      加载中...
+    </div>
+    <div
+      v-else-if="error"
+      class="rounded border border-red-200 bg-red-50 p-6 text-center text-red-700"
+    >
       首页数据加载失败：{{ error }}
     </div>
     <template v-else-if="stats">
       <StatsCards :stats="stats" />
       <ActivityChart :data="weeklyTrend" />
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <RecentDecks :decks="deckTree" @play="handlePlayDeck" />
+        <RecentDecks
+          :decks="deckTree"
+          @play="handlePlayDeck"
+        />
         <Leaderboard />
       </div>
     </template>
-    <div v-else-if="deckLoading" class="text-center text-slate-500 py-20">加载中...</div>
-    <div v-else class="rounded border border-slate-200 bg-brand-panel/90 p-6 text-center text-slate-600">
+    <div
+      v-else-if="deckLoading"
+      class="text-center text-slate-500 py-20"
+    >
+      加载中...
+    </div>
+    <div
+      v-else
+      class="rounded border border-slate-200 bg-brand-panel/90 p-6 text-center text-slate-600"
+    >
       暂无首页数据
     </div>
   </div>

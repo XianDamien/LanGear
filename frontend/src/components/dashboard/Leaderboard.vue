@@ -8,7 +8,9 @@ const leaders = [
 
 <template>
   <div>
-    <h2 class="text-2xl font-bold mb-4 uppercase text-brand-accent">排行榜</h2>
+    <h2 class="text-2xl font-bold mb-4 uppercase text-brand-accent">
+      排行榜
+    </h2>
     <div class="bg-white p-4 border border-slate-200 shadow-mech-sm">
       <div
         v-for="(leader, idx) in leaders"

@@ -23,11 +23,21 @@ function handleSelectLesson(lessonId: string) {
 
 <template>
   <div class="animate-fadeIn">
-    <h2 class="text-3xl font-bold mb-6 text-brand-accent uppercase">题库</h2>
+    <h2 class="text-3xl font-bold mb-6 text-brand-accent uppercase">
+      题库
+    </h2>
 
-    <div v-if="loading" class="text-center text-slate-500 py-20">加载中...</div>
+    <div
+      v-if="loading"
+      class="text-center text-slate-500 py-20"
+    >
+      加载中...
+    </div>
 
-    <div v-else class="space-y-2">
+    <div
+      v-else
+      class="space-y-2"
+    >
       <DeckTreeItem
         v-for="deck in deckTree"
         :key="deck.id"

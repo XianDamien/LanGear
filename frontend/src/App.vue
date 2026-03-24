@@ -13,18 +13,27 @@ const isFullscreen = computed(() => route.meta.fullscreen === true)
 
 <template>
   <!-- Fullscreen layout for study session -->
-  <div v-if="isFullscreen" class="min-h-screen bg-brand-dark text-slate-900">
+  <div
+    v-if="isFullscreen"
+    class="min-h-screen bg-brand-dark text-slate-900"
+  >
     <router-view />
   </div>
 
   <!-- Standard layout with sidebar -->
-  <div v-else class="min-h-screen bg-brand-dark text-slate-900 flex">
-    <AppSidebar :open="mobileMenuOpen" @close="mobileMenuOpen = false" />
+  <div
+    v-else
+    class="min-h-screen bg-brand-dark text-slate-900 flex"
+  >
+    <AppSidebar
+      :open="mobileMenuOpen"
+      @close="mobileMenuOpen = false"
+    />
 
     <main class="flex-1 flex flex-col min-w-0">
       <AppHeader
-        :mobile-menu-open="mobileMenuOpen"
         v-model:lang-pair="langPair"
+        :mobile-menu-open="mobileMenuOpen"
         @toggle-menu="mobileMenuOpen = !mobileMenuOpen"
       />
 

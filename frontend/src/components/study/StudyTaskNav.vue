@@ -52,8 +52,12 @@ function getStatusDetail(task: StudyTaskEntry | undefined): string | undefined {
     data-testid="study-task-nav"
   >
     <div class="mb-2 flex items-center justify-between gap-3">
-      <div class="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">句子任务导航</div>
-      <div class="text-xs text-slate-500">切卡不影响已提交任务状态</div>
+      <div class="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
+        句子任务导航
+      </div>
+      <div class="text-xs text-slate-500">
+        切卡不影响已提交任务状态
+      </div>
     </div>
 
     <div class="flex gap-2 overflow-x-auto pb-1">
@@ -82,7 +86,10 @@ function getStatusDetail(task: StudyTaskEntry | undefined): string | undefined {
         <div class="truncate text-sm text-slate-700">
           {{ card.backText || card.frontText || `句子 ${index + 1}` }}
         </div>
-        <div class="mt-1 text-xs text-slate-500" :data-testid="`task-nav-status-${index + 1}`">
+        <div
+          class="mt-1 text-xs text-slate-500"
+          :data-testid="`task-nav-status-${index + 1}`"
+        >
           {{ getStatusLabel(getTask(card.id)) }}
         </div>
       </button>

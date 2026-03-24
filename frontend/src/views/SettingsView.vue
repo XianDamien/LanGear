@@ -23,9 +23,16 @@ async function handleSave() {
 
 <template>
   <div class="animate-fadeIn max-w-xl mx-auto">
-    <h2 class="text-3xl font-bold mb-6 text-brand-accent uppercase">设置</h2>
+    <h2 class="text-3xl font-bold mb-6 text-brand-accent uppercase">
+      设置
+    </h2>
 
-    <div v-if="loading" class="text-center text-slate-500 py-20">加载中...</div>
+    <div
+      v-if="loading"
+      class="text-center text-slate-500 py-20"
+    >
+      加载中...
+    </div>
 
     <template v-else>
       <RetroCard class="space-y-6">
@@ -39,7 +46,7 @@ async function handleSave() {
             min="1"
             max="100"
             class="w-full border border-slate-200 p-2 text-slate-900 font-sans focus:border-brand-accent outline-none"
-          />
+          >
         </div>
 
         <div>
@@ -52,7 +59,7 @@ async function handleSave() {
             min="1"
             max="200"
             class="w-full border border-slate-200 p-2 text-slate-900 font-sans focus:border-brand-accent outline-none"
-          />
+          >
         </div>
 
         <div>
@@ -64,7 +71,7 @@ async function handleSave() {
             type="text"
             placeholder="留空表示全部，或填写 source ID，逗号分隔"
             class="w-full border border-slate-200 p-2 text-slate-900 font-sans focus:border-brand-accent outline-none bg-white"
-          />
+          >
         </div>
 
         <RetroButton

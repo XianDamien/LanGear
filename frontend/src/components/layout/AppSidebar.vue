@@ -34,13 +34,32 @@ const emit = defineEmits<{
     </div>
 
     <nav class="mt-8">
-      <SidebarNav to="/dashboard" :icon="Home" label="总览" @navigate="emit('close')" />
-      <SidebarNav to="/library" :icon="BookOpen" label="题库" @navigate="emit('close')" />
-      <SidebarNav to="/settings" :icon="SettingsIcon" label="设置" @navigate="emit('close')" />
+      <SidebarNav
+        to="/dashboard"
+        :icon="Home"
+        label="总览"
+        @navigate="emit('close')"
+      />
+      <SidebarNav
+        to="/library"
+        :icon="BookOpen"
+        label="题库"
+        @navigate="emit('close')"
+      />
+      <SidebarNav
+        to="/settings"
+        :icon="SettingsIcon"
+        label="设置"
+        @navigate="emit('close')"
+      />
     </nav>
 
     <div class="absolute bottom-8 left-0 w-full px-6">
-      <RetroButton variant="primary" class="w-full" size="sm">
+      <RetroButton
+        variant="primary"
+        class="w-full"
+        size="sm"
+      >
         开通专业版
       </RetroButton>
     </div>

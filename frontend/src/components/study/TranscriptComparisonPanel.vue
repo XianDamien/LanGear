@@ -52,11 +52,18 @@ function tokenClasses(token: DiffTokenView, side: 'original' | 'transcript') {
 </script>
 
 <template>
-  <section class="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-mech" data-testid="transcription-result">
+  <section
+    class="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-mech"
+    data-testid="transcription-result"
+  >
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <div class="text-[10px] font-bold uppercase tracking-[0.32em] text-slate-400">Text Compare</div>
-        <h3 class="mt-2 text-base font-semibold text-slate-900">原文 / 转写对照</h3>
+        <div class="text-[10px] font-bold uppercase tracking-[0.32em] text-slate-400">
+          Text Compare
+        </div>
+        <h3 class="mt-2 text-base font-semibold text-slate-900">
+          原文 / 转写对照
+        </h3>
       </div>
 
       <div class="flex items-center gap-2">
@@ -74,7 +81,10 @@ function tokenClasses(token: DiffTokenView, side: 'original' | 'transcript') {
       </div>
     </div>
 
-    <div v-if="showTranslation" class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-600">
+    <div
+      v-if="showTranslation"
+      class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-600"
+    >
       {{ translationLoading ? 'AI 翻译生成中...' : (translationText || '暂无翻译') }}
     </div>
 
@@ -102,7 +112,10 @@ function tokenClasses(token: DiffTokenView, side: 'original' | 'transcript') {
           <span class="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">Transcript</span>
           <span class="text-xs text-slate-500">问题点时间戳只跳到用户录音</span>
         </div>
-        <div v-if="diffRows.transcript.length > 0" class="flex flex-wrap gap-2">
+        <div
+          v-if="diffRows.transcript.length > 0"
+          class="flex flex-wrap gap-2"
+        >
           <span
             v-for="token in diffRows.transcript"
             :key="`transcript-${token.index}-${token.raw}`"
@@ -111,7 +124,12 @@ function tokenClasses(token: DiffTokenView, side: 'original' | 'transcript') {
             {{ token.raw }}
           </span>
         </div>
-        <p v-else class="text-sm text-slate-500">暂无转写</p>
+        <p
+          v-else
+          class="text-sm text-slate-500"
+        >
+          暂无转写
+        </p>
       </div>
     </div>
 

@@ -492,7 +492,12 @@ function exitStudy() {
   >
     <div class="mb-4 grid grid-cols-[minmax(5rem,1fr)_auto_minmax(5rem,1fr)] items-center gap-3 sm:mb-6">
       <div class="flex min-w-[5rem]">
-        <RetroButton variant="ghost" size="sm" class="w-[5rem] justify-center" @click="exitStudy">
+        <RetroButton
+          variant="ghost"
+          size="sm"
+          class="w-[5rem] justify-center"
+          @click="exitStudy"
+        >
           退出
         </RetroButton>
       </div>
@@ -505,7 +510,10 @@ function exitStudy() {
         /
         <span class="font-pixel">{{ cards.length }}</span>
       </div>
-      <div class="min-w-[5rem]" aria-hidden="true" />
+      <div
+        class="min-w-[5rem]"
+        aria-hidden="true"
+      />
     </div>
 
     <StudyTaskNav
@@ -516,11 +524,19 @@ function exitStudy() {
       @select="handleSelectCard"
     />
 
-    <div v-if="loading" class="flex-1 flex items-center justify-center text-slate-500" data-testid="study-loading">
+    <div
+      v-if="loading"
+      class="flex-1 flex items-center justify-center text-slate-500"
+      data-testid="study-loading"
+    >
       加载中...
     </div>
 
-    <div v-else-if="currentCard" class="relative flex flex-1 min-h-0 flex-col pb-4" data-testid="study-card">
+    <div
+      v-else-if="currentCard"
+      class="relative flex flex-1 min-h-0 flex-col pb-4"
+      data-testid="study-card"
+    >
       <RetroCard :class="studyCardClass">
         <CardFront
           v-if="!isFlipped"

@@ -13,7 +13,9 @@ const emit = defineEmits<{
 
 <template>
   <div>
-    <h2 class="text-2xl font-bold mb-4 uppercase text-brand-accent">学习中</h2>
+    <h2 class="text-2xl font-bold mb-4 uppercase text-brand-accent">
+      学习中
+    </h2>
     <div class="space-y-3">
       <div
         v-for="deck in decks"
