@@ -297,6 +297,11 @@ async function toggleRecording() {
     }
     await handleStopRecordingFlow()
   } else {
+    if (audioPlayer.isPlaying.value || audioPlaying.value) {
+      ElMessage.warning('建议完整听完原音频之后再录音')
+      return
+    }
+
     realtimeAsr.endSession()
     realtimeAsr.reset()
     const connected = await startRealtimeForCurrentCard()

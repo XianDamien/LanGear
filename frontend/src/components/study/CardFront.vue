@@ -27,6 +27,15 @@ function handleFlipClick() {
 
   emit('flip')
 }
+
+function handleToggleRecordingClick() {
+  if (props.audioPlaying && !props.isRecording) {
+    ElMessage.warning('建议完整听完原音频之后再录音')
+    return
+  }
+
+  emit('toggleRecording')
+}
 </script>
 
 <template>
@@ -66,7 +75,7 @@ function handleFlipClick() {
         :variant="isRecording ? 'danger' : 'secondary'"
         class="w-full"
         data-testid="record-toggle"
-        @click="emit('toggleRecording')"
+        @click="handleToggleRecordingClick"
       >
         <Square v-if="isRecording" class="mr-2 animate-pulse" />
         <Mic v-else class="mr-2" />
