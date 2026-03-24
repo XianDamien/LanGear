@@ -33,9 +33,12 @@ const recordingDisabled = computed(() => props.audioPlaying && !props.isRecordin
 </script>
 
 <template>
-  <div class="w-full max-w-md space-y-6 mx-auto" data-testid="card-front">
+  <div
+    class="mx-auto w-full max-w-md space-y-6"
+    data-testid="card-front"
+  >
     <!-- Play button -->
-    <div class="flex justify-center mb-8">
+    <div class="mb-8 flex justify-center">
       <div
         :class="[
           'p-4 rounded-full border-4 inline-flex items-center justify-center w-24 h-24 cursor-pointer hover:bg-slate-50',
@@ -44,8 +47,15 @@ const recordingDisabled = computed(() => props.audioPlaying && !props.isRecordin
         data-testid="play-reference-audio"
         @click="emit('playAudio')"
       >
-        <Volume2 v-if="audioPlaying" :size="40" class="text-brand-accent" />
-        <Play v-else :size="40" />
+        <Volume2
+          v-if="audioPlaying"
+          :size="40"
+          class="text-brand-accent"
+        />
+        <Play
+          v-else
+          :size="40"
+        />
       </div>
     </div>
     <p class="text-slate-500 text-sm uppercase tracking-widest text-center">
@@ -72,8 +82,14 @@ const recordingDisabled = computed(() => props.audioPlaying && !props.isRecordin
         data-testid="record-toggle"
         @click="emit('toggleRecording')"
       >
-        <Square v-if="isRecording" class="mr-2 animate-pulse" />
-        <Mic v-else class="mr-2" />
+        <Square
+          v-if="isRecording"
+          class="mr-2 animate-pulse"
+        />
+        <Mic
+          v-else
+          class="mr-2"
+        />
         {{ isRecording ? '停止' : '录音' }}
       </RetroButton>
     </div>
@@ -91,8 +107,11 @@ const recordingDisabled = computed(() => props.audioPlaying && !props.isRecordin
       class="bg-blue-50 border border-blue-200 rounded p-3"
       data-testid="upload-progress"
     >
-      <div class="flex items-center gap-2 mb-2">
-        <Upload class="animate-pulse text-blue-600" :size="16" />
+      <div class="mb-2 flex items-center gap-2">
+        <Upload
+          class="animate-pulse text-blue-600"
+          :size="16"
+        />
         <span class="text-sm text-blue-900">上传中...</span>
       </div>
       <div class="w-full bg-blue-200 rounded-full h-2">
@@ -106,7 +125,7 @@ const recordingDisabled = computed(() => props.audioPlaying && !props.isRecordin
     <!-- Flip button -->
     <RetroButton
       variant="primary"
-      class="w-full mt-4"
+      class="mt-4 w-full"
       :disabled="uploadState === 'uploading'"
       data-testid="flip-button"
       @click="handleFlipClick"

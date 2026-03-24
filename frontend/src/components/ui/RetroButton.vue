@@ -8,12 +8,13 @@ defineOptions({
 interface Props {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
   size?: 'sm' | 'md' | 'lg'
-  icon?: Component
+  icon?: Component | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
   variant: 'primary',
   size: 'md',
+  icon: null,
 })
 
 const baseStyle =
@@ -49,7 +50,11 @@ const iconSizes: Record<string, number> = {
     :class="[baseStyle, variants[props.variant], sizes[props.size], $attrs.class]"
     v-bind="{ ...$attrs, class: undefined }"
   >
-    <component :is="props.icon" v-if="props.icon" :size="iconSizes[props.size]" />
+    <component
+      :is="props.icon"
+      v-if="props.icon"
+      :size="iconSizes[props.size]"
+    />
     <slot />
   </button>
 </template>

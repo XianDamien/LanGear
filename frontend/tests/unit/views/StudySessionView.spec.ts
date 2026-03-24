@@ -2,7 +2,7 @@ import { buildMockStudySession } from '@/services/mock/study'
 import { flushPromises } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { nextTick, type Ref } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchStudySession,
   getOSSSignedUrl,
@@ -15,6 +15,10 @@ import {
 import { __mockRealtimeAsr } from '@/composables/useRealtimeAsr'
 import { mountWithApp } from '../../helpers/mountWithApp'
 import StudySessionView from '@/views/StudySessionView.vue'
+
+const { ossPutMock } = vi.hoisted(() => ({
+  ossPutMock: vi.fn(),
+}))
 
 declare module '@/composables/useRealtimeAsr' {
   export const __mockRealtimeAsr: {
@@ -31,6 +35,16 @@ declare module '@/composables/useRealtimeAsr' {
     reset: ReturnType<typeof vi.fn>
   }
 }
+
+vi.mock('ali-oss', () => ({
+  default: class MockOSS {
+    put = ossPutMock
+
+    signatureUrl(path: string) {
+      return `https://oss.example/${path}`
+    }
+  },
+}))
 
 vi.mock('@/services/api/study', async () => {
   const actual = await vi.importActual<typeof import('@/services/api/study')>(
@@ -85,8 +99,64 @@ vi.mock('@/composables/useRealtimeAsr', async () => {
   }
 })
 
+function createStudyRouter() {
+  return createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {
+        path: '/study/:lessonId',
+        component: StudySessionView,
+      },
+      {
+        path: '/library',
+        component: { template: '<div />' },
+      },
+      {
+        path: '/summary/:lessonId',
+        component: { template: '<div />' },
+      },
+    ],
+  })
+}
+
+function mountStudySessionView(
+  router: ReturnType<typeof createStudyRouter>,
+  options: { renderReviewUI?: boolean } = {},
+) {
+  const { renderReviewUI = false } = options
+
+  return mountWithApp(StudySessionView, {
+    pinia: {
+      stubActions: false,
+    },
+    global: {
+      plugins: [router],
+      stubs: {
+        ...(renderReviewUI
+          ? {
+              GradeButtons: { template: '<div data-testid="grade-buttons-stub" />' },
+              RetroCard: { template: '<div><slot /></div>' },
+              StudyAudioPlayer: { template: '<div data-testid="study-audio-player-stub" />' },
+              SummaryModal: { template: '<div data-testid="summary-modal-stub" />' },
+              WordExplanation: { template: '<div data-testid="word-explanation-stub" />' },
+            }
+          : {
+              CardBack: { template: '<div data-testid="card-back-stub" />' },
+              RetroCard: { template: '<div><slot /></div>' },
+              StudyTaskNav: { template: '<div data-testid="study-task-nav-stub" />' },
+              SummaryModal: { template: '<div data-testid="summary-modal-stub" />' },
+              WordExplanation: { template: '<div data-testid="word-explanation-stub" />' },
+            }),
+      },
+    },
+  })
+}
+
 describe('StudySessionView', () => {
   beforeEach(() => {
+    vi.stubEnv('VITE_POLLING_INTERVAL', '10')
+    vi.stubEnv('VITE_POLLING_TIMEOUT', '1000')
+
     vi.mocked(fetchStudySession).mockResolvedValue({
       data: buildMockStudySession(1001),
     } as Awaited<ReturnType<typeof fetchStudySession>>)
@@ -98,49 +168,24 @@ describe('StudySessionView', () => {
     vi.mocked(pollSubmissionResult).mockReset()
     vi.mocked(submitRating).mockReset()
     vi.mocked(submitReviewAsync).mockReset()
+    ossPutMock.mockReset()
 
     __mockRealtimeAsr.reset()
     __mockRealtimeAsr.connect.mockClear()
     __mockRealtimeAsr.appendAudioChunk.mockClear()
   })
 
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('blocks recording while reference audio is playing and allows it afterwards', async () => {
-    const router = createRouter({
-      history: createMemoryHistory(),
-      routes: [
-        {
-          path: '/study/:lessonId',
-          component: StudySessionView,
-        },
-        {
-          path: '/library',
-          component: { template: '<div />' },
-        },
-        {
-          path: '/summary/:lessonId',
-          component: { template: '<div />' },
-        },
-      ],
-    })
+    const router = createStudyRouter()
 
     await router.push('/study/1001')
     await router.isReady()
 
-    const wrapper = mountWithApp(StudySessionView, {
-      pinia: {
-        stubActions: false,
-      },
-      global: {
-        plugins: [router],
-        stubs: {
-          CardBack: { template: '<div data-testid="card-back-stub" />' },
-          RetroCard: { template: '<div><slot /></div>' },
-          StudyTaskNav: { template: '<div data-testid="study-task-nav-stub" />' },
-          SummaryModal: { template: '<div data-testid="summary-modal-stub" />' },
-          WordExplanation: { template: '<div data-testid="word-explanation-stub" />' },
-        },
-      },
-    })
+    const wrapper = mountStudySessionView(router)
 
     await flushPromises()
 
@@ -169,5 +214,116 @@ describe('StudySessionView', () => {
 
     expect(__mockRealtimeAsr.connect).toHaveBeenCalledWith(1001, 2001)
     expect(recordToggle.text()).toContain('停止')
+  })
+
+  it('preserves completed feedback and transcription when switching away and back to a card', async () => {
+    const completedTranscript = 'The quick brown fox jumps over the lazy dog.'
+    const completedFeedback = '发音整体清晰，注意连读部分。'
+    const compactTranscript = completedTranscript.replace(/\s+/g, '')
+    const studySession = buildMockStudySession(1001)
+    const secondCard = studySession.cards[1]!
+
+    vi.mocked(fetchStudySession).mockResolvedValue({
+      data: studySession,
+    } as Awaited<ReturnType<typeof fetchStudySession>>)
+    vi.mocked(getSTSToken).mockResolvedValue({
+      data: {
+        access_key_id: 'STS.mock123',
+        access_key_secret: 'mock-secret',
+        security_token: 'mock-token',
+        expiration: '2099-01-01T00:00:00+08:00',
+        bucket: 'langear',
+        region: 'oss-cn-shanghai',
+      },
+    } as Awaited<ReturnType<typeof getSTSToken>>)
+    ossPutMock.mockResolvedValue({
+      res: {
+        status: 200,
+      },
+    })
+    vi.mocked(submitReviewAsync).mockResolvedValue({
+      data: {
+        submission_id: 9001,
+        status: 'processing',
+      },
+    } as Awaited<ReturnType<typeof submitReviewAsync>>)
+    vi.mocked(pollSubmissionResult).mockResolvedValue({
+      data: {
+        submission_id: 9001,
+        status: 'completed',
+        result_type: 'single',
+        realtime_session_id: 'mock-session-1001-2001',
+        transcription: {
+          text: completedTranscript,
+          timestamps: [],
+        },
+        feedback: {
+          pronunciation: completedFeedback,
+          completeness: '内容完整，未遗漏关键信息。',
+          fluency: '语速适中，部分句末有停顿。',
+          suggestions: [],
+          issues: [],
+        },
+        oss_audio_path: 'recordings/2026-03-24/2001_123456.webm',
+      },
+    } as Awaited<ReturnType<typeof pollSubmissionResult>>)
+    vi.mocked(getOSSSignedUrl).mockResolvedValue('https://oss.example/recording.webm')
+
+    const router = createStudyRouter()
+    await router.push('/study/1001')
+    await router.isReady()
+
+    const wrapper = mountStudySessionView(router, { renderReviewUI: true })
+    await flushPromises()
+
+    const recordToggle = wrapper.get('[data-testid="record-toggle"]')
+    await recordToggle.trigger('click')
+    await flushPromises()
+
+    expect(__mockRealtimeAsr.connect).toHaveBeenCalledWith(1001, 2001)
+
+    __mockRealtimeAsr.finalTranscript.value = completedTranscript
+    await nextTick()
+    await flushPromises()
+
+    await recordToggle.trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="flip-button"]').trigger('click')
+    await flushPromises()
+
+    await vi.waitFor(() => {
+      expect(ossPutMock).toHaveBeenCalledTimes(1)
+      expect(submitReviewAsync).toHaveBeenCalledTimes(1)
+      expect(pollSubmissionResult).toHaveBeenCalledWith(9001)
+      expect(wrapper.get('[data-testid="task-nav-status-1"]').text()).toContain('完成')
+    })
+
+    expect(wrapper.get('[data-testid="card-back"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="feedback-panel"]').text()).toContain(completedFeedback)
+    expect(wrapper.get('[data-testid="transcription-result"]').text().replace(/\s+/g, '')).toContain(
+      compactTranscript,
+    )
+
+    await wrapper.get('[data-testid="task-nav-item-2"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="study-lesson-title"]').text()).toContain('2')
+    expect(wrapper.get('[data-testid="task-nav-item-2"]').text()).toContain(secondCard.front_text)
+    expect(wrapper.get('[data-testid="task-nav-status-1"]').text()).toContain('完成')
+    expect(wrapper.get('[data-testid="card-front"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="feedback-panel"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="task-nav-item-1"]').trigger('click')
+    await flushPromises()
+
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-testid="card-back"]').exists()).toBe(true)
+      expect(wrapper.get('[data-testid="task-nav-status-1"]').text()).toContain('完成')
+      expect(wrapper.get('[data-testid="feedback-panel"]').text()).toContain(completedFeedback)
+      expect(
+        wrapper.get('[data-testid="transcription-result"]').text().replace(/\s+/g, ''),
+      ).toContain(compactTranscript)
+    })
   })
 })
