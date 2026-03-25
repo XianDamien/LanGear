@@ -68,14 +68,15 @@ backend/app/
 - Do not mix unrelated dirty files into a commit
 - Add or update tests when behavior changes
 - Prefer reading existing code before changing architecture
+- In feature worktrees, keep changes code-scoped: implement code and tests only
+- Do not update `README.md`, `PRD.md`, or `PRD_BASELINE.md` inside individual worktrees unless the user explicitly asks for documentation changes in that task
+- Defer repository documentation rewrites until the related functionality is complete and merged, then update docs in one final pass to reduce merge conflicts
 - Only create a subagent when its output will materially affect the current task
 - After creating a subagent, wait for and evaluate its result before ending the task
 - If a subagent is no longer needed, explicitly cancel or close it to avoid wasting tokens
 - `CLAUDE.md` is a symlink to `AGENTS.md`; treat `AGENTS.md` as the single source of truth
 - Do not edit `CLAUDE.md` and `AGENTS.md` as if they were separate documents
-- After meaningful code, workflow, or constraint changes, update `README.md` in the same task
-- After product flow, contract, state-model, or acceptance changes, update `PRD.md` and `PRD_BASELINE.md` in the same task
-- If no doc update is needed, state that explicitly in the final response
+- If documentation is intentionally deferred under the worktree rule, state that explicitly in the final response
 
 ## Commit Rules
 

@@ -33,3 +33,6 @@ backend/datasets/*
 
 # Local pnpm store
 .pnpm-store/
+
+# Local runtime artifacts
+backend/data/langear.db
