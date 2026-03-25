@@ -1,0 +1,41 @@
+services:
+  backend-migrate:
+    image: langear-backend:local
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    command: ["alembic", "upgrade", "head"]
+    volumes:
+      - langear_backend_data:/app/data
+    restart: "no"
+
+  backend:
+    image: langear-backend:local
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    volumes:
+      - langear_backend_data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: /api/v1
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  langear_backend_data:
