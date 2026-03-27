@@ -1,5 +1,19 @@
 # LanGear Agent Guide
 
+## Subagent Constraint
+
+- Spawn subagents only when their output will materially affect the task
+- After spawning a subagent, do not finish or close out the task before its result returns and is evaluated, unless the user explicitly cancels the work
+- Do not create subagents just for appearance of parallelism
+- If a subagent is no longer needed, cancel or close it explicitly instead of letting it run pointlessly and waste tokens
+
+## Worktree Documentation Policy
+
+- In feature worktrees, keep changes code-scoped unless the user explicitly asks for documentation edits
+- Do not update project `README.md`, `PRD.md`, or `PRD_BASELINE.md` as part of routine worktree implementation, because those edits create avoidable merge conflicts
+- Defer documentation rewrites until the related functionality is complete and merged, then update docs once in a final pass
+- When documentation is intentionally deferred under this rule, say so explicitly in the final response
+
 ## Project Summary
 
 LanGear is an AI-assisted English retelling training app.
@@ -68,15 +82,9 @@ backend/app/
 - Do not mix unrelated dirty files into a commit
 - Add or update tests when behavior changes
 - Prefer reading existing code before changing architecture
-- In feature worktrees, keep changes code-scoped: implement code and tests only
-- Do not update `README.md`, `PRD.md`, or `PRD_BASELINE.md` inside individual worktrees unless the user explicitly asks for documentation changes in that task
-- Defer repository documentation rewrites until the related functionality is complete and merged, then update docs in one final pass to reduce merge conflicts
-- Only create a subagent when its output will materially affect the current task
-- After creating a subagent, wait for and evaluate its result before ending the task
-- If a subagent is no longer needed, explicitly cancel or close it to avoid wasting tokens
+- Follow the subagent constraint and worktree documentation policy above
 - `CLAUDE.md` is a symlink to `AGENTS.md`; treat `AGENTS.md` as the single source of truth
 - Do not edit `CLAUDE.md` and `AGENTS.md` as if they were separate documents
-- If documentation is intentionally deferred under the worktree rule, state that explicitly in the final response
 
 ## Commit Rules
 
@@ -98,3 +106,17 @@ backend/app/
 - `backend/app/config.py`
 - `backend/app/adapters/asr_adapter.py`
 - `backend/app/adapters/gemini_adapter.py`
+
+## JavaScript REPL (Node)
+
+- Use `js_repl` for Node-backed JavaScript with top-level await in a persistent kernel
+- `js_repl` is a freeform/custom tool; direct calls must send raw JavaScript tool input, optionally with a first-line pragma like `// codex-js-repl: timeout_ms=15000`
+- Do not wrap `js_repl` code in JSON, quotes, or markdown code fences
+- Available helpers: `codex.cwd`, `codex.homeDir`, `codex.tmpDir`, `codex.tool(name, args?)`, and `codex.emitImage(imageLike)`
+- `codex.tool(...)` executes a normal tool call and resolves to the raw tool output object; nested tool outputs stay inside JavaScript unless emitted explicitly
+- `codex.emitImage(...)` adds one image to the outer `js_repl` output each time it is called
+- Request full-resolution image processing with `detail: "original"` only when the `view_image` tool schema includes a `detail` argument
+- Prefer JPEG around quality 85 for lossy screenshots; use PNG when transparency or lossless detail matters
+- Top-level bindings persist across cells until `js_repl_reset`; if you hit `Identifier has already been declared`, reuse or reassign the existing binding, or choose a new name
+- Top-level static `import` declarations are unsupported in `js_repl`; use dynamic imports such as `await import("pkg")` or `await import("./file.js")`
+- Avoid direct access to `process.stdout`, `process.stderr`, and `process.stdin`; use `console.log`, `codex.tool(...)`, and `codex.emitImage(...)`
