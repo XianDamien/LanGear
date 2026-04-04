@@ -41,17 +41,41 @@ def _inspect_sqlite(sqlite_path: Path) -> dict[str, object]:
 
     with sqlite3.connect(sqlite_path) as conn:
         conn.row_factory = sqlite3.Row
-        report["review_log_count"] = conn.execute("select count(*) from review_log").fetchone()[0]
-        report["user_card_srs_count"] = conn.execute("select count(*) from user_card_srs").fetchone()[0]
-        rows = conn.execute(
-            """
-            select id, status, result_type, deck_id, card_id, rating, error_code, created_at
-            from review_log
-            order by id desc
-            limit 5
-            """
-        ).fetchall()
-    report["latest_review_logs"] = [dict(row) for row in rows]
+        tables = {
+            row["name"]
+            for row in conn.execute(
+                "select name from sqlite_master where type = 'table'"
+            ).fetchall()
+        }
+        report["tables"] = sorted(tables)
+        report["missing_tables"] = sorted(
+            {"review_log", "user_card_srs"} - tables
+        )
+
+        if "review_log" in tables:
+            report["review_log_count"] = conn.execute(
+                "select count(*) from review_log"
+            ).fetchone()[0]
+            rows = conn.execute(
+                """
+                select id, status, result_type, deck_id, card_id, rating, error_code, created_at
+                from review_log
+                order by id desc
+                limit 5
+                """
+            ).fetchall()
+            report["latest_review_logs"] = [dict(row) for row in rows]
+        else:
+            report["review_log_count"] = None
+            report["latest_review_logs"] = []
+
+        if "user_card_srs" in tables:
+            report["user_card_srs_count"] = conn.execute(
+                "select count(*) from user_card_srs"
+            ).fetchone()[0]
+        else:
+            report["user_card_srs_count"] = None
+
     return report
 
 

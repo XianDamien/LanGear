@@ -17,13 +17,27 @@ services:
     env_file:
       - ./backend/.env
     depends_on:
-      backend-migrate:
+      backend-seed:
         condition: service_completed_successfully
     ports:
       - "8000:8000"
     volumes:
       - langear_backend_data:/app/data
     restart: unless-stopped
+
+  backend-seed:
+    image: langear-backend:local
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+    command: ["python", "scripts/seed_minimal_content.py", "--if-empty"]
+    volumes:
+      - langear_backend_data:/app/data
+    restart: "no"
 
   frontend:
     build:

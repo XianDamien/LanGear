@@ -46,8 +46,9 @@ class TestContentService:
         assert lesson["id"] == sample_deck_tree["lesson"].id
         assert lesson["title"] == "Lesson 1: A Private Conversation"
         assert lesson["total_cards"] == 5
-        assert lesson["completed_cards"] == 5  # All cards have SRS records
+        assert lesson["completed_cards"] == 0  # New cards have not been reviewed yet
         assert lesson["due_cards"] >= 0  # Due count varies based on timing
+        assert lesson["new_cards"] == 5
 
     def test_get_lesson_cards_success(self, test_db: Session, sample_deck_tree):
         """Test getting cards for a valid lesson."""

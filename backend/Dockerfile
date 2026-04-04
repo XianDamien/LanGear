@@ -14,6 +14,7 @@ RUN uv sync --locked --no-dev --no-install-project
 COPY app ./app
 COPY migrations ./migrations
 COPY alembic.ini ./
+COPY scripts ./scripts
 
 RUN uv sync --locked --no-dev
 
@@ -29,6 +30,7 @@ COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/app /app/app
 COPY --from=builder /app/migrations /app/migrations
 COPY --from=builder /app/alembic.ini /app/alembic.ini
+COPY --from=builder /app/scripts /app/scripts
 
 RUN mkdir -p /app/data
 

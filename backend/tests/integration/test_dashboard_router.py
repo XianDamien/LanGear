@@ -10,8 +10,6 @@ from datetime import datetime
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from tests.test_data.fixtures import sample_multiple_reviews
-
 
 @pytest.mark.integration
 class TestDashboardRouter:

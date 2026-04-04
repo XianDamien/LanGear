@@ -288,10 +288,8 @@ class TestOSSAdapter:
         oss_adapter.bucket.put_object = Mock(return_value=mock_result)
 
         # Act
-        with patch("app.adapters.oss_adapter.datetime") as mock_datetime:
-            mock_now = datetime(2026, 2, 8, 10, 20, 30)
-            mock_datetime.now.return_value = mock_now
-
+        mock_now = datetime(2026, 2, 8, 10, 20, 30)
+        with patch("app.adapters.oss_adapter.app_now", return_value=mock_now):
             object_name = oss_adapter.upload_audio(audio_bytes, card_id, "mp3")
 
         # Assert - verify format: recordings/{YYYYMMDD}/{card_id}_{timestamp}.{format}
