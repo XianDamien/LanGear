@@ -2,26 +2,31 @@ FROM python:3.11-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    UV_LINK_MODE=copy
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_INDEX_URL=https://mirrors.cloud.tencent.com/pypi/simple
 
 WORKDIR /app
 
-COPY --from=ghcr.io/astral-sh/uv:0.8.22 /uv /uvx /bin/
+COPY vendor/uv-0.8.22-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl /tmp/uv-0.8.22-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+RUN pip install --no-cache-dir /tmp/uv-0.8.22-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl \
+    && rm -f /tmp/uv-0.8.22-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --no-dev --no-install-project
+RUN uv export --no-dev --frozen --no-editable --no-emit-project --no-hashes --output-file requirements.deploy.txt
+RUN python -m venv /app/.venv
+ENV PATH="/app/.venv/bin:${PATH}"
+RUN pip install --no-cache-dir -r requirements.deploy.txt
 
 COPY app ./app
 COPY migrations ./migrations
 COPY alembic.ini ./
 COPY scripts ./scripts
 
-RUN uv sync --locked --no-dev
-
 FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PYTHONPATH="/app" \
     PATH="/app/.venv/bin:${PATH}"
 
 WORKDIR /app

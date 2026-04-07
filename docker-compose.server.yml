@@ -1,0 +1,22 @@
+services:
+  backend-migrate:
+    volumes:
+      - type: bind
+        source: /srv/langear/data
+        target: /app/data
+
+  backend:
+    volumes:
+      - type: bind
+        source: /srv/langear/data
+        target: /app/data
+
+  backend-seed:
+    volumes:
+      - type: bind
+        source: /srv/langear/data
+        target: /app/data
+
+  frontend:
+    profiles:
+      - frontend
