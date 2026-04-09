@@ -100,38 +100,22 @@ export function installBrowserMocks() {
 
   class MockAudioContext {
     sampleRate = 48000
+    state: AudioContextState = 'running'
     destination = {} as AudioDestinationNode
+    audioWorklet = {
+      addModule: vi.fn(async () => undefined),
+    }
 
     createMediaStreamSource() {
       return {
-        connect() {
+        connect(target?: { __emitMockPcmFrame?: () => void }) {
+          target?.__emitMockPcmFrame?.()
           return undefined
         },
         disconnect() {
           return undefined
         },
       } as MediaStreamAudioSourceNode
-    }
-
-    createScriptProcessor() {
-      const processor = {
-        onaudioprocess: null as ((event: AudioProcessingEvent) => void) | null,
-        connect() {
-          window.setTimeout(() => {
-            processor.onaudioprocess?.({
-              inputBuffer: {
-                getChannelData: () => new Float32Array(browserMockContract.pcmFrame),
-              },
-            } as AudioProcessingEvent)
-          }, 0)
-          return undefined
-        },
-        disconnect() {
-          return undefined
-        },
-      }
-
-      return processor as unknown as ScriptProcessorNode
     }
 
     createGain() {
@@ -146,7 +130,43 @@ export function installBrowserMocks() {
       } as GainNode
     }
 
+    resume = vi.fn(async () => {
+      this.state = 'running'
+    })
     close = vi.fn(async () => undefined)
+  }
+
+  class MockAudioWorkletNode {
+    port = {
+      onmessage: null as ((event: MessageEvent<Float32Array>) => void) | null,
+      close: vi.fn(() => undefined),
+    }
+
+    constructor(
+      context: BaseAudioContext,
+      name: string,
+      options?: AudioWorkletNodeOptions,
+    ) {
+      void context
+      void name
+      void options
+    }
+
+    __emitMockPcmFrame() {
+      window.setTimeout(() => {
+        this.port.onmessage?.({
+          data: new Float32Array(browserMockContract.pcmFrame),
+        } as MessageEvent<Float32Array>)
+      }, 0)
+    }
+
+    connect() {
+      return undefined
+    }
+
+    disconnect() {
+      return undefined
+    }
   }
 
   let activeUtterance: MockSpeechSynthesisUtterance | null = null
@@ -182,15 +202,21 @@ export function installBrowserMocks() {
   vi.stubGlobal('Audio', MockAudio)
   vi.stubGlobal('MediaRecorder', MockMediaRecorder)
   vi.stubGlobal('AudioContext', MockAudioContext)
+  vi.stubGlobal('AudioWorkletNode', MockAudioWorkletNode)
+
+  Object.defineProperty(window, 'AudioContext', {
+    configurable: true,
+    value: MockAudioContext,
+  })
+
+  Object.defineProperty(window, 'AudioWorkletNode', {
+    configurable: true,
+    value: MockAudioWorkletNode,
+  })
 
   Object.defineProperty(window, 'speechSynthesis', {
     configurable: true,
     value: speechSynthesis,
-  })
-
-  Object.defineProperty(window, 'webkitAudioContext', {
-    configurable: true,
-    value: MockAudioContext,
   })
 
   Object.defineProperty(navigator, 'mediaDevices', {

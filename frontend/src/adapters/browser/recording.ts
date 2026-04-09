@@ -29,21 +29,49 @@ interface RealtimePipeline {
 }
 
 type AudioContextConstructor = typeof AudioContext
+type AudioWorkletNodeConstructor = typeof AudioWorkletNode
+type AudioWorkletMessagePayload = Float32Array | number[]
+
+const PCM_WORKLET_PROCESSOR_NAME = 'langear-pcm-processor'
+const PCM_WORKLET_PROCESSOR_SOURCE = `
+class LangearPcmProcessor extends AudioWorkletProcessor {
+  process(inputs, outputs) {
+    const input = inputs[0]
+    const output = outputs[0]
+    const inputChannel = input && input[0]
+
+    if (inputChannel && inputChannel.length) {
+      this.port.postMessage(new Float32Array(inputChannel))
+      if (output && output[0]) {
+        output[0].set(inputChannel)
+      }
+    }
+
+    return true
+  }
+}
+
+registerProcessor('${PCM_WORKLET_PROCESSOR_NAME}', LangearPcmProcessor)
+`
 
 function stopTracks(stream: MediaStream) {
   stream.getTracks().forEach((track) => track.stop())
 }
 
 function resolveAudioContextConstructor(): AudioContextConstructor | null {
-  if (typeof window === 'undefined') {
+  if (typeof window === 'undefined' || typeof window.AudioContext === 'undefined') {
     return null
   }
 
-  const windowWithWebkit = window as Window & {
-    webkitAudioContext?: AudioContextConstructor
+  return window.AudioContext
+}
+
+function resolveAudioWorkletNodeConstructor(): AudioWorkletNodeConstructor | null {
+  if (typeof window === 'undefined' || typeof window.AudioWorkletNode === 'undefined') {
+    return null
   }
 
-  return window.AudioContext ?? windowWithWebkit.webkitAudioContext ?? null
+  return window.AudioWorkletNode
 }
 
 function isPermissionDeniedError(error: unknown): boolean {
@@ -120,23 +148,65 @@ function pcm16ToBase64(pcm16: Int16Array): string {
   return btoa(binary)
 }
 
-function createRealtimePipeline(
+function normalizeWorkletPcmFrame(payload: unknown): Float32Array {
+  if (payload instanceof Float32Array) {
+    return payload
+  }
+
+  if (Array.isArray(payload)) {
+    return new Float32Array(payload)
+  }
+
+  return new Float32Array()
+}
+
+function createPcmWorkletModuleUrl(): string {
+  return URL.createObjectURL(
+    new Blob([PCM_WORKLET_PROCESSOR_SOURCE], {
+      type: 'application/javascript',
+    }),
+  )
+}
+
+async function createRealtimePipeline(
   stream: MediaStream,
   onRealtimePcmChunk: (pcmBase64: string) => void,
-): RealtimePipeline {
+): Promise<RealtimePipeline> {
   const AudioContextCtor = resolveAudioContextConstructor()
-  if (!AudioContextCtor) {
+  const AudioWorkletNodeCtor = resolveAudioWorkletNodeConstructor()
+
+  if (!AudioContextCtor || !AudioWorkletNodeCtor) {
     throw new RecordingStartError('unsupported', 'AudioContext is not available')
   }
 
   const audioContext = new AudioContextCtor()
+  if (!audioContext.audioWorklet) {
+    void audioContext.close()
+    throw new RecordingStartError('unsupported', 'AudioWorklet is not available')
+  }
+
+  const moduleUrl = createPcmWorkletModuleUrl()
+  try {
+    await audioContext.audioWorklet.addModule(moduleUrl)
+  } finally {
+    URL.revokeObjectURL(moduleUrl)
+  }
+
+  if (audioContext.state === 'suspended') {
+    await audioContext.resume()
+  }
+
   const mediaSourceNode = audioContext.createMediaStreamSource(stream)
-  const scriptProcessorNode = audioContext.createScriptProcessor(4096, 1, 1)
+  const audioWorkletNode = new AudioWorkletNodeCtor(audioContext, PCM_WORKLET_PROCESSOR_NAME, {
+    numberOfInputs: 1,
+    numberOfOutputs: 1,
+    outputChannelCount: [1],
+  })
   const muteGainNode = audioContext.createGain()
 
   muteGainNode.gain.value = 0
-  scriptProcessorNode.onaudioprocess = (event: AudioProcessingEvent) => {
-    const inputChannel = event.inputBuffer.getChannelData(0)
+  audioWorkletNode.port.onmessage = (event: MessageEvent<AudioWorkletMessagePayload>) => {
+    const inputChannel = normalizeWorkletPcmFrame(event.data)
     const pcm16 = float32ToPcm16(
       downsampleFloat32(inputChannel, audioContext.sampleRate || 48000, 16000),
     )
@@ -145,14 +215,15 @@ function createRealtimePipeline(
     onRealtimePcmChunk(pcm16ToBase64(pcm16))
   }
 
-  mediaSourceNode.connect(scriptProcessorNode)
-  scriptProcessorNode.connect(muteGainNode)
+  mediaSourceNode.connect(audioWorkletNode)
+  audioWorkletNode.connect(muteGainNode)
   muteGainNode.connect(audioContext.destination)
 
   return {
     teardown() {
-      scriptProcessorNode.onaudioprocess = null
-      scriptProcessorNode.disconnect()
+      audioWorkletNode.port.onmessage = null
+      audioWorkletNode.port.close()
+      audioWorkletNode.disconnect()
       muteGainNode.disconnect()
       mediaSourceNode.disconnect()
       void audioContext.close()
@@ -197,7 +268,7 @@ export async function createRecordingSession(
 
   if (options.onRealtimePcmChunk) {
     try {
-      realtimePipeline = createRealtimePipeline(stream, options.onRealtimePcmChunk)
+      realtimePipeline = await createRealtimePipeline(stream, options.onRealtimePcmChunk)
     } catch (error) {
       cleanup()
       if (error instanceof RecordingStartError) {
