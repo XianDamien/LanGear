@@ -107,6 +107,7 @@ def mock_oss_adapter(monkeypatch):
             "expiration": "2026-12-31T23:59:59Z",
             "bucket": "mock-bucket",
             "region": "oss-cn-shanghai",
+            "upload_prefix": "recordings",
         }
 
     monkeypatch.setattr("app.adapters.oss_adapter.OSSAdapter.generate_signed_url", mock_generate_signed_url)

@@ -99,6 +99,7 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
       expiration: formatBusinessIso(new Date(Date.now() + 3600000)),
       bucket: 'langear',
       region: 'oss-cn-shanghai',
+      upload_prefix: 'recordings',
     })
   }
 

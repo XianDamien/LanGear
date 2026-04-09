@@ -152,7 +152,8 @@ export function useRecorder() {
       const timestamp = Date.now()
       const dateStr = formatBusinessDateStamp(new Date())
       const filename = `${cardId}_${timestamp}.webm`
-      const path = `recordings/${dateStr}/${filename}`
+      const uploadPrefix = (stsToken.upload_prefix || 'recordings').replace(/^\/+|\/+$/g, '')
+      const path = `${uploadPrefix}/${dateStr}/${filename}`
 
       const result = await client.put(path, blobToUpload, {
         progress: (p: number) => {

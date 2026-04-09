@@ -46,11 +46,8 @@ class TestOSSAdapter:
         oss_adapter.bucket.put_object = Mock(return_value=mock_result)
 
         # Act
-        with patch("app.adapters.oss_adapter.datetime") as mock_datetime:
-            # Mock datetime to return predictable values
-            mock_now = datetime(2026, 2, 8, 15, 30, 45)
-            mock_datetime.now.return_value = mock_now
-
+        with patch("app.adapters.oss_adapter.app_now") as mock_now:
+            mock_now.return_value = datetime(2026, 2, 8, 15, 30, 45)
             object_name = oss_adapter.upload_audio(audio_bytes, card_id, format)
 
         # Assert
@@ -176,6 +173,7 @@ class TestOSSAdapter:
             mock_settings.aliyun_role_arn = "acs:ram::123456:role/langear-oss-upload"
             mock_settings.oss_bucket_name = "langear-dev"
             mock_settings.oss_region = "oss-cn-shanghai"
+            mock_settings.oss_recordings_prefix = "recordings"
 
             # Act
             token = oss_adapter.generate_sts_token()
@@ -186,6 +184,7 @@ class TestOSSAdapter:
         assert token["security_token"] == "MockSecurityToken789"
         assert token["bucket"] == "langear-dev"
         assert token["region"] == "oss-cn-shanghai"
+        assert token["upload_prefix"] == "recordings"
         assert "expiration" in token
 
         # Verify the request was made with correct parameters
@@ -218,6 +217,7 @@ class TestOSSAdapter:
             mock_settings.aliyun_role_arn = "acs:ram::123456:role/test"
             mock_settings.oss_bucket_name = "test-bucket"
             mock_settings.oss_region = "oss-cn-shanghai"
+            mock_settings.oss_recordings_prefix = "recordings"
 
             mock_request = MagicMock()
             mock_request_class.return_value = mock_request
@@ -240,6 +240,7 @@ class TestOSSAdapter:
         with patch("app.adapters.oss_adapter.settings") as mock_settings:
             mock_settings.aliyun_role_arn = "acs:ram::123456:role/test"
             mock_settings.oss_bucket_name = "test-bucket"
+            mock_settings.oss_recordings_prefix = "recordings"
 
             # Act & Assert
             with pytest.raises(AudioUploadError) as exc_info:
@@ -288,10 +289,8 @@ class TestOSSAdapter:
         oss_adapter.bucket.put_object = Mock(return_value=mock_result)
 
         # Act
-        with patch("app.adapters.oss_adapter.datetime") as mock_datetime:
-            mock_now = datetime(2026, 2, 8, 10, 20, 30)
-            mock_datetime.now.return_value = mock_now
-
+        with patch("app.adapters.oss_adapter.app_now") as mock_now:
+            mock_now.return_value = datetime(2026, 2, 8, 10, 20, 30)
             object_name = oss_adapter.upload_audio(audio_bytes, card_id, "mp3")
 
         # Assert - verify format: recordings/{YYYYMMDD}/{card_id}_{timestamp}.{format}
@@ -301,3 +300,39 @@ class TestOSSAdapter:
         assert parts[1] == "20260208"  # Date part
         assert parts[2].startswith(f"{card_id}_")
         assert parts[2].endswith(".mp3")
+
+    def test_generate_sts_token_uses_custom_upload_prefix(self, oss_adapter):
+        """STS token response and policy should follow custom upload prefix."""
+        oss_adapter.sts_client.do_action_with_exception = Mock(
+            return_value='{"Credentials": {"AccessKeyId": "STS.Test", '
+            '"AccessKeySecret": "Secret", '
+            '"SecurityToken": "Token", '
+            '"Expiration": "2026-02-08T18:30:45Z"}}'
+        )
+
+        with patch("app.adapters.oss_adapter.settings") as mock_settings:
+            mock_settings.aliyun_role_arn = "acs:ram::123456:role/test"
+            mock_settings.oss_bucket_name = "test-bucket"
+            mock_settings.oss_region = "oss-cn-shanghai"
+            mock_settings.oss_recordings_prefix = "test/recordings"
+
+            token = oss_adapter.generate_sts_token()
+
+        assert token["upload_prefix"] == "test/recordings"
+
+    def test_upload_audio_honors_custom_prefix(self, oss_adapter):
+        """Uploaded audio path should follow configured recordings prefix."""
+        audio_bytes = b"test audio"
+        card_id = 9999
+
+        mock_result = Mock()
+        mock_result.status = 200
+        oss_adapter.bucket.put_object = Mock(return_value=mock_result)
+
+        with patch("app.adapters.oss_adapter.settings") as mock_settings, \
+             patch("app.adapters.oss_adapter.app_now") as mock_now:
+            mock_settings.oss_recordings_prefix = "test/recordings"
+            mock_now.return_value = datetime(2026, 2, 8, 10, 20, 30)
+            object_name = oss_adapter.upload_audio(audio_bytes, card_id, "mp3")
+
+        assert object_name.startswith("test/recordings/20260208/")

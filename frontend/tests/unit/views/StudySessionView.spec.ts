@@ -234,6 +234,7 @@ describe('StudySessionView', () => {
         expiration: '2099-01-01T00:00:00+08:00',
         bucket: 'langear',
         region: 'oss-cn-shanghai',
+        upload_prefix: 'test/recordings',
       },
     } as Awaited<ReturnType<typeof getSTSToken>>)
     ossPutMock.mockResolvedValue({

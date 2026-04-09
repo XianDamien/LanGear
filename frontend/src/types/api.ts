@@ -27,6 +27,7 @@ export interface STSToken {
   expiration: string
   bucket: string
   region: string
+  upload_prefix: string
 }
 
 export type SubmissionStatus = 'processing' | 'completed' | 'failed'

@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     oss_access_key_secret: str
     oss_endpoint: str
     oss_bucket_name: str
+    oss_recordings_prefix: str = "recordings"
     # Optional legacy base URL for public-read objects. The app now defaults to
     # STS upload + signed URL access, so this is no longer required.
     oss_public_base_url: str | None = None

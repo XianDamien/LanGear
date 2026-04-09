@@ -54,6 +54,12 @@ class OSSAdapter:
             sts_region,
         )
 
+    @property
+    def recordings_prefix(self) -> str:
+        """Return normalized OSS prefix for user recordings."""
+        prefix = (settings.oss_recordings_prefix or "recordings").strip().strip("/")
+        return prefix or "recordings"
+
     def upload_audio(
         self,
         audio_bytes: bytes,
@@ -78,7 +84,7 @@ class OSSAdapter:
             now = app_now()
             date_str = now.strftime("%Y%m%d")
             timestamp = int(now.timestamp())
-            object_name = f"recordings/{date_str}/{card_id}_{timestamp}.{format}"
+            object_name = f"{self.recordings_prefix}/{date_str}/{card_id}_{timestamp}.{format}"
 
             # Upload to OSS
             result = self.bucket.put_object(object_name, audio_bytes)
@@ -160,7 +166,7 @@ class OSSAdapter:
                         "Effect": "Allow",
                         "Action": ["oss:PutObject", "oss:GetObject"],
                         "Resource": [
-                            f"acs:oss:*:*:{settings.oss_bucket_name}/recordings/*"
+                            f"acs:oss:*:*:{settings.oss_bucket_name}/{self.recordings_prefix}/*"
                         ],
                     }
                 ],
@@ -184,6 +190,7 @@ class OSSAdapter:
                 "expiration": expiration_time.isoformat(),
                 "bucket": settings.oss_bucket_name,
                 "region": self._oss_region,
+                "upload_prefix": self.recordings_prefix,
             }
 
         except AudioUploadError:
