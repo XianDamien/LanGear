@@ -91,6 +91,7 @@ jobs:
           sudo rm -rf \"\$RELEASE_DIR\"
           sudo mkdir -p \"\$RELEASE_DIR\"
           sudo tar --no-same-owner -xzf \"\$ARCHIVE\" -C \"\$RELEASE_DIR\"
+          sudo chown -R langear-deploy:langear-deploy \"\$RELEASE_DIR\"
           sudo test -f \"\$RELEASE_DIR/index.html\"
           sudo ln -sfn \"\$RELEASE_DIR\" /var/www/langear-frontend-dev/current
           sudo rm -f \"\$ARCHIVE\"
