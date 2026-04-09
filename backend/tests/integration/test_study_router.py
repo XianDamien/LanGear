@@ -214,6 +214,51 @@ class TestStudyRouter:
         assert review_log.ai_feedback_json["study_session"]["quota_bucket"] == "new"
         assert review_log.ai_feedback_json["study_session"]["scheduled_state"] == "learning"
 
+    def test_submit_submission_accepts_configured_test_prefix(
+        self,
+        client: TestClient,
+        test_db: Session,
+        sample_deck_tree,
+        monkeypatch,
+    ):
+        """POST /study/submissions should accept the configured recordings prefix."""
+
+        class _FakeThread:
+            def __init__(self, target=None, args=(), daemon=None):
+                self.target = target
+                self.args = args
+                self.daemon = daemon
+
+            def start(self):
+                return None
+
+        monkeypatch.setattr("app.services.review_service.threading.Thread", _FakeThread)
+        monkeypatch.setattr("app.services.review_service.settings.oss_recordings_prefix", "test/recordings")
+
+        store = get_realtime_session_store()
+        store.clear()
+
+        lesson_id = sample_deck_tree["lesson"].id
+        card_id = sample_deck_tree["cards"][0].id
+        realtime_session_id = _make_ready_realtime_session(lesson_id, card_id)
+
+        resp = client.post(
+            "/api/v1/study/submissions",
+            json={
+                "lesson_id": lesson_id,
+                "card_id": card_id,
+                "oss_audio_path": "test/recordings/20260209/test.webm",
+                "realtime_session_id": realtime_session_id,
+            },
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        submission_id = body["data"]["submission_id"]
+        review_log = test_db.query(ReviewLog).filter(ReviewLog.id == submission_id).first()
+        assert review_log is not None
+        assert review_log.status == "processing"
+
     def test_submit_submission_uses_review_bucket_for_reviewed_card(
         self,
         client: TestClient,

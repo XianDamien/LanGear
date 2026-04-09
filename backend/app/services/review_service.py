@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.adapters.fsrs_adapter import FSRSAdapter
+from app.config import settings
 from app.repositories.card_repo import CardRepository
 from app.repositories.review_log_repo import ReviewLogRepository
 from app.repositories.srs_repo import SRSRepository
@@ -113,8 +114,13 @@ class ReviewService:
             raise_validation_error(f"Card {card_id} does not belong to lesson {lesson_id}")
 
         # Validate OSS path format
-        if not oss_audio_path.startswith("recordings/"):
-            raise_validation_error("Invalid OSS path. Must start with 'recordings/'")
+        expected_prefix = (
+            f"{(settings.oss_recordings_prefix or 'recordings').strip().strip('/') or 'recordings'}/"
+        )
+        if not oss_audio_path.startswith(expected_prefix):
+            raise_validation_error(
+                f"Invalid OSS path. Must start with '{expected_prefix}'"
+            )
 
         # Validate realtime session
         realtime_session = self.realtime_store.get_session(realtime_session_id)
