@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import oss2
 from aliyunsdkcore.client import AcsClient
@@ -17,6 +18,18 @@ class OSSAdapter:
 
     Handles audio file uploads, URL generation, and STS token management.
     """
+
+    @staticmethod
+    def _ensure_https_url(url: str) -> str:
+        """Normalize OSS URLs to HTTPS to avoid mixed-content requests."""
+        parsed = urlsplit(url)
+        if not parsed.scheme:
+            return url
+        if parsed.scheme == "https":
+            return url
+        if parsed.scheme == "http":
+            return urlunsplit(("https", parsed.netloc, parsed.path, parsed.query, parsed.fragment))
+        return url
 
     def __init__(self):
         """Initialize OSS client with credentials from settings."""
@@ -108,7 +121,7 @@ class OSSAdapter:
         Returns:
             Signed URL for accessing the object
         """
-        return self.bucket.sign_url("GET", object_name, expires)
+        return self._ensure_https_url(self.bucket.sign_url("GET", object_name, expires))
 
     def get_public_url(self, object_name: str) -> str:
         """Get a public-style URL for an object.
@@ -121,7 +134,7 @@ class OSSAdapter:
         """
         public_base_url = (settings.oss_public_base_url or "").rstrip("/")
         if public_base_url:
-            return f"{public_base_url}/{object_name}"
+            return self._ensure_https_url(f"{public_base_url}/{object_name}")
 
         return self.generate_signed_url(object_name)
 
@@ -211,7 +224,7 @@ class OSSAdapter:
         Returns:
             Signed URL for accessing the object
         """
-        return self.bucket.sign_url(method, object_name, expires)
+        return self._ensure_https_url(self.bucket.sign_url(method, object_name, expires))
 
     def upload_file_from_path(
         self,

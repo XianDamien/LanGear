@@ -137,6 +137,17 @@ class TestOSSAdapter:
         # Assert
         assert url == f"https://cdn.langear.com/{object_name}"
 
+    def test_get_public_url_upgrades_http_base_url(self, oss_adapter):
+        """Configured public HTTP URLs should be normalized to HTTPS."""
+        object_name = "lessons/beginner/lesson1.mp3"
+
+        with patch("app.adapters.oss_adapter.settings") as mock_settings:
+            mock_settings.oss_public_base_url = "http://cdn.langear.com"
+
+            url = oss_adapter.get_public_url(object_name)
+
+        assert url == f"https://cdn.langear.com/{object_name}"
+
     def test_get_public_url_falls_back_to_signed_url(self, oss_adapter):
         """When no public base is configured, fall back to a signed URL."""
         object_name = "lessons/beginner/lesson1.mp3"
@@ -262,6 +273,17 @@ class TestOSSAdapter:
         # Assert
         assert url == expected_url
         oss_adapter.bucket.sign_url.assert_called_once_with("GET", object_name, 3600)
+
+    def test_generate_signed_url_upgrades_http_to_https(self, oss_adapter):
+        """Signed OSS URLs should always be returned as HTTPS."""
+        object_name = "recordings/test.wav"
+        oss_adapter.bucket.sign_url = Mock(
+            return_value="http://bucket.oss.com/recordings/test.wav?signed=true"
+        )
+
+        url = oss_adapter.generate_signed_url(object_name, expires=3600, method="GET")
+
+        assert url == "https://bucket.oss.com/recordings/test.wav?signed=true"
 
     def test_generate_signed_url_put_method(self, oss_adapter):
         """Test signed URL generation for PUT requests (upload)."""
