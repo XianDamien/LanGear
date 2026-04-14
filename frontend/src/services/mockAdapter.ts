@@ -194,24 +194,39 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
       result_type: 'single',
       realtime_session_id: data.realtime_session_id,
       transcription: {
-        text: transcriptText,
+        text: transcriptText || 'By the way, I hope you are all comfortable.',
         timestamps: [],
       },
       feedback: {
-        pronunciation: '发音整体清晰，注意连读部分。',
-        completeness: '内容完整，未遗漏关键信息。',
-        fluency: '语速适中，部分句末有停顿。',
-        suggestions: [
+        overall_rating: '整体来说你这句表达是能让人听懂的，内容也基本到位，准确度和发音上面没有太大问题。主要还是流利度上可以再自然一点，尤其是在个别短语前后有停顿，听起来还不够连贯。继续练几遍，把节奏带顺，会更像自然交流。',
+        issues: [
           {
-            text: '注意 "the" 在元音前的发音变化',
-            target_word: 'the',
-            timestamp: 0.4,
+            problem: '在“extra seats”前后停顿有点明显，影响了整句的连贯度。',
+            suggestion: '把“in extra seats so that”这一小段连起来多练几遍，尽量一口气顺下来。',
+            target_word: 'extra seats',
+            ipa: null,
+            timestamp: 0.8,
           },
           {
-            text: '尝试更自然的语调起伏',
+            problem: '“squashed”的发音还不够清楚，结尾听起来有点含糊。',
+            suggestion: '重点练 /skw/ 和结尾 /t/，先慢读 squashed，再放回整句里练习。',
+            target_word: 'squashed',
+            ipa: '/skwɒʃt/',
+            timestamp: 2.05,
+          },
+          {
+            problem: '开头少了“we”，虽然不太影响理解，但和原句相比不够完整。',
+            suggestion: '练习时注意把主语一起带出来，特别是“we have brought in”这一段要成块记忆。',
+            target_word: 'we have brought in',
+            ipa: null,
+            timestamp: 0.55,
           },
         ],
-        issues: [],
+        'alternative phrases and sentences': [
+          'We’ve added some extra seats so nobody has to stand.',
+          'There are a few extra seats at the back if anyone needs one.',
+          'It might be a little crowded at the back, but everyone should be able to sit down.',
+        ],
       },
       srs: {
         state: 'review',

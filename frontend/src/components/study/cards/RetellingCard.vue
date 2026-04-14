@@ -26,7 +26,7 @@ const props = defineProps<{
   uploadProgress?: number
   
   // Feedback Props
-  feedbackV2: PollingResponseCompleted | null
+  feedback: PollingResponseCompleted | null
   asyncSubmitState: string
   errorCode?: string | null
   errorMessage?: string | null
@@ -123,7 +123,7 @@ function handleTimestampClick(timestamp: number) {
         />
 
         <AIFeedbackPanel
-          :feedback="feedbackV2"
+          :feedback="feedback"
           :loading="asyncSubmitState === 'processing' || asyncSubmitState === 'submitting'"
           :error-code="errorCode"
           :error-message="errorMessage"

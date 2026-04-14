@@ -80,7 +80,7 @@ export const useStudyStore = defineStore('study', () => {
   const asyncSubmitState = ref<AsyncSubmitState>('idle')
   const submissionId = ref<number | null>(null)
   const currentAudioElement = ref<HTMLAudioElement | null>(null)
-  const lastFeedbackV2 = ref<PollingResponseCompleted | null>(null)
+  const lastFeedback = ref<PollingResponseCompleted | null>(null)
   const lastRatingResponse = ref<SubmitRatingResponse | null>(null)
   const sessionServerTime = ref('')
   const sessionDate = ref('')
@@ -144,7 +144,7 @@ export const useStudyStore = defineStore('study', () => {
     uploadState.value = 'idle'
     asyncSubmitState.value = 'idle'
     submissionId.value = null
-    lastFeedbackV2.value = null
+    lastFeedback.value = null
     lastRatingResponse.value = null
     resetTimestampAudio()
   }
@@ -302,7 +302,7 @@ export const useStudyStore = defineStore('study', () => {
     uploadState,
     asyncSubmitState,
     submissionId,
-    lastFeedbackV2,
+    lastFeedback,
     lastRatingResponse,
     createFeedbackSubmission,
     submitCardRating,

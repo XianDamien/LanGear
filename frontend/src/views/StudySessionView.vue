@@ -39,7 +39,7 @@ const {
   audioPlaying,
   uploadState,
   asyncSubmitState,
-  lastFeedbackV2,
+  lastFeedback,
 } = storeToRefs(studyStore)
 const { taskMap } = storeToRefs(studyTasksStore)
 
@@ -545,7 +545,7 @@ function exitStudy() {
         :user-audio-url="userAudioUrl"
         :upload-state="uploadState"
         :upload-progress="recorder.uploadProgress.value"
-        :feedback-v2="lastFeedbackV2"
+        :feedback="lastFeedback"
         :async-submit-state="asyncSubmitState"
         :error-code="currentTask?.errorCode"
         :error-message="currentTask?.errorMessage"

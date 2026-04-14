@@ -51,6 +51,9 @@ export interface FeedbackSuggestion {
 
 export interface FeedbackIssue {
   problem: string
+  suggestion?: string | null
+  target_word?: string | null
+  ipa?: string | null
   timestamp?: number | null
 }
 
@@ -91,11 +94,16 @@ export interface PollingResponseCompleted {
   realtime_session_id?: string
   transcription: TranscriptionResult
   feedback: {
-    pronunciation: string
-    completeness: string
-    fluency: string
-    suggestions: FeedbackSuggestion[]
+    // V2 兼容字段
+    pronunciation?: string
+    completeness?: string
+    fluency?: string
+    suggestions?: FeedbackSuggestion[]
+    
+    // V3 新增字段
+    overall_rating?: string
     issues: FeedbackIssue[]
+    'alternative phrases and sentences'?: string[]
   }
   srs?: SrsSnapshot
   oss_audio_path?: string | null
