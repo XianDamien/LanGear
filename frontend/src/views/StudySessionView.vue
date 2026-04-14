@@ -186,7 +186,7 @@ watch(
       task?.reviewStatus === 'failed'
         ? task.reviewStatus
         : 'idle'
-    studyStore.lastFeedbackV2 = task?.result ?? null
+    studyStore.lastFeedback = task?.result ?? null
     studyStore.isFlipped = shouldKeepCardBackVisible()
 
     if (task?.result?.transcription.text) {
