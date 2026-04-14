@@ -27,7 +27,7 @@ class PromptTemplate:
 class GenerationConfig:
     """Generation controls used for production and offline eval runs."""
 
-    temperature: float = 0.3
+    temperature: float | None = None
     max_output_tokens: int = 2048
 
 
@@ -162,10 +162,15 @@ class GeminiAdapter:
         generation_config: GenerationConfig,
     ) -> str:
         """Generate multimodal response with official SDK inline audio only."""
+        config_kwargs: dict[str, Any] = {
+            "max_output_tokens": generation_config.max_output_tokens,
+            "response_mime_type": "application/json",
+        }
+        if generation_config.temperature is not None:
+            config_kwargs["temperature"] = generation_config.temperature
+
         config = types.GenerateContentConfig(
-            temperature=generation_config.temperature,
-            max_output_tokens=generation_config.max_output_tokens,
-            response_mime_type="application/json",
+            **config_kwargs,
         )
 
         user_mime = self._guess_audio_mime_type(user_audio_url)
@@ -198,14 +203,17 @@ class GeminiAdapter:
     ) -> str:
         """Generate text-only response."""
         try:
+            config_kwargs: dict[str, Any] = {
+                "max_output_tokens": generation_config.max_output_tokens,
+                "response_mime_type": "application/json",
+            }
+            if generation_config.temperature is not None:
+                config_kwargs["temperature"] = generation_config.temperature
+
             response = self.client.models.generate_content(
                 model=self.model_id,
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=generation_config.temperature,
-                    max_output_tokens=generation_config.max_output_tokens,
-                    response_mime_type="application/json",
-                ),
+                config=types.GenerateContentConfig(**config_kwargs),
             )
             return response.text or ""
         except Exception as e:

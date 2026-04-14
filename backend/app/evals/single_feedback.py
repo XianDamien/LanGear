@@ -365,8 +365,12 @@ def run_single_feedback_eval(
         "sample_count": len(samples),
         "model_id": adapter.model_id,
         "generation_config": {
-            "temperature": generation_config.temperature,
-            "max_output_tokens": generation_config.max_output_tokens,
+            key: value
+            for key, value in {
+                "temperature": generation_config.temperature,
+                "max_output_tokens": generation_config.max_output_tokens,
+            }.items()
+            if value is not None
         },
         "variants": variant_summaries,
     }

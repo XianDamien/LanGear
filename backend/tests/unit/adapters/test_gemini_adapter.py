@@ -298,6 +298,34 @@ class TestGeminiAdapter:
         assert config.temperature == 0.1
         assert config.max_output_tokens == 512
 
+    def test_generate_single_feedback_uses_model_default_temperature_when_not_overridden(
+        self,
+        gemini_adapter,
+    ):
+        adapter, mock_client = gemini_adapter
+        mock_response = Mock()
+        mock_response.text = json.dumps(
+            {
+                "transcription_text": "Test sentence",
+                "pronunciation": "Good",
+                "completeness": "Complete",
+                "fluency": "Fluent",
+                "suggestions": [],
+                "issues": [],
+            }
+        )
+        mock_client.models.generate_content.return_value = mock_response
+
+        adapter.generate_single_feedback(
+            front_text="Test sentence",
+            user_audio_url="https://example.com/user.wav",
+            reference_audio_url="https://example.com/ref.wav",
+        )
+
+        config = mock_client.models.generate_content.call_args.kwargs["config"]
+        assert getattr(config, "temperature", None) is None
+        assert config.max_output_tokens == 2048
+
     def test_generate_single_feedback_makes_single_audio_request_without_retry(self, gemini_adapter):
         adapter, mock_client = gemini_adapter
 
