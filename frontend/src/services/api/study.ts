@@ -9,11 +9,8 @@ import type {
   STSToken,
   SubmitRatingRequest,
   SubmitRatingResponse,
-  SubmitReviewRequestV1,
-  SubmitReviewResponse,
   StudySessionResponse,
   StudySubmissionListItem,
-  StudySubmissionListParams,
 } from '@/types/api'
 
 const silentErrorRequestConfig = {
@@ -68,11 +65,6 @@ export function pollSubmissionResult(submissionId: number) {
   return http.get<PollingResponse>(`/study/submissions/${submissionId}`)
 }
 
-export function listStudySubmissions(params: StudySubmissionListParams) {
+export function listStudySubmissions(params: { lesson_id: number; card_id?: number }) {
   return http.get<StudySubmissionListItem[]>('/study/submissions', { params })
-}
-
-/** @deprecated Use submitReviewAsync instead */
-export function submitReview(payload: SubmitReviewRequestV1) {
-  return http.post<SubmitReviewResponse>('/study/submissions', payload)
 }

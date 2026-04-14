@@ -1,6 +1,5 @@
 import type {
   FsrsRating,
-  Rating,
   RatingLabel,
   FsrsState,
   DailyStats,

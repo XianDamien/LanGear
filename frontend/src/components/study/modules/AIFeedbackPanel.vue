@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { PollingResponseCompleted, FeedbackSuggestion, FeedbackIssue } from '@/types/api'
 
-const props = defineProps<{
+defineProps<{
   feedback: PollingResponseCompleted | null
   loading: boolean
   errorCode?: string | null

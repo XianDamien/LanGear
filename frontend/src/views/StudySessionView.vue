@@ -27,8 +27,6 @@ const {
   currentIndex,
   currentCard,
   isFlipped,
-  lastFeedback,
-  submitState,
   userTranscript,
   liveTranscript,
   userAudioUrl,

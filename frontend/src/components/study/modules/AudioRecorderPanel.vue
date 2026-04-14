@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { Mic, Square, Upload, Volume2, Play } from 'lucide-vue-next'
 import RetroButton from '@/components/ui/RetroButton.vue'
 
-const props = defineProps<{
+defineProps<{
   audioPlaying: boolean
   isRecording: boolean
   liveTranscript: string

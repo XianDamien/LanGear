@@ -51,6 +51,13 @@ backend/app/
 - Backend: `cd backend && uv run uvicorn app.main:app --reload`
 - Backend tests: `cd backend && uv run pytest`
 
+## Server Access
+
+- Production server SSH alias: `ssh langear-prod`
+- Remote deployment root: `/srv/langear`
+- Production backend compose files: `/srv/langear/docker-compose.yml` + `/srv/langear/docker-compose.server.yml`
+- Test backend compose file: `/srv/langear/docker-compose.test.yml`
+
 ## Environment Rules
 
 - Frontend env lives in `frontend/.env`
