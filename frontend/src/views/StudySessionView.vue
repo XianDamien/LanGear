@@ -9,9 +9,7 @@ import { useRecorder } from '@/composables/useRecorder'
 import { useAudioPlayer } from '@/composables/useAudioPlayer'
 import { useRealtimeAsr } from '@/composables/useRealtimeAsr'
 import RetroButton from '@/components/ui/RetroButton.vue'
-import RetroCard from '@/components/ui/RetroCard.vue'
-import CardFront from '@/components/study/CardFront.vue'
-import CardBack from '@/components/study/CardBack.vue'
+import RetellingCard from '@/components/study/cards/RetellingCard.vue'
 import StudyTaskNav from '@/components/study/StudyTaskNav.vue'
 import WordExplanation from '@/components/study/WordExplanation.vue'
 import SummaryModal from '@/components/summary/SummaryModal.vue'
@@ -54,7 +52,6 @@ const realtimeAsr = useRealtimeAsr()
 const isSummaryOpen = ref(false)
 const summaryText = ref<string | null>(null)
 const isSummaryLoading = ref(false)
-const isFeedbackLoading = ref(false)
 const isTranslationLoading = ref(false)
 
 function toSubmissionDisplayError(error: unknown): SubmissionDisplayError {
@@ -83,12 +80,15 @@ function toSubmissionDisplayError(error: unknown): SubmissionDisplayError {
   }
 }
 
-const studyCardClass = computed(() =>
-  isFlipped.value
-    ? 'flex h-full min-h-0 flex-col overflow-hidden p-4 sm:p-6 lg:p-8'
-    : 'flex h-full min-h-0 flex-col items-center justify-center p-6 text-center sm:p-8',
-)
 const sessionTitle = computed(() => lessonName.value || '学习任务')
+
+const ratingDisabled = computed(() =>
+  studyStore.submitState === 'submitting' ||
+    studyStore.asyncSubmitState === 'processing' ||
+    studyStore.asyncSubmitState === 'submitting' ||
+    studyStore.asyncSubmitState === 'failed' ||
+    studyStore.asyncSubmitState === 'idle'
+)
 
 const currentTask = computed(() => studyTasksStore.getTask(currentCard.value?.id))
 
@@ -537,41 +537,32 @@ function exitStudy() {
       class="relative flex flex-1 min-h-0 flex-col pb-4"
       data-testid="study-card"
     >
-      <RetroCard :class="studyCardClass">
-        <CardFront
-          v-if="!isFlipped"
-          :audio-playing="audioPlaying"
-          :is-recording="recorder.isRecording.value"
-          :live-transcript="liveTranscript"
-          :user-transcript="userTranscript"
-          :upload-state="uploadState"
-          :upload-progress="recorder.uploadProgress.value"
-          @play-audio="playCurrentAudio"
-          @toggle-recording="toggleRecording"
-          @flip="handleFlip"
-        />
-
-        <CardBack
-          v-else
-          :card="currentCard"
-          :user-transcript="userTranscript"
-          :user-audio-url="userAudioUrl"
-          :feedback="lastFeedback"
-          :feedback-loading="isFeedbackLoading"
-          :show-translation="showTranslation"
-          :translation-loading="isTranslationLoading"
-          :notes="notes"
-          :submit-state="submitState"
-          :async-submit-state="asyncSubmitState"
-          :feedback-v2="lastFeedbackV2"
-          :error-code="currentTask?.errorCode"
-          :error-message="currentTask?.errorMessage"
-          @show-translation="handleShowTranslation"
-          @word-click="handleWordClick"
-          @grade="handleGrade"
-          @update:notes="studyStore.notes = $event"
-        />
-      </RetroCard>
+      <RetellingCard
+        :card="currentCard"
+        :is-flipped="isFlipped"
+        :audio-playing="audioPlaying"
+        :is-recording="recorder.isRecording.value"
+        :live-transcript="liveTranscript"
+        :user-transcript="userTranscript"
+        :user-audio-url="userAudioUrl"
+        :upload-state="uploadState"
+        :upload-progress="recorder.uploadProgress.value"
+        :feedback-v2="lastFeedbackV2"
+        :async-submit-state="asyncSubmitState"
+        :error-code="currentTask?.errorCode"
+        :error-message="currentTask?.errorMessage"
+        :show-translation="showTranslation"
+        :translation-loading="isTranslationLoading"
+        :notes="notes"
+        :rating-disabled="ratingDisabled"
+        @play-reference="playCurrentAudio"
+        @toggle-recording="toggleRecording"
+        @flip="handleFlip"
+        @show-translation="handleShowTranslation"
+        @word-click="handleWordClick"
+        @grade="handleGrade"
+        @update:notes="studyStore.notes = $event"
+      />
 
       <WordExplanation
         v-if="selectedWord"

@@ -137,40 +137,12 @@ export interface StudySubmissionListItem {
   transcription: TranscriptionResult | null
   feedback: PollingResponseCompleted['feedback'] | null
 }
-
-export interface StudySubmissionListParams {
-  lesson_id: number
-  card_id?: number
+export interface StudySessionSummary {
+  new_remaining: number
+  review_remaining: number
+  due_count: number
+  new_cards?: number
 }
-
-/**
- * @deprecated 使用 SubmitReviewRequest (v2.0) 替代
- */
-export interface SubmitReviewRequestV1 {
-  lessonId: number
-  cardId: number
-  rating: Rating
-  userAudio: string
-  audioFormat: 'wav' | 'webm' | 'mp3'
-}
-
-/**
- * @deprecated 使用 PollingResponseCompleted (v2.0) 替代
- */
-export interface SubmitReviewResponse {
-  reviewLogId: number
-  resultType: 'single'
-  transcription: string
-  feedback: {
-    pronunciation: string
-    completeness: string
-    fluency: string
-    suggestions: string[]
-    overallScore: number
-  }
-  srs: SrsSnapshot
-}
-
 export interface StudySessionScope {
   source_ids?: number[]
   source_scope?: number[]

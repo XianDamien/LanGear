@@ -9,7 +9,6 @@ import {
 import { extractApiError } from '@/services/http'
 import type { Card, FsrsRating, FsrsState } from '@/types/domain'
 import type {
-  SubmitReviewResponse,
   PollingResponseCompleted,
   SubmissionDisplayError,
   SubmitReviewResponseAsync,
@@ -66,7 +65,6 @@ export const useStudyStore = defineStore('study', () => {
   const isFlipped = ref(false)
   const recordingState = ref<RecordingState>('idle')
   const submitState = ref<SubmitState>('idle')
-  const lastFeedback = ref<SubmitReviewResponse | null>(null)
   const userTranscript = ref('')
   const liveTranscript = ref('')
   const userAudioUrl = ref<string | null>(null)
@@ -127,7 +125,6 @@ export const useStudyStore = defineStore('study', () => {
     isFlipped.value = false
     recordingState.value = 'idle'
     submitState.value = 'idle'
-    lastFeedback.value = null
     userTranscript.value = ''
     liveTranscript.value = ''
     notes.value = ''
@@ -150,13 +147,6 @@ export const useStudyStore = defineStore('study', () => {
     lastFeedbackV2.value = null
     lastRatingResponse.value = null
     resetTimestampAudio()
-  }
-
-  /** @deprecated Use createFeedbackSubmission + submitCardRating instead */
-  async function submitCardReview(_rating: FsrsRating): Promise<'next' | 'summary'> {
-    void _rating
-    if (!lessonId.value || !currentCard.value) throw new Error('No active lesson')
-    throw new Error('旧版同步评分提交流程已停用')
   }
 
   async function createFeedbackSubmission(
@@ -291,7 +281,6 @@ export const useStudyStore = defineStore('study', () => {
     isFlipped,
     recordingState,
     submitState,
-    lastFeedback,
     userTranscript,
     liveTranscript,
     userAudioUrl,
@@ -307,7 +296,6 @@ export const useStudyStore = defineStore('study', () => {
     progress,
     loadLessonCards,
     resetCardState,
-    submitCardReview,
     selectCard,
     goNextCard,
     flip,

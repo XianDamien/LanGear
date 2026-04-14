@@ -1,51 +1,35 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Mic, Play, Volume2, Square, Upload } from 'lucide-vue-next'
-import { ElMessage } from 'element-plus'
+import { Mic, Square, Upload, Volume2, Play } from 'lucide-vue-next'
 import RetroButton from '@/components/ui/RetroButton.vue'
-import type { UploadState } from '@/stores/study'
 
 const props = defineProps<{
   audioPlaying: boolean
   isRecording: boolean
   liveTranscript: string
   userTranscript: string
-  uploadState?: UploadState
+  uploadState?: 'idle' | 'uploading' | 'uploaded' | 'failed'
   uploadProgress?: number
+  recordingDisabled?: boolean
 }>()
 
 const emit = defineEmits<{
-  playAudio: []
+  playReference: []
   toggleRecording: []
-  flip: []
 }>()
-
-function handleFlipClick() {
-  if (props.isRecording) {
-    ElMessage.warning('请先停止录音')
-    return
-  }
-
-  emit('flip')
-}
-
-const recordingDisabled = computed(() => props.audioPlaying && !props.isRecording)
 </script>
 
 <template>
-  <div
-    class="mx-auto w-full max-w-md space-y-6"
-    data-testid="card-front"
-  >
-    <!-- Play button -->
+  <div class="mx-auto w-full max-w-md space-y-6">
+    <!-- Play Reference button -->
     <div class="mb-8 flex justify-center">
       <div
         :class="[
-          'p-4 rounded-full border-4 inline-flex items-center justify-center w-24 h-24 cursor-pointer hover:bg-slate-50',
+          'p-4 rounded-full border-4 inline-flex items-center justify-center w-24 h-24 cursor-pointer hover:bg-slate-50 transition-colors',
           audioPlaying ? 'border-brand-accent animate-pulse' : 'border-slate-300',
         ]"
         data-testid="play-reference-audio"
-        @click="emit('playAudio')"
+        @click="emit('playReference')"
       >
         <Volume2
           v-if="audioPlaying"
@@ -58,17 +42,19 @@ const recordingDisabled = computed(() => props.audioPlaying && !props.isRecordin
         />
       </div>
     </div>
+    
     <p class="text-slate-500 text-sm uppercase tracking-widest text-center">
       听读跟读
     </p>
 
-    <!-- Live transcript -->
+    <!-- Transcription area -->
     <div
       class="min-h-[60px] text-brand-accent font-sans text-lg border-b border-slate-200 pb-2"
       data-testid="live-transcript"
     >
       {{ isRecording ? (liveTranscript || '...') : (userTranscript || '...') }}
     </div>
+    
     <div class="flex items-center justify-between text-xs uppercase text-slate-500">
       <span>ASR 实时反馈</span>
     </div>
@@ -93,15 +79,8 @@ const recordingDisabled = computed(() => props.audioPlaying && !props.isRecordin
         {{ isRecording ? '停止' : '录音' }}
       </RetroButton>
     </div>
-    <p
-      v-if="recordingDisabled"
-      class="text-center text-sm text-brand-alert"
-      data-testid="record-hint"
-    >
-      建议完整听完原音频之后再录音
-    </p>
 
-    <!-- v2.0: 上传进度指示器 -->
+    <!-- Upload progress -->
     <div
       v-if="uploadState === 'uploading'"
       class="bg-blue-50 border border-blue-200 rounded p-3"
@@ -112,7 +91,7 @@ const recordingDisabled = computed(() => props.audioPlaying && !props.isRecordin
           class="animate-pulse text-blue-600"
           :size="16"
         />
-        <span class="text-sm text-blue-900">上传中...</span>
+        <span class="text-sm text-blue-900">上传中... {{ uploadProgress }}%</span>
       </div>
       <div class="w-full bg-blue-200 rounded-full h-2">
         <div
@@ -121,16 +100,5 @@ const recordingDisabled = computed(() => props.audioPlaying && !props.isRecordin
         />
       </div>
     </div>
-
-    <!-- Flip button -->
-    <RetroButton
-      variant="primary"
-      class="mt-4 w-full"
-      :disabled="uploadState === 'uploading'"
-      data-testid="flip-button"
-      @click="handleFlipClick"
-    >
-      翻面复盘
-    </RetroButton>
   </div>
 </template>
