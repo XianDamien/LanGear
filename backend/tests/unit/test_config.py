@@ -28,6 +28,7 @@ def test_gemini_model_id_cannot_be_blank_for_gemini_provider():
 @pytest.mark.unit
 def test_gemini_settings_use_default_model_id(monkeypatch):
     monkeypatch.delenv("GEMINI_MODEL_ID", raising=False)
+    monkeypatch.delenv("GOOGLE_GEMINI_BASE_URL", raising=False)
 
     settings = Settings(
         _env_file=None,
@@ -43,6 +44,26 @@ def test_gemini_settings_use_default_model_id(monkeypatch):
     )
 
     assert settings.gemini_model_id == "gemini-3.1-flash-lite-preview"
+
+
+@pytest.mark.unit
+def test_google_gemini_base_url_is_trimmed():
+    settings = Settings(
+        _env_file=None,
+        database_url="sqlite:///data/langear.db",
+        gemini_api_key="test-key",
+        gemini_model_id="gemini-3.1-flash-lite-preview",
+        google_gemini_base_url="  https://relay.example.com  ",
+        ai_feedback_provider="gemini",
+        oss_access_key_id="id",
+        oss_access_key_secret="secret",
+        oss_endpoint="oss-cn-shanghai.aliyuncs.com",
+        oss_bucket_name="bucket",
+        aliyun_role_arn="acs:ram::123456789012:role/test",
+        dashscope_api_key="dashscope-key",
+    )
+
+    assert settings.google_gemini_base_url == "https://relay.example.com"
 
 
 @pytest.mark.unit

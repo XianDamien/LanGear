@@ -40,7 +40,13 @@ class GeminiAdapter:
         if not api_key:
             raise AIFeedbackError("Missing Gemini API key")
 
-        self.client = genai.Client(api_key=api_key)
+        client_kwargs: dict[str, Any] = {"api_key": api_key}
+        if settings.google_gemini_base_url:
+            client_kwargs["http_options"] = types.HttpOptions(
+                base_url=settings.google_gemini_base_url
+            )
+
+        self.client = genai.Client(**client_kwargs)
         self.model_id = settings.gemini_model_id.strip()
         self.prompts_dir = Path(__file__).parent / "prompts" / settings.gemini_prompt_version
 

@@ -26,6 +26,7 @@ class TestGeminiAdapter:
         object.__setattr__(module.settings, "gemini_api_key", "test-api-key")
         object.__setattr__(module.settings, "gemini_model_id", "gemini-test-model")
         object.__setattr__(module.settings, "gemini_prompt_version", "v1")
+        object.__setattr__(module.settings, "google_gemini_base_url", None)
 
         adapter = GeminiAdapter()
         monkeypatch.setattr(adapter, "_download_audio_bytes", lambda *_args, **_kwargs: b"audio-bytes")
@@ -41,10 +42,30 @@ class TestGeminiAdapter:
         object.__setattr__(module.settings, "gemini_api_key", "test-api-key")
         object.__setattr__(module.settings, "gemini_model_id", "gemini-test-model")
         object.__setattr__(module.settings, "gemini_prompt_version", "v1")
+        object.__setattr__(module.settings, "google_gemini_base_url", None)
 
         GeminiAdapter()
 
         mock_genai_client.assert_called_once_with(api_key="test-api-key")
+
+    def test_uses_configured_base_url(self, monkeypatch):
+        import app.adapters.gemini_adapter as module
+
+        mock_client = Mock()
+        mock_genai_client = Mock(return_value=mock_client)
+        monkeypatch.setattr(module.genai, "Client", mock_genai_client)
+
+        object.__setattr__(module.settings, "gemini_api_key", "test-api-key")
+        object.__setattr__(module.settings, "gemini_model_id", "gemini-test-model")
+        object.__setattr__(module.settings, "gemini_prompt_version", "v1")
+        object.__setattr__(module.settings, "google_gemini_base_url", "https://relay.example.com")
+
+        GeminiAdapter()
+
+        mock_genai_client.assert_called_once()
+        _, kwargs = mock_genai_client.call_args
+        assert kwargs["api_key"] == "test-api-key"
+        assert kwargs["http_options"].base_url == "https://relay.example.com"
 
     def test_load_prompt_from_versioned_directory(self, gemini_adapter):
         adapter, _ = gemini_adapter

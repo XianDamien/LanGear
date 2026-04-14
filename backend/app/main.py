@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.logging_config import setup_logging
 from app.schema_guard import validate_runtime_schema
 from app.routers import (
     dashboard,
@@ -19,10 +20,7 @@ from app.routers import (
 )
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
+setup_logging()
 
 logger = logging.getLogger(__name__)
 

@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     gemini_api_key: str
     gemini_model_id: str = "gemini-3.1-flash-lite-preview"
     gemini_prompt_version: str = "v1"
+    google_gemini_base_url: str | None = None
 
     # AI feedback provider
     ai_feedback_provider: str = "gemini"
@@ -92,6 +93,11 @@ class Settings(BaseSettings):
         """Validate provider-specific AI feedback settings."""
         self.database_url = self.resolved_database_url
         self.app_timezone = "Asia/Shanghai"
+        self.google_gemini_base_url = (
+            self.google_gemini_base_url.strip()
+            if self.google_gemini_base_url and self.google_gemini_base_url.strip()
+            else None
+        )
         provider = self.ai_feedback_provider.strip().lower()
         if provider == "gemini" and not self.gemini_model_id.strip():
             raise ValueError(
