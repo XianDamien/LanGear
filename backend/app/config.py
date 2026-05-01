@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Database
     database_url: str = DEFAULT_DATABASE_URL
 
+    # Local token auth
+    auth_token_secret: str | None = None
+
     # Business timezone
     app_timezone: str = "Asia/Shanghai"
 

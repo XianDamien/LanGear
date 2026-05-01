@@ -15,6 +15,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
     email = Column(String(100), unique=True, nullable=True)
+    password_hash = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=storage_now, nullable=False)
     updated_at = Column(DateTime, default=storage_now, onupdate=storage_now, nullable=False)
 

@@ -14,6 +14,18 @@ export interface ApiError {
   request_id: string
 }
 
+export interface CurrentUser {
+  id: number
+  username: string
+  email?: string | null
+}
+
+export interface AuthResponse {
+  access_token: string
+  token_type: 'bearer'
+  user: CurrentUser
+}
+
 export interface SubmissionDisplayError {
   errorCode: string | null
   errorMessage: string

@@ -67,6 +67,30 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
   const url = config.url || ''
   const method = (config.method || 'get').toLowerCase()
 
+  if (method === 'post' && (url === '/auth/login' || url === '/auth/register')) {
+    await delay(200)
+    const body = parseBody(config) as { username?: string }
+    const username = body.username?.trim() || 'mock-user'
+    return mockResolve({
+      access_token: `mock-token-${username}`,
+      token_type: 'bearer',
+      user: {
+        id: 1,
+        username,
+        email: null,
+      },
+    })
+  }
+
+  if (method === 'get' && url === '/auth/me') {
+    await delay(100)
+    return mockResolve({
+      id: 1,
+      username: 'mock-user',
+      email: null,
+    })
+  }
+
   if (method === 'get' && url === '/dashboard') {
     await delay()
     return mockResolve(mockDashboardData)

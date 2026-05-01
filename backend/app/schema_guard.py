@@ -12,6 +12,14 @@ from app.config import BACKEND_ROOT, settings
 from app.database import engine
 
 REQUIRED_TABLE_COLUMNS = {
+    "users": {
+        "id",
+        "username",
+        "email",
+        "password_hash",
+        "created_at",
+        "updated_at",
+    },
     "review_log": {
         "user_id",
         "user_deck_id",
