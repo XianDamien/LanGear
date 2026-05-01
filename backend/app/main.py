@@ -10,6 +10,7 @@ from app.logging_config import setup_logging
 from app.schema_guard import validate_runtime_schema
 from app.routers import (
     coach,
+    auth,
     dashboard,
     decks,
     health,
@@ -44,6 +45,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(oss.router)
 app.include_router(decks.router)
 app.include_router(realtime.router)

@@ -106,6 +106,7 @@ def test_validate_runtime_schema_rejects_stale_revision_and_missing_columns(tmp_
     assert "Missing tables:" in error_message
     for table_name in [
         "fsrs_review_log",
+        "users",
         "user_settings",
         "user_decks",
         "user_deck_cards",
@@ -168,6 +169,7 @@ def test_collect_missing_schema_reports_only_required_drift(tmp_path: Path):
     missing_tables, missing_columns = collect_missing_schema(engine)
 
     assert missing_tables == [
+        "users",
         "user_settings",
         "user_decks",
         "user_deck_cards",
