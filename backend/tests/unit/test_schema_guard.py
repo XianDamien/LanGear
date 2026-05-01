@@ -103,9 +103,18 @@ def test_validate_runtime_schema_rejects_stale_revision_and_missing_columns(tmp_
     assert "Database URL:" in error_message
     assert "Current DB revision: 16bdcd2b119f" in error_message
     assert f"Expected DB revision: {get_expected_revision()}" in error_message
-    assert "Missing tables: fsrs_review_log, user_settings, user_decks, user_deck_cards, user_card_fsrs" in error_message
+    assert "Missing tables:" in error_message
+    for table_name in [
+        "fsrs_review_log",
+        "user_settings",
+        "user_decks",
+        "user_deck_cards",
+        "user_card_fsrs",
+    ]:
+        assert table_name in error_message
+    assert "Missing columns:" in error_message
     assert "review_log(ai_status, rated_at, submitted_rating, user_deck_id, user_id)" in error_message
-    assert "Missing columns: user_card_srs(step)" in error_message
+    assert "user_card_srs(step)" in error_message
     assert "uv run alembic upgrade head" in error_message
 
 

@@ -143,9 +143,10 @@ def test_relative_sqlite_database_url_resolves_against_backend_root():
         dashscope_api_key="dashscope-key",
     )
 
-    assert settings.database_url == f"sqlite:///{(BACKEND_ROOT / 'data/langear.db').resolve()}"
-    assert settings.resolved_database_url.endswith("/backend/data/langear.db")
-    assert settings.sqlite_database_path == (BACKEND_ROOT / "data/langear.db").resolve()
+    expected_path = (BACKEND_ROOT / "data/langear.db").resolve()
+    assert settings.database_url == f"sqlite:///{expected_path}"
+    assert settings.resolved_database_url == f"sqlite:///{expected_path}"
+    assert settings.sqlite_database_path == expected_path
 
 
 @pytest.mark.unit

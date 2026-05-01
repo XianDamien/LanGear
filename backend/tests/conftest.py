@@ -288,7 +288,7 @@ def sample_multiple_reviews(test_db: Session, sample_card_with_srs):
     from tests.test_data.seed_data import create_multiple_review_logs
     card = sample_card_with_srs["card"]
     lesson = sample_card_with_srs["lesson"]
-    return create_multiple_review_logs(test_db, card.id, lesson.id, count=7, days_ago=7)
+    return create_multiple_review_logs(test_db, card.id, lesson.id, count=7, days_ago=6)
 
 
 # ============================================================================
