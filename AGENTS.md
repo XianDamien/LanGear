@@ -99,6 +99,17 @@ backend/app/
 - The title must include the main change points
 - Only commit task-related files unless explicitly asked otherwise
 
+## Tech stack skills
+
+- `~/.codex/skills/vue/SKILL.md`
+- `~/.codex/skills/nuxt/SKILL.md`
+- `~/.codex/skills/pinia/SKILL.md`
+- `~/.codex/skills/vite/SKILL.md`
+- `~/.codex/skills/vitepress/SKILL.md`
+- `~/.codex/skills/vitest/SKILL.md`
+- `~/.codex/skills/unocss/SKILL.md`
+- `~/.codex/skills/pnpm/SKILL.md`
+
 ## Documentation Files
 
 - `README.md` is the repository entry document for setup, run commands, and developer workflow
