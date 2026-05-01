@@ -32,6 +32,8 @@ class Deck(Base):
     # Relationships
     parent = relationship("Deck", remote_side=[id], backref="children")
     cards = relationship("Card", back_populates="deck")
+    user_decks = relationship("UserDeck", back_populates="origin_deck")
+    review_logs = relationship("ReviewLog", back_populates="deck")
 
     @property
     def is_source(self) -> bool:

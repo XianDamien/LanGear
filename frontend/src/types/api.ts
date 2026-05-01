@@ -248,8 +248,10 @@ export interface LessonSummary {
 }
 
 export interface SettingsData {
-  dailyNewLimit: number
-  dailyReviewLimit: number
+  desiredRetention: number
+  learningSteps: string
+  relearningSteps: string
+  maximumInterval: number
   defaultSourceScope: string
 }
 
