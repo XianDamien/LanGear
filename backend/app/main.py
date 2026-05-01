@@ -18,6 +18,7 @@ from app.routers import (
     settings as settings_router,
     study,
     study_session,
+    user_decks,
 )
 
 # Configure logging
@@ -48,6 +49,7 @@ app.include_router(decks.router)
 app.include_router(realtime.router)
 app.include_router(study.router)
 app.include_router(study_session.router)
+app.include_router(user_decks.router)
 app.include_router(dashboard.router)
 app.include_router(settings_router.router)
 app.include_router(coach.router)
