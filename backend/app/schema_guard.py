@@ -12,6 +12,50 @@ from app.config import BACKEND_ROOT, settings
 from app.database import engine
 
 REQUIRED_TABLE_COLUMNS = {
+    "review_log": {
+        "user_id",
+        "user_deck_id",
+        "ai_status",
+        "submitted_rating",
+        "rated_at",
+    },
+    "user_settings": {
+        "user_id",
+        "desired_retention",
+        "learning_steps_json",
+        "relearning_steps_json",
+        "maximum_interval",
+        "default_source_scope_json",
+        "created_at",
+        "updated_at",
+    },
+    "user_decks": {
+        "id",
+        "user_id",
+        "origin_deck_id",
+        "scope_type",
+        "title_snapshot",
+        "created_at",
+        "updated_at",
+    },
+    "user_deck_cards": {
+        "user_deck_id",
+        "card_id",
+        "new_position",
+        "created_at",
+    },
+    "user_card_fsrs": {
+        "user_id",
+        "card_id",
+        "state",
+        "step",
+        "stability",
+        "difficulty",
+        "due",
+        "last_review",
+        "last_rating",
+        "updated_at",
+    },
     "user_card_srs": {
         "card_id",
         "state",
@@ -110,9 +154,10 @@ def inspect_runtime_schema(db_engine: Engine | None = None) -> SchemaValidationR
 
 def format_schema_validation_error(result: SchemaValidationResult) -> str:
     """Build a human-friendly schema mismatch message."""
+    database_url = settings.resolved_database_url
     lines = [
         "Runtime database schema is out of date.",
-        f"SQLite database path: {settings.sqlite_database_path}",
+        f"Database URL: {database_url}",
         f"Current DB revision: {result.current_revision or 'missing'}",
         f"Expected DB revision: {result.expected_revision}",
     ]

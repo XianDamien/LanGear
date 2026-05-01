@@ -258,6 +258,13 @@ def sample_settings(test_db: Session):
 
 
 @pytest.fixture
+def sample_user_settings(test_db: Session):
+    """Provide default user settings."""
+    from tests.test_data.seed_data import create_test_user_settings
+    return create_test_user_settings(test_db)
+
+
+@pytest.fixture
 def sample_review_log_completed(test_db: Session, sample_card_with_srs):
     """Provide a completed review log."""
     from tests.test_data.seed_data import create_test_review_log

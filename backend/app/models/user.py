@@ -1,6 +1,7 @@
 """User model."""
 
 from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 from app.utils.timezone import storage_now
@@ -16,3 +17,8 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=True)
     created_at = Column(DateTime, default=storage_now, nullable=False)
     updated_at = Column(DateTime, default=storage_now, onupdate=storage_now, nullable=False)
+
+    settings = relationship("UserSettings", back_populates="user", uselist=False)
+    user_decks = relationship("UserDeck", back_populates="user")
+    card_fsrs = relationship("UserCardFSRS", back_populates="user")
+    review_logs = relationship("ReviewLog", back_populates="user")
