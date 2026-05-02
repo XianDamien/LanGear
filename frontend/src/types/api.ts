@@ -263,3 +263,7 @@ export interface LessonCardsResponse {
   lessonName: string
   cards: Card[]
 }
+
+export interface MyCourseLessonsResponse {
+  lesson_ids: number[]
+}

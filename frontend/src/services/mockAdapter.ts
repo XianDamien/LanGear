@@ -1,6 +1,7 @@
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 import { mockDashboardData } from './mock/dashboard'
 import { mockDeckTree, mockLessonCards } from './mock/decks'
+import { readMockMyCourseLessonIds, writeMockMyCourseLessonIds } from './mock/myCourses'
 import { mockLessonSummary } from './mock/summary'
 import { mockSettings } from './mock/settings'
 import {
@@ -63,8 +64,13 @@ function getParam(config: InternalAxiosRequestConfig, key: string): string | und
   return searchParams.get(key) ?? undefined
 }
 
+function normalizeUrl(rawUrl: string): string {
+  const pathname = new URL(rawUrl, 'http://mock.local').pathname
+  return pathname.replace(/^\/api\/v1/, '') || pathname
+}
+
 async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockResponse | null> {
-  const url = config.url || ''
+  const url = normalizeUrl(config.url || '')
   const method = (config.method || 'get').toLowerCase()
 
   if (method === 'get' && url === '/dashboard') {
@@ -75,6 +81,21 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
   if (method === 'get' && url === '/decks/tree') {
     await delay()
     return mockResolve(mockDeckTree)
+  }
+
+  if (method === 'get' && url === '/my-courses/lessons') {
+    await delay()
+    return mockResolve({
+      lesson_ids: readMockMyCourseLessonIds(),
+    })
+  }
+
+  if (method === 'put' && url === '/my-courses/lessons') {
+    await delay(200)
+    const body = parseBody(config) as { lesson_ids?: number[] }
+    return mockResolve({
+      lesson_ids: writeMockMyCourseLessonIds(body.lesson_ids || []),
+    })
   }
 
   const cardsMatch = url.match(/^\/decks\/([^/]+)\/cards$/)
@@ -92,7 +113,7 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
 
   if (method === 'get' && url === '/oss/sts-token') {
     await delay()
-      return mockResolve({
+    return mockResolve({
       access_key_id: 'STS.mock123',
       access_key_secret: 'mock-secret',
       security_token: 'mock-token',
