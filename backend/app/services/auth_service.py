@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.models.invitation_code import InvitationCode
 from app.models.user import User
 from app.utils.timezone import storage_now
 
@@ -117,11 +118,13 @@ class AuthService:
         self,
         username: str,
         password: str,
+        invitation_code: str,
         email: str | None = None,
     ) -> dict[str, Any]:
         """Create a user account and return an access token."""
         username = self._normalize_username(username)
         self._validate_password(password)
+        invitation = self._get_usable_invitation_code(invitation_code)
 
         existing = self.db.query(User).filter(User.username == username).first()
         if existing is not None and existing.password_hash:
@@ -135,8 +138,12 @@ class AuthService:
 
         user = existing or User(username=username)
         user.email = email
+        user.email_verified_at = None
         user.password_hash = hash_password(password)
+        user.invitation_code_id = invitation.id
+        invitation.used_count += 1
         self.db.add(user)
+        self.db.add(invitation)
         self.db.commit()
         self.db.refresh(user)
         return self._auth_payload(user)
@@ -169,6 +176,10 @@ class AuthService:
             "id": user.id,
             "username": user.username,
             "email": user.email,
+            "email_verified": user.email_verified_at is not None,
+            "email_verified_at": (
+                user.email_verified_at.isoformat() if user.email_verified_at else None
+            ),
         }
 
     @staticmethod
@@ -182,3 +193,25 @@ class AuthService:
     def _validate_password(password: str) -> None:
         if len(password) < 8:
             raise AuthError("Password must be at least 8 characters")
+
+    def _get_usable_invitation_code(self, code: str) -> InvitationCode:
+        code = code.strip()
+        if not code:
+            raise AuthError("Invitation code is required")
+
+        invitation = (
+            self.db.query(InvitationCode)
+            .filter(InvitationCode.code == code)
+            .with_for_update()
+            .first()
+        )
+        now = storage_now()
+        if invitation is None:
+            raise AuthError("Invitation code is invalid")
+        if invitation.disabled_at is not None:
+            raise AuthError("Invitation code is disabled")
+        if invitation.expires_at is not None and invitation.expires_at < now:
+            raise AuthError("Invitation code has expired")
+        if invitation.used_count >= invitation.max_uses:
+            raise AuthError("Invitation code has been used")
+        return invitation

@@ -9,6 +9,7 @@ export interface LoginPayload {
 
 export interface RegisterPayload extends LoginPayload {
   email?: string
+  invitation_code: string
 }
 
 export function login(payload: LoginPayload) {

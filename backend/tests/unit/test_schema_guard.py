@@ -20,6 +20,7 @@ from app.models import (  # noqa: F401
     Card,
     Deck,
     FSRSReviewLog,
+    InvitationCode,
     ReviewLog,
     Setting,
     User,
@@ -106,6 +107,7 @@ def test_validate_runtime_schema_rejects_stale_revision_and_missing_columns(tmp_
     assert "Missing tables:" in error_message
     for table_name in [
         "fsrs_review_log",
+        "invitation_codes",
         "users",
         "user_settings",
         "user_decks",
@@ -170,6 +172,7 @@ def test_collect_missing_schema_reports_only_required_drift(tmp_path: Path):
 
     assert missing_tables == [
         "users",
+        "invitation_codes",
         "user_settings",
         "user_decks",
         "user_deck_cards",
