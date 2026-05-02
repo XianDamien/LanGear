@@ -14,6 +14,7 @@ const mode = ref<'login' | 'register'>('login')
 const form = reactive({
   username: '',
   email: '',
+  invitationCode: '',
   password: '',
 })
 
@@ -32,6 +33,7 @@ async function submit() {
         username: form.username,
         password: form.password,
         email: form.email || undefined,
+        invitation_code: form.invitationCode,
       })
     }
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
@@ -113,6 +115,20 @@ async function submit() {
               class="mt-2 w-full border-2 border-slate-300 bg-white px-4 py-3 outline-none focus:border-brand-accent"
               autocomplete="email"
               type="email"
+            >
+          </label>
+
+          <label
+            v-if="mode === 'register'"
+            class="block"
+          >
+            <span class="text-sm font-bold text-slate-700">邀请码</span>
+            <input
+              v-model.trim="form.invitationCode"
+              class="mt-2 w-full border-2 border-slate-300 bg-white px-4 py-3 outline-none focus:border-brand-accent"
+              autocomplete="off"
+              required
+              maxlength="64"
             >
           </label>
 

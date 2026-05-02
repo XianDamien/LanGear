@@ -25,6 +25,7 @@ class AuthRequest(BaseModel):
 class RegisterRequest(AuthRequest):
     """Registration payload."""
 
+    invitation_code: str
     email: str | None = None
 
 
@@ -36,6 +37,7 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
         data = AuthService(db).register(
             username=request.username,
             password=request.password,
+            invitation_code=request.invitation_code,
             email=request.email,
         )
         return {

@@ -69,7 +69,10 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
 
   if (method === 'post' && (url === '/auth/login' || url === '/auth/register')) {
     await delay(200)
-    const body = parseBody(config) as { username?: string }
+    const body = parseBody(config) as { username?: string; email?: string; invitation_code?: string }
+    if (url === '/auth/register' && !body.invitation_code?.trim()) {
+      return mockError('AUTH_REGISTER_FAILED', '邀请码不能为空', 400)
+    }
     const username = body.username?.trim() || 'mock-user'
     return mockResolve({
       access_token: `mock-token-${username}`,
@@ -77,7 +80,9 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
       user: {
         id: 1,
         username,
-        email: null,
+        email: body.email || null,
+        email_verified: false,
+        email_verified_at: null,
       },
     })
   }
@@ -88,6 +93,8 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
       id: 1,
       username: 'mock-user',
       email: null,
+      email_verified: false,
+      email_verified_at: null,
     })
   }
 
