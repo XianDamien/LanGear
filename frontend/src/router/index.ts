@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { hasAccessToken } from '@/services/authToken'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -6,6 +7,12 @@ const router = createRouter({
     {
       path: '/',
       redirect: '/dashboard',
+    },
+    {
+      path: '/login',
+      name: 'Login',
+      component: () => import('@/views/LoginView.vue'),
+      meta: { public: true, fullscreen: true },
     },
     {
       path: '/dashboard',
@@ -44,6 +51,24 @@ const router = createRouter({
       component: () => import('@/views/SettingsView.vue'),
     },
   ],
+})
+
+router.beforeEach((to) => {
+  if (to.meta.public) {
+    if (to.name === 'Login' && hasAccessToken()) {
+      return { name: 'Dashboard' }
+    }
+    return true
+  }
+
+  if (!hasAccessToken()) {
+    return {
+      name: 'Login',
+      query: { redirect: to.fullPath },
+    }
+  }
+
+  return true
 })
 
 export default router

@@ -9,6 +9,7 @@ from app.config import settings
 from app.logging_config import setup_logging
 from app.schema_guard import validate_runtime_schema
 from app.routers import (
+    auth,
     dashboard,
     decks,
     health,
@@ -17,6 +18,7 @@ from app.routers import (
     settings as settings_router,
     study,
     study_session,
+    user_decks,
 )
 
 # Configure logging
@@ -42,11 +44,13 @@ app.add_middleware(
 
 # Register routers
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(oss.router)
 app.include_router(decks.router)
 app.include_router(realtime.router)
 app.include_router(study.router)
 app.include_router(study_session.router)
+app.include_router(user_decks.router)
 app.include_router(dashboard.router)
 app.include_router(settings_router.router)
 

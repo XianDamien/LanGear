@@ -16,7 +16,20 @@ from app.schema_guard import (
 )
 
 # Ensure all ORM models are registered on Base.metadata.
-from app.models import Card, Deck, FSRSReviewLog, ReviewLog, Setting, User, UserCardSRS  # noqa: F401
+from app.models import (  # noqa: F401
+    Card,
+    Deck,
+    FSRSReviewLog,
+    InvitationCode,
+    ReviewLog,
+    Setting,
+    User,
+    UserCardFSRS,
+    UserCardSRS,
+    UserDeck,
+    UserDeckCard,
+    UserSettings,
+)
 
 
 def _create_file_engine(db_path: Path):
@@ -64,15 +77,47 @@ def test_validate_runtime_schema_rejects_stale_revision_and_missing_columns(tmp_
                 """
             )
         )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE review_log (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    card_id INTEGER,
+                    deck_id INTEGER NOT NULL,
+                    rating VARCHAR(20),
+                    result_type VARCHAR(20) NOT NULL,
+                    ai_feedback_json JSON NOT NULL,
+                    status VARCHAR(20) NOT NULL,
+                    error_code VARCHAR(50),
+                    error_message TEXT,
+                    created_at DATETIME NOT NULL
+                )
+                """
+            )
+        )
 
     with pytest.raises(SchemaValidationError) as exc_info:
         validate_runtime_schema(engine)
 
     error_message = str(exc_info.value)
+    assert "Runtime database schema is out of date." in error_message
+    assert "Database URL:" in error_message
     assert "Current DB revision: 16bdcd2b119f" in error_message
     assert f"Expected DB revision: {get_expected_revision()}" in error_message
-    assert "Missing tables: fsrs_review_log" in error_message
-    assert "Missing columns: user_card_srs(step)" in error_message
+    assert "Missing tables:" in error_message
+    for table_name in [
+        "fsrs_review_log",
+        "invitation_codes",
+        "users",
+        "user_settings",
+        "user_decks",
+        "user_deck_cards",
+        "user_card_fsrs",
+    ]:
+        assert table_name in error_message
+    assert "Missing columns:" in error_message
+    assert "review_log(ai_status, rated_at, submitted_rating, user_deck_id, user_id)" in error_message
+    assert "user_card_srs(step)" in error_message
     assert "uv run alembic upgrade head" in error_message
 
 
@@ -104,10 +149,37 @@ def test_collect_missing_schema_reports_only_required_drift(tmp_path: Path):
                 """
             )
         )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE review_log (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    card_id INTEGER,
+                    deck_id INTEGER NOT NULL,
+                    rating VARCHAR(20),
+                    result_type VARCHAR(20) NOT NULL,
+                    ai_feedback_json JSON NOT NULL,
+                    status VARCHAR(20) NOT NULL,
+                    error_code VARCHAR(50),
+                    error_message TEXT,
+                    created_at DATETIME NOT NULL
+                )
+                """
+            )
+        )
 
     missing_tables, missing_columns = collect_missing_schema(engine)
 
-    assert missing_tables == ["fsrs_review_log"]
+    assert missing_tables == [
+        "users",
+        "invitation_codes",
+        "user_settings",
+        "user_decks",
+        "user_deck_cards",
+        "user_card_fsrs",
+        "fsrs_review_log",
+    ]
     assert missing_columns == {
+        "review_log": ["ai_status", "rated_at", "submitted_rating", "user_deck_id", "user_id"],
         "user_card_srs": ["difficulty", "stability"],
     }

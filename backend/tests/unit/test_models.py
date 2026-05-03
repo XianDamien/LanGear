@@ -7,7 +7,19 @@ Tests model creation, relationships, and constraints.
 import pytest
 from datetime import datetime
 from sqlalchemy.orm import Session
-from app.models import Card, Deck, FSRSReviewLog, ReviewLog, Setting, UserCardSRS
+from app.models import (
+    Card,
+    Deck,
+    FSRSReviewLog,
+    ReviewLog,
+    Setting,
+    User,
+    UserCardFSRS,
+    UserCardSRS,
+    UserDeck,
+    UserDeckCard,
+    UserSettings,
+)
 
 
 @pytest.mark.unit
@@ -299,6 +311,107 @@ class TestReviewLogModel:
         assert log.result_type == "summary"
         assert log.card_id is None
         assert log.rating is None
+
+    def test_review_log_user_domain_defaults(self, test_db: Session):
+        """Test new user-domain fields default safely during migration."""
+        lesson = Deck(title="Lesson 1", type="lesson", level_index=0)
+        test_db.add(lesson)
+        test_db.flush()
+
+        card = Card(deck_id=lesson.id, card_index=0, front_text="T", back_text="T", audio_path="a.wav")
+        test_db.add(card)
+        test_db.flush()
+
+        log = ReviewLog(
+            card_id=card.id,
+            deck_id=lesson.id,
+            result_type="single",
+            ai_feedback_json=None,
+        )
+        test_db.add(log)
+        test_db.commit()
+
+        assert log.user_id == 1
+        assert log.user_deck_id is None
+        assert log.ai_status == "processing"
+        assert log.submitted_rating is None
+        assert log.rated_at is None
+
+
+@pytest.mark.unit
+class TestUserLearningDomainModels:
+    """Test newly introduced user-domain models."""
+
+    def test_create_user_settings(self, test_db: Session):
+        user = User(id=1, username="default")
+        test_db.add(user)
+        test_db.flush()
+
+        settings = UserSettings(
+            user_id=user.id,
+            desired_retention=0.92,
+            learning_steps_json=[15],
+            relearning_steps_json=[15],
+            maximum_interval=36500,
+            default_source_scope_json=[1, 2],
+        )
+        test_db.add(settings)
+        test_db.commit()
+
+        assert settings.user_id == 1
+        assert settings.desired_retention == 0.92
+        assert settings.learning_steps_json == [15]
+        assert settings.default_source_scope_json == [1, 2]
+
+    def test_create_user_deck_membership_and_fsrs(self, test_db: Session):
+        user = User(id=1, username="default")
+        lesson = Deck(title="Lesson 1", type="lesson", level_index=0)
+        test_db.add_all([user, lesson])
+        test_db.flush()
+
+        card = Card(
+            deck_id=lesson.id,
+            card_index=0,
+            front_text="Hello world",
+            back_text="你好世界",
+            audio_path="audio/test/0.wav",
+        )
+        test_db.add(card)
+        test_db.flush()
+
+        user_deck = UserDeck(
+            user_id=user.id,
+            origin_deck_id=lesson.id,
+            scope_type="lesson",
+            title_snapshot=lesson.title,
+        )
+        test_db.add(user_deck)
+        test_db.flush()
+
+        user_deck_card = UserDeckCard(
+            user_deck_id=user_deck.id,
+            card_id=card.id,
+            new_position=1,
+        )
+        user_fsrs = UserCardFSRS(
+            user_id=user.id,
+            card_id=card.id,
+            state="review",
+            step=None,
+            stability=3.5,
+            difficulty=4.2,
+            due=datetime.now(),
+            last_review=datetime.now(),
+            last_rating="good",
+        )
+        test_db.add_all([user_deck_card, user_fsrs])
+        test_db.commit()
+
+        assert user_deck.id is not None
+        assert user_deck_card.new_position == 1
+        assert user_fsrs.user_id == 1
+        assert user_fsrs.card_id == card.id
+        assert user_fsrs.last_rating == "good"
 
 
 @pytest.mark.unit

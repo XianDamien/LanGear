@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models import Card, Deck, ReviewLog, Setting, UserCardSRS
+from app.models import Card, Deck, ReviewLog, Setting, User, UserCardSRS, UserSettings
 from app.utils.timezone import storage_now
 
 
@@ -295,6 +295,30 @@ def create_test_settings(db: Session) -> list[Setting]:
         db.add(setting)
         settings.append(setting)
 
+    db.commit()
+    return settings
+
+
+def create_test_user_settings(
+    db: Session,
+    user_id: int = 1,
+) -> UserSettings:
+    """Create a default user_settings row for tests."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        user = User(id=user_id, username=f"user-{user_id}")
+        db.add(user)
+        db.flush()
+
+    settings = UserSettings(
+        user_id=user_id,
+        desired_retention=0.9,
+        learning_steps_json=[15],
+        relearning_steps_json=[15],
+        maximum_interval=36500,
+        default_source_scope_json=[1, 2],
+    )
+    db.add(settings)
     db.commit()
     return settings
 

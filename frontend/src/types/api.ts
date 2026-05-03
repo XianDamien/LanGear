@@ -13,6 +13,20 @@ export interface ApiError {
   request_id: string
 }
 
+export interface CurrentUser {
+  id: number
+  username: string
+  email?: string | null
+  email_verified?: boolean
+  email_verified_at?: string | null
+}
+
+export interface AuthResponse {
+  access_token: string
+  token_type: 'bearer'
+  user: CurrentUser
+}
+
 export interface SubmissionDisplayError {
   errorCode: string | null
   errorMessage: string
@@ -227,8 +241,10 @@ export interface LessonSummary {
 }
 
 export interface SettingsData {
-  dailyNewLimit: number
-  dailyReviewLimit: number
+  desiredRetention: number
+  learningSteps: string
+  relearningSteps: string
+  maximumInterval: number
   defaultSourceScope: string
 }
 

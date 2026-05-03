@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies.current_user import get_current_user_id
 from app.services.settings_service import SettingsService
 
 router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
@@ -17,34 +18,23 @@ class SettingsUpdateRequest(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    daily_new_limit: int | None = None
-    daily_review_limit: int | None = None
+    desired_retention: float | None = None
+    learning_steps: list[int] | None = None
+    relearning_steps: list[int] | None = None
+    maximum_interval: int | None = None
     default_source_scope: list[int] | None = None
 
 
 @router.get("")
-def get_settings(db: Session = Depends(get_db)):
-    """Get all system settings.
-
-    Returns:
-        Response with settings:
-        - request_id: Unique request ID
-        - data: Dictionary of all settings
-
-    Example response:
-        {
-            "request_id": "...",
-            "data": {
-                "daily_new_limit": 20,
-                "daily_review_limit": 100,
-                "default_source_scope": [1, 2]
-            }
-        }
-    """
+def get_settings(
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Get current user's learning settings."""
     request_id = str(uuid.uuid4())
 
     settings_service = SettingsService(db)
-    settings = settings_service.get_settings()
+    settings = settings_service.get_settings(user_id)
 
     return {
         "request_id": request_id,
@@ -56,20 +46,9 @@ def get_settings(db: Session = Depends(get_db)):
 def update_settings(
     request: SettingsUpdateRequest,
     db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
-    """Update system settings.
-
-    Args:
-        request: Settings update request
-
-    Returns:
-        Response with updated settings:
-        - request_id: Unique request ID
-        - data: Dictionary of all updated settings
-
-    Raises:
-        400: If invalid settings provided
-    """
+    """Update current user's learning settings."""
     request_id = str(uuid.uuid4())
 
     try:
@@ -79,7 +58,7 @@ def update_settings(
         }
 
         settings_service = SettingsService(db)
-        updated_settings = settings_service.update_settings(updates)
+        updated_settings = settings_service.update_settings(user_id, updates)
 
         return {
             "request_id": request_id,

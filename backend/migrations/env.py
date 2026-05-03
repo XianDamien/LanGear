@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401
     card,
     deck,
     fsrs_review_log,
+    invitation_code,
     review_log,
     setting,
     user,
