@@ -9,6 +9,7 @@ from app.config import settings
 from app.logging_config import setup_logging
 from app.schema_guard import validate_runtime_schema
 from app.routers import (
+    coach,
     dashboard,
     decks,
     health,
@@ -49,6 +50,7 @@ app.include_router(study.router)
 app.include_router(study_session.router)
 app.include_router(dashboard.router)
 app.include_router(settings_router.router)
+app.include_router(coach.router)
 
 logger.info("LanGear API started successfully")
 
