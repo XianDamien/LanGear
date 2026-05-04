@@ -44,7 +44,7 @@ class FakeCoachRuntime:
 
         yield {"type": "message_delta", "thread_id": thread_id, "delta": "这是答疑结果。"}
 
-    def get_thread(self, *, user_id: int, thread_id: str):
+    async def get_thread(self, *, user_id: int, thread_id: str):
         record = self.threads.get((user_id, thread_id))
         if record is None:
             return None
@@ -57,7 +57,7 @@ class FakeCoachRuntime:
             message_count=len(record["messages"]),
         )
 
-    def get_thread_messages(self, *, user_id: int, thread_id: str):
+    async def get_thread_messages(self, *, user_id: int, thread_id: str):
         record = self.threads.get((user_id, thread_id))
         if record is None:
             raise ValueError(f"Coach thread {thread_id} not found")
@@ -158,3 +158,26 @@ tags: [politeness]
         messages = messages_response.json()["data"]
         assert len(messages) == 2
         assert messages[1]["content"] == "这是答疑结果。"
+
+    def test_missing_thread_returns_404(
+        self,
+        client: TestClient,
+        monkeypatch,
+        tmp_path,
+    ):
+        kb_dir = tmp_path / "kb"
+        kb_dir.mkdir()
+        fake_runtime = FakeCoachRuntime()
+        monkeypatch.setattr("app.services.coach_service.get_coach_runtime", lambda: fake_runtime)
+        monkeypatch.setattr("app.services.coach_kb_service.settings.coach_kb_dir", str(kb_dir))
+
+        thread_response = client.get("/api/v1/coach/threads/missing", params={"user_id": 1})
+        messages_response = client.get(
+            "/api/v1/coach/threads/missing/messages",
+            params={"user_id": 1},
+        )
+
+        assert thread_response.status_code == 404
+        assert thread_response.json()["detail"]["error"]["code"] == "THREAD_NOT_FOUND"
+        assert messages_response.status_code == 404
+        assert messages_response.json()["detail"]["error"]["code"] == "THREAD_NOT_FOUND"

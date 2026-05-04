@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 from typing import Any, AsyncGenerator
@@ -85,10 +86,13 @@ class CoachAgentRuntime:
     @staticmethod
     def _normalize_message_text(*, author: str, text: str) -> str:
         if author == "user" and "\n\n上下文 JSON：" in text:
-            return text.split("\n\n上下文 JSON：", 1)[0].strip()
+            payload = json.loads(text.split("\n\n上下文 JSON：", 1)[1])
+            user_question = payload.get("user_question")
+            if isinstance(user_question, str) and user_question.strip():
+                return user_question.strip()
         return text
 
-    def _get_or_create_session(
+    async def _get_or_create_session(
         self,
         *,
         user_id: int,
@@ -100,7 +104,7 @@ class CoachAgentRuntime:
         normalized_user_id = str(user_id)
 
         if thread_id:
-            session = self._session_service.get_session(
+            session = await self._session_service.get_session(
                 app_name=app_name,
                 user_id=normalized_user_id,
                 session_id=thread_id,
@@ -115,7 +119,7 @@ class CoachAgentRuntime:
                 )
             return session
 
-        return self._session_service.create_session(
+        return await self._session_service.create_session(
             app_name=app_name,
             user_id=normalized_user_id,
             session_id=str(uuid.uuid4()),
@@ -125,8 +129,8 @@ class CoachAgentRuntime:
             },
         )
 
-    def get_thread(self, *, user_id: int, thread_id: str) -> CoachThreadSummary | None:
-        session = self._session_service.get_session(
+    async def get_thread(self, *, user_id: int, thread_id: str) -> CoachThreadSummary | None:
+        session = await self._session_service.get_session(
             app_name=settings.coach_agent_app_name,
             user_id=str(user_id),
             session_id=thread_id,
@@ -143,8 +147,8 @@ class CoachAgentRuntime:
             message_count=len(session.events),
         )
 
-    def get_thread_messages(self, *, user_id: int, thread_id: str) -> list[dict[str, Any]]:
-        session = self._session_service.get_session(
+    async def get_thread_messages(self, *, user_id: int, thread_id: str) -> list[dict[str, Any]]:
+        session = await self._session_service.get_session(
             app_name=settings.coach_agent_app_name,
             user_id=str(user_id),
             session_id=thread_id,
@@ -185,7 +189,7 @@ class CoachAgentRuntime:
         prompt: str,
     ) -> AsyncGenerator[dict[str, Any], None]:
         _, Runner, _, types = self._import_adk()
-        session = self._get_or_create_session(
+        session = await self._get_or_create_session(
             user_id=user_id,
             lesson_id=lesson_id,
             card_id=card_id,

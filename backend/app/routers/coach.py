@@ -74,7 +74,7 @@ async def coach_chat(
 
 
 @router.get("/threads/{thread_id}")
-def get_coach_thread(
+async def get_coach_thread(
     thread_id: str,
     user_id: int = Query(..., ge=1),
     db: Session = Depends(get_db),
@@ -82,7 +82,7 @@ def get_coach_thread(
     """Get metadata for one coach thread."""
     request_id = str(uuid.uuid4())
     service = CoachService(db)
-    thread = service.get_thread(user_id=user_id, thread_id=thread_id)
+    thread = await service.get_thread(user_id=user_id, thread_id=thread_id)
     if thread is None:
         raise HTTPException(
             status_code=404,
@@ -102,7 +102,7 @@ def get_coach_thread(
 
 
 @router.get("/threads/{thread_id}/messages")
-def get_coach_thread_messages(
+async def get_coach_thread_messages(
     thread_id: str,
     user_id: int = Query(..., ge=1),
     db: Session = Depends(get_db),
@@ -111,7 +111,7 @@ def get_coach_thread_messages(
     request_id = str(uuid.uuid4())
     service = CoachService(db)
     try:
-        messages = service.get_thread_messages(user_id=user_id, thread_id=thread_id)
+        messages = await service.get_thread_messages(user_id=user_id, thread_id=thread_id)
     except ValueError as exc:
         raise HTTPException(
             status_code=404,

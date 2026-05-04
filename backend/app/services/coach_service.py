@@ -288,8 +288,8 @@ class CoachService:
             "thread_id": resolved_thread_id,
         }
 
-    def get_thread(self, *, user_id: int, thread_id: str) -> dict[str, Any] | None:
-        summary = self.runtime.get_thread(user_id=user_id, thread_id=thread_id)
+    async def get_thread(self, *, user_id: int, thread_id: str) -> dict[str, Any] | None:
+        summary = await self.runtime.get_thread(user_id=user_id, thread_id=thread_id)
         if summary is None:
             return None
         return {
@@ -301,5 +301,5 @@ class CoachService:
             "message_count": summary.message_count,
         }
 
-    def get_thread_messages(self, *, user_id: int, thread_id: str) -> list[dict[str, Any]]:
-        return self.runtime.get_thread_messages(user_id=user_id, thread_id=thread_id)
+    async def get_thread_messages(self, *, user_id: int, thread_id: str) -> list[dict[str, Any]]:
+        return await self.runtime.get_thread_messages(user_id=user_id, thread_id=thread_id)
