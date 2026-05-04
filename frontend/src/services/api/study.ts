@@ -52,10 +52,19 @@ export function submitReviewAsync(
 }
 
 export function fetchStudySession(params?: { sourceScope?: number[]; lessonId?: number }) {
+  return fetchStudySessionWithScope(params)
+}
+
+export function fetchStudySessionWithScope(params?: {
+  sourceScope?: number[]
+  lessonId?: number
+  userDeckId?: number
+}) {
   return http.get<StudySessionResponse>('/study/session', {
     params: {
       ...(params?.sourceScope?.length ? { source_scope: params.sourceScope.join(',') } : {}),
       ...(params?.lessonId ? { lesson_id: params.lessonId } : {}),
+      ...(params?.userDeckId ? { user_deck_id: params.userDeckId } : {}),
     },
   })
 }

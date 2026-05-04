@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Home, BookOpen, Settings as SettingsIcon } from 'lucide-vue-next'
+import { Home, BookMarked, BookOpen, Settings as SettingsIcon } from 'lucide-vue-next'
 import SidebarNav from './SidebarNav.vue'
 import RetroButton from '../ui/RetroButton.vue'
 
@@ -44,6 +44,12 @@ const emit = defineEmits<{
         to="/library"
         :icon="BookOpen"
         label="题库"
+        @navigate="emit('close')"
+      />
+      <SidebarNav
+        to="/my-courses"
+        :icon="BookMarked"
+        label="我的课程"
         @navigate="emit('close')"
       />
       <SidebarNav

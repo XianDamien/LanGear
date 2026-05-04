@@ -84,6 +84,7 @@ export interface SubmitReviewRequest {
   card_id: number
   oss_audio_path: string
   realtime_session_id: string
+  user_deck_id?: number | null
   // Optional client-side realtime transcript fallback (used by mock adapter).
   transcription_text?: string
 }
@@ -143,6 +144,7 @@ export interface StudySubmissionListItem {
   submission_id: number
   card_id: number | null
   lesson_id: number
+  user_deck_id: number | null
   status: SubmissionStatus
   error_code: string | null
   error_message: string | null
@@ -153,7 +155,8 @@ export interface StudySubmissionListItem {
 }
 
 export interface StudySubmissionListParams {
-  lesson_id: number
+  lesson_id?: number
+  user_deck_id?: number
   card_id?: number
 }
 
@@ -189,6 +192,7 @@ export interface StudySessionScope {
   source_ids?: number[]
   source_scope?: number[]
   lesson_id?: number | null
+  user_deck_id?: number | null
 }
 
 export interface StudySessionQuota {
@@ -299,4 +303,27 @@ export interface LessonCardsResponse {
   lessonId: string
   lessonName: string
   cards: Card[]
+}
+
+export interface MyCourseLessonsResponse {
+  lesson_ids: number[]
+}
+
+export interface UserDeckSummary {
+  id: number
+  origin_deck_id: number
+  title: string
+  scope_type: 'source' | 'unit' | 'lesson'
+  total_count: number
+  new_count: number
+  learning_count: number
+  review_count: number
+}
+
+export interface UserDeckListResponse {
+  user_decks: UserDeckSummary[]
+}
+
+export interface UserDeckSelectionResponse extends UserDeckListResponse {
+  origin_deck_ids: number[]
 }

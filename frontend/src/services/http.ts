@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { getUseMockMode } from '@/config/runtimeFlags'
 import { installMockAdapter } from './mockAdapter'
 import { getAccessToken } from './authToken'
 import type { ApiError } from '@/types/api'
@@ -12,7 +13,7 @@ const http = axios.create({
   },
 })
 
-if (import.meta.env.VITE_USE_MOCK === 'true') {
+if (getUseMockMode()) {
   installMockAdapter(http)
 } else {
   http.interceptors.request.use((config) => {

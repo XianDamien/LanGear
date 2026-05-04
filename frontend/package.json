@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:mock": "sh -c 'vite --mode mock --host \"${HOST:-localhost}\" --port \"${PORT:-3002}\"'",
     "build": "vue-tsc -b && vite build",
+    "build:mock": "vue-tsc -b && vite build --mode mock",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
     "lint": "eslint . --ext .ts,.vue",

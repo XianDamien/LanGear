@@ -1,6 +1,11 @@
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 import { mockDashboardData } from './mock/dashboard'
 import { mockDeckTree, mockLessonCards } from './mock/decks'
+import {
+  buildMockUserDecks,
+  readMockUserDeckOriginIds,
+  writeMockUserDeckOriginIds,
+} from './mock/myCourses'
 import { mockLessonSummary } from './mock/summary'
 import { mockSettings } from './mock/settings'
 import {
@@ -63,8 +68,13 @@ function getParam(config: InternalAxiosRequestConfig, key: string): string | und
   return searchParams.get(key) ?? undefined
 }
 
+function normalizeUrl(rawUrl: string): string {
+  const pathname = new URL(rawUrl, 'http://mock.local').pathname
+  return pathname.replace(/^\/api\/v1/, '') || pathname
+}
+
 async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockResponse | null> {
-  const url = config.url || ''
+  const url = normalizeUrl(config.url || '')
   const method = (config.method || 'get').toLowerCase()
 
   if (method === 'post' && (url === '/auth/login' || url === '/auth/register')) {
@@ -108,6 +118,23 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
     return mockResolve(mockDeckTree)
   }
 
+  if (method === 'get' && url === '/user-decks') {
+    await delay()
+    return mockResolve({
+      user_decks: buildMockUserDecks(readMockUserDeckOriginIds()),
+    })
+  }
+
+  if (method === 'put' && url === '/user-decks/selection') {
+    await delay(200)
+    const body = parseBody(config) as { origin_deck_ids?: number[] }
+    const originDeckIds = writeMockUserDeckOriginIds(body.origin_deck_ids || [])
+    return mockResolve({
+      origin_deck_ids: originDeckIds,
+      user_decks: buildMockUserDecks(originDeckIds),
+    })
+  }
+
   const cardsMatch = url.match(/^\/decks\/([^/]+)\/cards$/)
   if (method === 'get' && cardsMatch) {
     await delay()
@@ -118,12 +145,18 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
   if (method === 'get' && url.startsWith('/study/session')) {
     await delay()
     const lessonId = Number(getParam(config, 'lesson_id'))
-    return mockResolve(buildMockStudySession(Number.isFinite(lessonId) ? lessonId : undefined))
+    const userDeckId = Number(getParam(config, 'user_deck_id'))
+    return mockResolve(
+      buildMockStudySession({
+        lessonId: Number.isFinite(lessonId) ? lessonId : undefined,
+        userDeckId: Number.isFinite(userDeckId) ? userDeckId : undefined,
+      }),
+    )
   }
 
   if (method === 'get' && url === '/oss/sts-token') {
     await delay()
-      return mockResolve({
+    return mockResolve({
       access_key_id: 'STS.mock123',
       access_key_secret: 'mock-secret',
       security_token: 'mock-token',
@@ -139,6 +172,7 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
     const body = parseBody(config) as {
       lesson_id?: number
       card_id?: number
+      user_deck_id?: number | null
       oss_audio_path?: string
       realtime_session_id?: string
       transcription_text?: string
@@ -154,6 +188,7 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
         submission_id: submissionId,
         lesson_id: body.lesson_id ?? null,
         card_id: body.card_id ?? null,
+        user_deck_id: body.user_deck_id ?? null,
         status: 'processing',
         timestamp: Date.now(),
         created_at: formatBusinessIso(new Date()),
@@ -172,17 +207,24 @@ async function matchRoute(config: InternalAxiosRequestConfig): Promise<MockRespo
   if (method === 'get' && url === '/study/submissions') {
     await delay(150)
     const lessonId = Number(getParam(config, 'lesson_id'))
+    const userDeckIdParam = getParam(config, 'user_deck_id')
+    const userDeckId = userDeckIdParam != null ? Number(userDeckIdParam) : null
     const cardIdParam = getParam(config, 'card_id')
     const cardId = cardIdParam != null ? Number(cardIdParam) : null
 
     const items = readStoredSubmissions()
-      .filter((item) => Number(item.lesson_id) === lessonId)
+      .filter((item) =>
+        userDeckId != null
+          ? Number(item.user_deck_id) === userDeckId
+          : Number(item.lesson_id) === lessonId,
+      )
       .filter((item) => (cardId == null ? true : Number(item.card_id) === cardId))
       .sort((left, right) => String(right.created_at).localeCompare(String(left.created_at)))
       .map((item) => ({
         submission_id: Number(item.submission_id),
         card_id: item.card_id != null ? Number(item.card_id) : null,
         lesson_id: Number(item.lesson_id),
+        user_deck_id: item.user_deck_id != null ? Number(item.user_deck_id) : null,
         status: String(item.status),
         error_code: item.error_code ?? null,
         error_message: item.error_message ?? null,
